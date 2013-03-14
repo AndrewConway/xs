@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+<!--   -->
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   viewBox="0 0 64 64"
+   id="svg2383"
+   sodipodi:version="0.32"
+   inkscape:version="0.46"
+   sodipodi:docname="Delete2.svg"
+   inkscape:output_extension="org.inkscape.output.svg.inkscape">
+  <defs
+     id="defs2385">
+    <filter
+       inkscape:collect="always"
+       id="filter3268">
+      <feGaussianBlur
+         inkscape:collect="always"
+         stdDeviation="0.305"
+         id="feGaussianBlur3270"
+         in="SourceAlpha" />
+      <feOffset
+         dx="1"
+         dy="1"
+         id="feOffset3274"
+         result="result0" />
+      <feMerge
+         id="feMerge3276">
+        <feMergeNode
+           inkscape:collect="always"
+           id="feMergeNode3280"
+           in="result0" />
+        <feMergeNode
+           inkscape:collect="always"
+           id="feMergeNode3282"
+           in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <g
+     id="layer1"
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer">
+    <path
+       style="fill:#ff0000;fill-opacity:1;fill-rule:evenodd;stroke:#ff0000;stroke-width:1;stroke-linecap:butt;stroke-linejoin:round;marker-start:none;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;filter:url(#filter3268)"
+       d="M 28,2 L 28,28 L 2,28 L 2,36 L 28,36 L 28,62 L 36,62 L 36,36 L 62,36 L 62,28 L 36,28 L 36,2 L 28,2 z"
+       id="rect2397"
+       transform="matrix(0.7071068,-0.7071068,0.7071068,0.7071068,-13.254834,32)" />
+  </g>
+</svg>

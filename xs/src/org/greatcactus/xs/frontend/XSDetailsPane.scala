@@ -1,0 +1,728 @@
+/**
+ * Copyright Andrew Conway 2012-2013. All rights reserved.
+ */
+package org.greatcactus.xs.frontend
+
+import java.util.Locale
+import scala.xml.Attribute
+import scala.xml.Text
+import scala.xml.NodeSeq
+import scala.collection.mutable.ListBuffer
+import org.greatcactus.xs.api.display.RichLabel
+import org.greatcactus.xs.api.icon.Icon
+import org.greatcactus.xs.api.errors.ResolvedXSError
+import org.greatcactus.xs.impl.XSFieldInfo
+import scala.util.Success
+import scala.util.Failure
+import org.greatcactus.xs.impl.TrimInfo
+import org.greatcactus.xs.impl.CollectionStringUtil
+
+/**
+ * A GUI client should extend this controller to manage the "details" pane of the item currently being edited.
+ * 
+ * It will get events flowing to it (change of what object is being edited from XS, change of details from whatever UI elements it has produced). This keeps track of what is currently being shown, and the contents of its fields.
+ * 
+ * There will be one copy of this per client
+ *
+ */
+abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit) {
+
+  private var currentlyShowing : Option[XSTreeNode] = None
+  private var currentPane : Option[DetailsPaneFields] = None
+  private var currentUIElements : Option[UIFields] = None
+  
+  def getCurrentlyShowing = currentlyShowing
+  def getCurrentPane = currentPane
+  def getCurrentUIElements = currentUIElements
+  
+  def dispose() {
+    synchronized {
+      for (gui<-currentUIElements) dispose(gui)
+      currentUIElements=None
+    }
+  }
+
+  /** Called by XSEdit when the thing currently being show has changed. */
+  def setCurrentlyEditing(newnode:Option[XSTreeNode]) {
+    synchronized {
+      if (currentlyShowing!=newnode) {
+        currentlyShowing=newnode
+        newnode match {
+          case Some(t) =>
+            setNodeIDCurrentlyBeingEdited(t.uid.toString)
+            val newPane = t.info.getPane(locale,t.mayDelete)
+            val wrappedNewPane = Some(newPane)
+            if (currentPane!=wrappedNewPane) {
+              dispose()
+              currentPane=wrappedNewPane
+              currentUIElements=Some(makeNewGUI(t,newPane))
+            } else userHasAbandonedNoncanonicalEdits()
+            refresh() // needs to be done even if a new GUI is made to update the errors.
+          case None =>
+            setNodeIDCurrentlyBeingEdited(null)
+            dispose()
+            currentPane = None
+        }
+        flushClientCommands()
+      }
+    }
+  }
+
+  var nodeIDCurrentlyBeingEdited:String = null
+  /**
+   * For clients with a delay between the client and the server (eg web browser), then there is the problem of
+   * what if the client does some action (eg make a new field), and then, before the client is correctly updated,
+   * does some new action believing it to be in the same context. Then by the time it reaches the server, the server
+   * thinks the context is different. A similar problem occurs if the user presses some action twice if it didn't work
+   * immediately the first time.
+   * 
+   * The XS resolution is to send a token indicating what is currently being edited. Context sensitive user actions
+   * will then send back the token with them. The server will then ignore commands if the token from the client
+   * does not match what the server expects.
+   */
+  def setNodeIDCurrentlyBeingEdited(id:String) {
+    nodeIDCurrentlyBeingEdited=id
+  }
+  
+  
+  //
+  // Commands that the client send to XS (triggered by UI actions by the user)
+  //
+  
+  /** The client should call this when an action has been triggered by the user. The argument is the GUI item that has been triggered. */
+  def uiActivated(uiElement:T) {
+    uiAction(uiElement,{
+      case f:UIFieldAction => node => f.go(node)
+    })
+  }
+  
+  /** The client should call this when a gui element represented by a string has changed its value */
+  def uiChangedTextField(uiElement:T,changedTo:String,finalChange:Boolean) {
+    //println("Changing field "+uiElement+" to "+changedTo)
+    //println("Field "+uiField(uiElement))
+    uiAction(uiElement,{
+      case f:UIFieldText => node => f.changedByGUI(node,changedTo)
+      case f:UIFieldImage => node => f.changedByGUI(node, changedTo)
+    })
+  }
+  
+  /** The client should call this when a gui element represented by a boolean has changed its value */
+  def uiChangedBooleanField(uiElement:T,changedTo:Boolean) {
+    uiAction(uiElement,{
+      case f:UIFieldBoolean => node => f.changedByGUI(node,changedTo)
+    })
+  }
+
+  /** The client should call this when a gui element represented by a grid makes a new row by editing a field */
+  def uiNewRowOnGrid(uiElement:T,columnName:String,newValue:String) {
+    uiAction(uiElement,{
+      case f:UIFieldTable => node => f.addedNewRow(node,columnName,newValue)
+    })    
+  }
+  /** The client should call this when a gui element represented by a grid changes a cell entry. */
+  def uiChangeGrid(uiElement:T,rowNumber:Int,columnName:String,newValue:String) {
+    uiAction(uiElement,{
+      case f:UIFieldTable => node => f.changedElement(node,rowNumber,columnName,newValue)
+    })
+  }
+  
+  /** The client should call this when a gui element represented by a grid reorders rows by drag and drop or similar */
+  def uiDragGridRows(uiElement:T,rowsToBeMoved:Seq[Int],insertBefore:Int) {
+    uiAction(uiElement,{
+      case f:UIFieldTable => node => f.uiDragGridRows(node,rowsToBeMoved,insertBefore)
+    })    
+  }
+
+  def uiTableContextMenu(uiElement:T,command:String,selectedRows:Seq[Int]) {
+    uiAction(uiElement,{
+      case f:UIFieldTable => node => f.uiTableContextMenu(node,command,selectedRows)
+    })        
+  }
+  /** perform the given action on the uiElement */
+  private def uiAction(uiElement:T,action:PartialFunction[UIField,XSTreeNode=>Unit]) {
+    synchronized {
+     try {
+      for (node<-currentlyShowing) {
+        for (elem<-uiField(uiElement)) 
+          if (action.isDefinedAt(elem)) action(elem)(node)
+      }
+     } catch { case e:Exception => e.printStackTrace() } // make sure that XS doesn't crash the front end code.
+    }
+  }
+
+  //
+  // Commands XS sends to the client
+  //
+  
+  /** Client code to dispose of the GUI elements created previously */
+  def dispose(guis:UIFields) : Unit
+  /** Called when the screen should be set to blank */
+  def setBlankScreen() : Unit
+  /** Called after multiple possibly defered client commands */
+  def flushClientCommands()
+  /** Create a new object for generating the GUI elements for a new screen */  
+  def newCreator() : GUICreator[T]
+  /** XS sending a command to the GUI to change what it is showing. */ 
+  def changeUITextField(gui:T,shouldBe:String)
+  /** XS sending a command to the GUI to change what an image is showing. The argument is a URL of an image. */ 
+  def changeUIImageField(gui:T,shouldBe:String)
+  /** XS sending a command to the GUI to change what it is showing. */ 
+  def changeUIBooleanField(gui:T,shouldBe:Boolean)
+  /** XS sending a command to the GUI to change the whole contents of the table */
+  def changeUIWholeTable(gui:T,shouldBe:IndexedSeq[IndexedSeq[String]])
+  /** XS sending a command to the GUI to change a particular line of the table */
+  def changeUISingleLineTable(gui:T,index:Int,shouldBe:IndexedSeq[String])
+  /** XS sending a command to the GUI to change whether a field is visible. */
+  def changeUIvisibility(gui:T,visible:Boolean)
+  /** XS sending a command to the GUI to change whether a field is enabled. */ 
+  def changeUIenabledness(gui:T,enabled:Boolean)
+  /** XS sending a command to the GUI to change what a pseudo-field is showing */
+  def changeUIShowText(gui:T,shouldBe:RichLabel)
+  /** XS sending a command to the GUI to change what text a label is */
+  def changeUILabelText(gui:T,shouldBe:RichLabel)
+  /** XS sending a command to the GUI to change what icon a label has */
+  def changeUILabelIcon(gui:T,icon:Option[Icon])
+  /** XS sending a command to the GUI to change the errors shown for a field */
+  def changeErrors(gui:T,errors:List[ResolvedXSError])
+  /** XS sending a command to the GUI to change the errors shown for a field in a table. */
+  def changeGridErrors(gui:T,row:Int,col:Int,errors:List[ResolvedXSError])
+  /** XS sending a command to the GUI to change the fact that the contents are illegal - eg a blank string box when a number is needed. This should do something like set a red background. */
+  def setUIFieldIllegalContents(gui:T,isIllegal:Boolean)
+  /** XS sending a command to the GUI to change the set of entries in a table that are illegal - eg a blank string box when a number is needed. This should do something like set a red background. The mey of the illegalEntries field is the row number; the contents are the column numbers. */
+  def setUITableEntriesIllegalContents(gui:T,illegalEntries:Map[Int,List[Int]])
+  //
+  // Utility functions
+  //
+  
+  private def makeNewGUI(tree:XSTreeNode,pane:DetailsPaneFields) : UIFields = {
+    val creator = newCreator()
+    val buffer = new ListBuffer[UIField]
+    def getState(field:DetailsPaneField) = {
+        val enabled = field.shouldBeEnabled(tree)
+        val visible = field.shouldBeVisible(tree)
+        val icon = tree.specialIconForField(field.name)
+        val canHaveSpecialIcon = tree.info.dependencyInjectionInfo.fieldIconProvider.contains(field.name)
+        val label = tree.specialLabelForField(field.name,locale)
+        val canHaveSpecialLabel = tree.info.dependencyInjectionInfo.fieldLabelProvider.contains(field.name)
+        new CurrentFieldState(enabled,visible,icon,label,canHaveSpecialIcon,canHaveSpecialLabel)              
+    }
+    val headingState = getState(pane.field)
+    val headingGUI = creator.startForm(pane.field,headingState)
+    buffer+=new UIFieldHeading(pane.field,headingGUI,headingState)
+    for (section<-pane.sections) {
+      val sectionState = getState(section.field)
+      val sectionGUI = creator.startSection(section.field,sectionState)
+      buffer+=new UIFieldHeading(section.field,sectionGUI,sectionState)
+      for (field<-section.fields) {
+        val state = getState(field)
+        field match {
+          case f:DetailsPaneFieldAction =>  
+            val gui = creator.createAction(f,state)
+            buffer+=new UIFieldAction(f,gui,state)
+          case f:DetailsPaneFieldText =>
+            val initialValue = f.get(tree)
+            val gui = creator.createTextField(f, state, initialValue)
+            buffer+=new UIFieldText(f,gui,state, initialValue,f.choices)
+          case f:DetailsPaneFieldBoolean =>
+            val initialValue = f.get(tree)
+            val gui = creator.createBooleanField(f, state, initialValue)
+            buffer+=new UIFieldBoolean(f,gui,state, initialValue)            
+          case f:DetailsPaneFieldShowText =>
+            val initialValue = f.get(tree,locale)
+            val gui = creator.createShowTextField(f,state, initialValue)
+            buffer+=new UIFieldShowText(f,gui,state, initialValue,locale)
+          case f:DetailsPaneFieldImage =>
+            val initialValue = f.get(tree)
+            val gui = creator.createImageField(f,state, initialValue)
+            buffer+=new UIFieldImage(f,gui,state, initialValue) 
+          case f:DetailsPaneFieldTable =>
+            val initialValue = f.get(tree)._2
+            val gui = creator.createTableField(f,state, initialValue)
+            buffer+=new UIFieldTable(f,gui,state, initialValue)             
+          case f:DetailsPaneFieldSection => throw new IllegalArgumentException
+        }  
+      }
+      creator.endSection(section.field,sectionGUI,sectionState)
+    }
+    creator.endForm()
+    new UIFields(buffer.toList)
+  }
+  
+  def refresh() {
+    synchronized {
+      for (uifields<-currentUIElements; node<-currentlyShowing; uifield<-uifields.elems) uifield.refresh(node)
+      flushClientCommands()
+    }
+  }
+  
+  def refresh(changes:TreeChange) {
+    val cs = currentlyShowing.getOrElse(null)
+    //println("XSDetailsPane.refresh "+cs)
+    if (changes.contains(cs)) refresh()
+    else if (cs!=null) for (c<-changes.elements) if (c.parent.parent==cs) c.parent.getTableLine match {
+      case None =>
+        //println("Found a child of the thing being displayed that is not a table line")
+      case Some((field,linenumber)) => // We have a change for that particular line number for that particular field.
+        //println("Found a child that is a table line")
+        for (uifields<-currentUIElements;uifield<-uifields.elems) uifield match {
+          case t:UIFieldTable if t.field.field==field => 
+           // println("Found table "+t.field.name)
+            t.refresh(c.parent,linenumber)
+            flushClientCommands()
+          case f =>
+           // println("Not "+f.field+" called "+f.field.name+" looking for "+field+" called "+field.name)
+        }
+    }
+  }
+
+  def userHasAbandonedNoncanonicalEdits() {
+    synchronized {
+      for (uifields<-currentUIElements; node<-currentlyShowing; uifield<-uifields.elems) uifield.userHasAbandonedNoncanonicalEdits()
+    }    
+  }
+  /** The fields currently being shown */
+  class UIFields(val elems:List[UIField]) {
+    def map : Map[T,UIField] = Map.empty++(for (e<-elems) yield e.gui->e)
+    override def toString : String = elems.filter{_.currently.visible}.mkString("\n")
+  }
+
+  def uiField(gui:T) : Option[UIField] = currentUIElements.flatMap{_.map.get(gui)}
+  
+  sealed abstract class UIField  {
+    def field:DetailsPaneField
+    def gui:T
+    def currently:CurrentFieldState
+    def humanEditedTrimInfo:Array[Option[TrimInfo]]
+    
+    var currentlyShowingErrors : List[ResolvedXSError] = Nil
+
+    /** 
+     * Sometimes a field may have a value shown that is different from the actual value in the data structure.
+     * This would be, for instance, if the field were an integer, and the user had backspaced it in preparation
+     * to type a new number. We should leave what was there rather than replace it by zero or something. On the
+     * other hand, we don't want to keep it forever (for instance, change the object currently being viewed). When
+     * we no longer want to keep it, call this function.
+     */
+    def userHasAbandonedNoncanonicalEdits() {}
+    
+    /** Update the GUI with the contents of the object. */
+    def refresh(node:XSTreeNode) : Unit
+    
+    def refreshCurrently(node:XSTreeNode) {
+      // println("refreshCurrently() for "+field.name)
+      val shouldBeEnabled = field.shouldBeEnabled(node)
+      if (shouldBeEnabled!=currently.enabled) {
+        currently.enabled=shouldBeEnabled
+        changeUIenabledness(gui,shouldBeEnabled)
+      }    
+      val shouldBeVisible = field.shouldBeVisible(node)
+      if (shouldBeVisible!=currently.visible) {
+        currently.visible=shouldBeVisible
+        changeUIvisibility(gui,shouldBeVisible)
+      }    
+      if (currently.canHaveSpecialIcon) {
+        val specialIcon = node.specialIconForField(field.name)
+        // println("Special icon = "+specialIcon)
+        if (specialIcon!=currently.specialIcon) {
+          currently.specialIcon=specialIcon
+          changeUILabelIcon(gui,specialIcon.orElse(field.icon))
+        }
+      }
+      if (currently.canHaveSpecialLabel) {
+        val specialLabel = node.specialLabelForField(field.name,locale)
+        // println("Special label = "+specialLabel)
+        if (specialLabel!=currently.specialLabel) {
+          currently.specialLabel=specialLabel
+          changeUILabelText(gui,specialLabel.getOrElse(RichLabel(field.label)))
+        }
+      }
+      if (field.couldContainErrorIcon) {
+        val errors = node.errors(field.name,locale,humanEditedTrimInfo)
+        if (errors!=currentlyShowingErrors) {
+          currentlyShowingErrors=errors
+          changeErrors(gui,errors)
+        }
+      }
+    }
+
+  }
+
+  class UIFieldHeading(val field:DetailsPaneField,val gui:T,var currently:CurrentFieldState) extends UIField {
+    def humanEditedTrimInfo:Array[Option[TrimInfo]] = TrimInfo.empty
+    def refresh(node:XSTreeNode) { refreshCurrently(node) }
+    override def toString = field.toString
+  }
+  
+  abstract class UIFieldIsStringOrCollectionOfStrings extends UIField {
+    def currentlyShowing:String
+    var currentlyIsIllegalValue = false
+    var currentlyShowingIsIllegalValue = false
+    /** This is the canonical representation of the value set by the string the user has entered, or None if this is not recently user edited. */
+    protected[this] var currentStringSetByUserCanonicalRepresentation : Option[String] = None
+    def field : DetailsPaneFieldLabeled with DetailsPaneFieldBasedOnSimpleField
+    override def userHasAbandonedNoncanonicalEdits() {
+      //println("userHasAbandonedNoncanonicalEdits()")
+      synchronized {
+        currentStringSetByUserCanonicalRepresentation = None
+        currentlyIsIllegalValue = false    
+      }
+    }
+    override def humanEditedTrimInfo:Array[Option[TrimInfo]] = {
+      synchronized {
+        if (currentStringSetByUserCanonicalRepresentation.isDefined && !currentlyIsIllegalValue) {
+          val res:Array[Option[TrimInfo]] = if (field.field.isCollectionOrArrayButNotOption)  CollectionStringUtil.separateSemicolonListEscaped(currentlyShowing,false).map{s=>Some(TrimInfo(s))}
+          else Array(Some(TrimInfo(currentlyShowing)))
+         // println(res.mkString(";"))
+          res
+        } else TrimInfo.empty
+      }
+    }
+    def refreshIllegal() {
+        if (currentlyIsIllegalValue!=currentlyShowingIsIllegalValue) {
+          setUIFieldIllegalContents(gui,currentlyIsIllegalValue)
+          currentlyShowingIsIllegalValue=currentlyIsIllegalValue
+        }
+    }
+    
+    override def toString = field.label+":"+currentlyShowing
+    
+  }
+  
+  class UIFieldText(val field:DetailsPaneFieldText,val gui:T,var currently:CurrentFieldState,var currentlyShowing:String,val choices:Option[LocalizedTextChoices]) extends UIFieldIsStringOrCollectionOfStrings {
+    /** 
+     * Sometimes the user may set a field to some value that is slightly different to the canonical one - for instance, leading zeros on an integer. 
+     * In that case we want to leave it until it is changed for some other reason. So the "currentlyShowing" is what text is currently on the client,
+     * and currentStringSetByUser is, if not None, the canonical representation of what is actually showing. If what is currently showing is an
+     * illegal value, then it stores the last legal thing that was there.
+     */
+    def changedByGUI(node:XSTreeNode,s:String) { 
+      //println("changedByGUI1("+s+") currentStringSetByUser="+currentStringSetByUser)
+      synchronized {
+        currentlyShowing=s
+        currentlyIsIllegalValue = !field.set(node,s,Some( ()=>{currentStringSetByUserCanonicalRepresentation=Some(field.get(node))}))
+        if (currentlyIsIllegalValue!=currentlyShowingIsIllegalValue) { refresh(node) ; flushClientCommands()}
+      }
+      //println("changedByGUI3("+s+") currentStringSetByUser="+currentStringSetByUser)
+    }
+    def refresh(node:XSTreeNode) {
+      //println("Refreshing node "+node.uid)
+      synchronized {
+        val shouldBe = field.get(node)
+        //println("refresh shouldBe="+shouldBe+" showing="+currentlyShowing+" currentStringSetByUser="+currentStringSetByUser)
+        if (shouldBe!=currentlyShowing && (currentStringSetByUserCanonicalRepresentation.isEmpty || currentStringSetByUserCanonicalRepresentation.get!=shouldBe)) { 
+          currentlyShowing=shouldBe
+          currentStringSetByUserCanonicalRepresentation=None
+          currentlyIsIllegalValue = false
+          changeUITextField(gui,shouldBe)
+        }  
+        refreshIllegal()
+      }
+      refreshCurrently(node)
+    }
+  }
+
+  class TableNoncanonicalEntry(val row:XSTreeNode,val col:Int,val humanEditedValue:String,val lastCanonicalValue:String,val isIllegalValue:Boolean) {
+    override def toString = "human typed "+humanEditedValue+" instead of "+lastCanonicalValue+" in column "+col+(if (isIllegalValue) " illegally" else "")
+  }
+  
+  class UIFieldTable(val field:DetailsPaneFieldTable,val gui:T,var currently:CurrentFieldState,var currentlyShowing:IndexedSeq[IndexedSeq[String]]) extends UIField {
+    
+    def changedByGUI(node:XSTreeNode,s:String) { 
+    }
+    override def humanEditedTrimInfo:Array[Option[TrimInfo]] = TrimInfo.empty
+    override def userHasAbandonedNoncanonicalEdits() {
+      synchronized {
+      }
+    }
+    def printNoncanonicals(msg:String) {
+      if (false) {
+        println("Non-canonicals "+msg)
+        for ((row,edits)<-humanEdits) {
+          println("Row "+row)
+          for (e<-edits) println(e.toString)
+        }
+      }
+    }
+    def addedNewRow(node:XSTreeNode,columnName:String,newValue:String) {
+      val (colfield,colno) = field.columnExtractors.xsFieldNamed(columnName)
+      val newRow = for (i<-0 until field.columnExtractors.length) yield if (i==colno) newValue else ""
+      val parsed = colfield.parseStringPossiblyMultipleSafe(newValue)
+      val baseelem = field.field.newSingleElement()
+      val (newobj,isError) = parsed match {
+        case Success(newParsedValue) => 
+          val newelem = field.field.xsinfo.get.setFieldAnyRef(baseelem,colfield,newParsedValue) 
+          (newelem,false)
+        case Failure(e) => 
+          (baseelem,true)
+      } 
+      val noncanonfn : Option[() => Unit] = {
+          val canonical = colfield.getFieldAsString(newobj)
+          if (isError || canonical!=newValue) Some(() => {
+            for (row<-node.tableChildren(field.field).find{_.getObject eq newobj}) 
+              addNoncanonicalEntry(new TableNoncanonicalEntry(row,colno,newValue,canonical,isError))
+          }) else None
+      }
+      synchronized {
+         currentlyShowing=currentlyShowing :+ newRow
+//         println("Adding "+newobj+" to field "+colfield.name)
+         node.xsedit.addField(node,None,field.field,newobj,noncanonfn)
+      }
+//      println("Added new row for column "+columnName+" value "+newValue)
+    }
+    def addNoncanonicalEntry(entry:TableNoncanonicalEntry) {
+      removeNoncanonicalEntry(entry.row,entry.col)
+      humanEdits+=entry.row->(entry::(humanEdits.get(entry.row).getOrElse(Nil)))
+    }
+    def removeNoncanonicalEntry(row:XSTreeNode,colno:Int) {
+      for (edits<-humanEdits.get(row)) humanEdits+=row->edits.filter{_.col!=colno}
+    }
+    def changedElement(node:XSTreeNode,rowNumber:Int,columnName:String,newValue:String) {
+      val (colfield,colno) = field.columnExtractors.xsFieldNamed(columnName)
+      synchronized {
+        val rows = node.tableChildren(field.field)
+        if (rowNumber==currentlyShowing.length && rowNumber==rows.length) { // adding a new row
+          // TODO fix lack of syntax checking on starting to add a new row in a grid.
+          // the line below would make the XS backend be aware of a new row being added. However, this mixes very badly with the SlickGrid row
+          // update model, which is unfortunate. Not having it means that the new field is not checked for errors etc. until it is actually comitted.
+          //addedNewRow(node,columnName,newValue);
+        }
+        if (rowNumber<currentlyShowing.length && rowNumber<rows.length) {
+          currentlyShowing=currentlyShowing.updated(rowNumber,currentlyShowing(rowNumber).updated(colno,newValue))
+          val row = rows(rowNumber)
+          colfield.parseStringPossiblyMultipleSafe(newValue) match {
+                case Success(newParsedValue) =>
+                  //println("Setting field "+colfield+" to "+newParsedValue+" for row "+row)
+                  row.xsedit.setField(row,colfield,newParsedValue,Some( ()=>{
+                    // see if should be non-canonical.
+                    val canonical = colfield.getFieldAsString(row.getObject)
+                    if (canonical==newValue) {
+                      removeNoncanonicalEntry(row,colno)
+                    } else {
+                      addNoncanonicalEntry(new TableNoncanonicalEntry(row,colno,newValue,canonical,false))
+                    }
+                  })) 
+                case Failure(e) => // mark as error 
+                  val canonical = colfield.getFieldAsString(row.getObject)
+                  addNoncanonicalEntry(new TableNoncanonicalEntry(row,colno,newValue,canonical,true))
+                  refresh(node)
+                  flushClientCommands()
+          }
+          
+        }       
+      }
+      //printNoncanonicals("Edited")
+      //println("Edited row "+rowNumber+" column "+columnName+" value "+newValue)
+    }
+
+    var humanEdits : Map[XSTreeNode,List[TableNoncanonicalEntry]] = Map.empty
+    var currentlyShowingIllegalEntries : Map[Int,List[Int]] = Map.empty
+    var currentlyShowingCellErrors : Map[(Int,Int),List[ResolvedXSError]] = Map.empty // first index is row, second is col
+    
+    def applyNonCanonicalEditingToLine(row:XSTreeNode,canonical:IndexedSeq[String]) : (IndexedSeq[String],Option[(XSTreeNode,List[TableNoncanonicalEntry])])= {
+          var line = canonical
+          val cleanedEdit = for (edits<-humanEdits.get(row)) yield {
+              val cleanedEdits = new ListBuffer[TableNoncanonicalEntry] // garbage collection.
+              for (e<-edits) {
+                val is = line(e.col)
+                if (is == e.lastCanonicalValue) {
+                  cleanedEdits+=e
+                  line = line.updated(e.col,e.humanEditedValue)
+                }
+              }
+              row->cleanedEdits.toList
+          }
+          (line,cleanedEdit)      
+    }
+    
+    def refreshErrors(line:XSTreeNode,linenumber:Int) {
+     synchronized {
+      for (colnumber<-0 until field.columnExtractors.fields.length) {
+        val colfield = field.columnExtractors.fields(colnumber)
+        val couldContainErrorIcon = field.field.xsinfo.get.dependencyInjectionInfo.fieldsThatCouldHaveErrors.contains(colfield.name)
+        if (couldContainErrorIcon) {
+           val errors = line.errors(colfield.name,locale,humanEditedTrimInfo)
+           val key = (linenumber,colnumber)
+           val oldErrors = currentlyShowingCellErrors.get(key).getOrElse(Nil)
+           if (errors!=oldErrors) {
+             //println("Found new errors "+errors.mkString(";")+" != old errors "+oldErrors.mkString(";"))
+             if (errors.isEmpty) currentlyShowingCellErrors-=key
+             else currentlyShowingCellErrors+=key->errors
+             changeGridErrors(gui,linenumber,colnumber,errors)
+           }
+        }
+      }
+     }
+    }
+    def refresh(node:XSTreeNode) {
+      //println("Refreshing node "+node.uid)
+      synchronized {
+        printNoncanonicals("before refresh")
+        val (rows,shouldBeBase) = field.get(node)
+        var cleanedHumanEdits : Map[XSTreeNode,List[TableNoncanonicalEntry]] = Map.empty
+        var shouldBeIllegalEntries : Map[Int,List[Int]] = Map.empty // first entry is row number, second is column number
+        val shouldBe = for (ind<-0 until rows.length) yield {
+          val (fixedLine,cleanEdits) = applyNonCanonicalEditingToLine(rows(ind),shouldBeBase(ind))
+          for (edits<-cleanEdits) { // over option
+            cleanedHumanEdits+=edits 
+            val errs = edits._2.filter{_.isIllegalValue}.map{_.col}
+            if (!errs.isEmpty) shouldBeIllegalEntries+=ind->errs
+          }
+          fixedLine
+        }
+        humanEdits=cleanedHumanEdits // garbage collection. 
+        printNoncanonicals("cleaned after refresh")
+        if (shouldBe!=currentlyShowing) {
+          val allbad = shouldBe.length!=currentlyShowing.length || { // only update lines that have changed, unless there are lots of them.
+            val badlines = (0 until shouldBe.length).filter{ind=> currentlyShowing(ind)!=shouldBe(ind)}
+            if (badlines.length==0) false
+            else if (badlines.length<=1+shouldBe.length/2) { // update line by line
+              for (linenumber<-badlines) changeUISingleLineTable(gui,linenumber, shouldBe(linenumber))
+              false
+            } else true
+          }
+          currentlyShowing=shouldBe;
+          if (allbad) changeUIWholeTable(gui,shouldBe)      
+        }
+        //println("Refresh table shouldBeIllegalEntries="+shouldBeIllegalEntries.map{case (row,cols) => cols.map{""+row+","+_}.mkString("|")}.mkString("|"))
+        if (currentlyShowingIllegalEntries!=shouldBeIllegalEntries) {
+          setUITableEntriesIllegalContents(gui,shouldBeIllegalEntries)
+          currentlyShowingIllegalEntries=shouldBeIllegalEntries
+        }
+        for (rownumber<-0 until rows.length) refreshErrors(rows(rownumber),rownumber)
+      }
+      refreshCurrently(node)
+    }
+    /** refresh a single line */
+    def refresh(line:XSTreeNode,linenumber:Int) {
+      //println("Refresh single line "+line+" #"+linenumber)
+      //printNoncanonicals("refresh line")
+      synchronized {
+        val (shouldBe,cleanedEdits) = applyNonCanonicalEditingToLine(line,line.getTableFields(field.columnExtractors))
+        cleanedEdits match {
+          case Some(pair) => humanEdits+=pair
+          case None => humanEdits-=line
+        }
+        if (currentlyShowing.length>linenumber && currentlyShowing(linenumber)!=shouldBe) {
+          currentlyShowing=currentlyShowing.updated(linenumber,shouldBe)
+          changeUISingleLineTable(gui,linenumber, shouldBe)
+        }
+        refreshErrors(line,linenumber)
+      }
+    }
+    def uiDragGridRows(parent:XSTreeNode,rowsToBeMoved:Seq[Int],insertBefore:Int) {
+      val allnodes = field.getNodes(parent)
+      val validrows = rowsToBeMoved.sorted.collect{case r:Int if r>=0 && r<allnodes.length => allnodes(r)}
+      parent.xsedit.dragData(parent,validrows,if (insertBefore<allnodes.length) Some(allnodes(insertBefore)) else None)
+    }
+    var clipboard : Option[Array[Byte]] = None // TODO allow non local copy/paste
+    def uiTableContextMenu(parent:XSTreeNode,command:String,selectedRows:Seq[Int]) {
+      val allnodes = field.getNodes(parent)
+      val nodes = selectedRows.sorted.collect{case r:Int if r>=0 && r<allnodes.length => allnodes(r)}
+        command match {
+          case "copy" => clipboard=Some(xsedit.copyData(nodes))
+          case "cut" => clipboard=Some(xsedit.copyData(nodes)); xsedit.deleteTreeNodes(nodes)
+          case "paste" => for (c<-clipboard) xsedit.pasteData(parent, c, nodes.headOption)
+          case "erase" => xsedit.deleteTreeNodes(nodes)
+        }
+    }
+    override def toString = field.label+":"+currentlyShowing
+  }
+
+  class UIFieldImage(val field:DetailsPaneFieldImage,val gui:T,var currently:CurrentFieldState,var currentlyShowing:String) extends UIFieldIsStringOrCollectionOfStrings {
+    def changedByGUI(node:XSTreeNode,s:String) { 
+      currentlyShowing=s
+      //println("Changing image to "+s)
+      currentlyIsIllegalValue = !field.set(xsedit,node,s)
+      if (currentlyIsIllegalValue!=currentlyShowingIsIllegalValue) { refresh(node) ; flushClientCommands()}
+    }
+    def refresh(node:XSTreeNode) {
+      //println("Refreshing node "+node.uid)
+      synchronized {
+        val shouldBe = field.get(node)
+        if (shouldBe!=currentlyShowing) { 
+          currentlyShowing=shouldBe;
+          changeUIImageField(gui,shouldBe)
+        }
+        refreshIllegal()
+      }
+      refreshCurrently(node)
+    }
+    override def toString = field.label+":"+currentlyShowing
+  }
+
+
+  class UIFieldBoolean(val field:DetailsPaneFieldBoolean,val gui:T,var currently:CurrentFieldState,var currentlyShowing:Boolean) extends UIField {
+    def humanEditedTrimInfo:Array[Option[TrimInfo]] = TrimInfo.empty
+    def changedByGUI(node:XSTreeNode,b:Boolean) { 
+      currentlyShowing=b
+      field.set(xsedit,node,b)
+    }
+    def refresh(node:XSTreeNode) {
+      val shouldBe = field.get(node)
+      //println("Refreshing node "+node.uid+" shouldBe="+shouldBe+" currentlyShowing="+currentlyShowing)
+      if (shouldBe!=currentlyShowing) { 
+        currentlyShowing=shouldBe;
+        changeUIBooleanField(gui,shouldBe)
+      }
+      refreshCurrently(node)
+    }
+    override def toString = field.label+":"+currentlyShowing
+  }
+
+  class UIFieldAction(val field:DetailsPaneFieldAction,val gui:T,var currently:CurrentFieldState) extends UIField {
+    def humanEditedTrimInfo:Array[Option[TrimInfo]] = TrimInfo.empty
+
+    def refresh(node:XSTreeNode) {
+      refreshCurrently(node)
+    }
+    def go(node:XSTreeNode) { field.go(xsedit,node) }
+    override def toString = field.label
+  }
+  
+  class UIFieldShowText(val field:DetailsPaneFieldShowText,val gui:T,var currently:CurrentFieldState,var currentlyShowing:RichLabel,locale:Locale) extends UIField {
+    def humanEditedTrimInfo:Array[Option[TrimInfo]] = TrimInfo.empty
+    def refresh(node:XSTreeNode) {
+      //println("Refreshing node "+node.uid)
+      val shouldBe = field.get(node,locale)
+      if (shouldBe!=currentlyShowing) { 
+        currentlyShowing=shouldBe;
+        changeUIShowText(gui,shouldBe)
+      }
+      refreshCurrently(node)
+    }
+    override def toString = field.label
+  } 
+
+  
+  
+}
+
+class CurrentFieldState(var enabled:Boolean,var visible:Boolean,var specialIcon:Option[Icon],var specialLabel:Option[RichLabel],val canHaveSpecialIcon:Boolean,val canHaveSpecialLabel:Boolean)
+
+
+
+/**
+ * Client specific code that creates a GUI. T is the class of identifiers for the GUI objects. (eg in AWT, it could be a Component, in Swing a JComponent, in HTML a text string. 
+ */
+abstract class GUICreator[T] {
+  /** First thing ever called, with information about headings, icons, etc. for the form. */
+  def startForm(section:DetailsPaneFieldSection,currently:CurrentFieldState) : T
+  /** Called at the start of each section */
+  def startSection(section:DetailsPaneFieldSection,currently:CurrentFieldState) : T
+  /** Called to create an action field (inside a section) */
+  def createAction(field:DetailsPaneFieldAction,currently:CurrentFieldState) : T
+  /** Called to create a text field (inside a section) */
+  def createTextField(field:DetailsPaneFieldText,currently:CurrentFieldState,initialValue:String) : T
+  /** Called to create a boolean field - typically a checkbox (inside a section) */
+  def createBooleanField(field:DetailsPaneFieldBoolean,currently:CurrentFieldState,initialValue:Boolean) : T
+  /** Called to create an image field (inside a section) */
+  def createImageField(field:DetailsPaneFieldImage,currently:CurrentFieldState,initialValue:String) : T
+  /** Called to create an image field (inside a section) */
+  def createTableField(field:DetailsPaneFieldTable,currently:CurrentFieldState,initialValue:IndexedSeq[IndexedSeq[String]]) : T
+  /** Called to create a just-display text field (inside a section) */
+  def createShowTextField(field:DetailsPaneFieldShowText,currently:CurrentFieldState,initialValue:RichLabel) : T
+  /** Called at the end of each section, with the id created in startSection */
+  def endSection(section:DetailsPaneFieldSection,id:T,currently:CurrentFieldState)
+  /** Last thing called when the form is finished */
+  def endForm()
+}

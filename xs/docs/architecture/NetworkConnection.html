@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="ISO-8859-1">
+<title>Network http connections.</title>
+</head>
+<body>
+  <h1>How network connections work under the cover for the web front end</h1>
+  <p>In the big picture, every time you change something in the browser, a description of the change
+  gets sent to the server. Similarly, whenever the server wants to change something on the client it
+  sends a packet to the client. This may be in response to a just done edit from the client, or it may
+  come from some external source (including a delayed error computation).</p> 
+  
+  <p>But the details get more complex.</p>
+  
+  <p>Many changes are processed 
+  automatically on the client without needing to talk to the server to get an instant response for a more
+  snappy UI. In particular, opening and closing tree branches is done on the client - the server
+  preemptively makes sure the client knows about the children of all visible nodes.</p>
+  
+  <p>Another major issue is that in the long stream of change packets, it is possible some commands may get lost
+  or reordered. This could lead to data corruption and so it is important to get right, particularly since many
+  of the packets' results are invisible to the user - they tell the server about changes already showing on the client. Thus
+  we cannot just use the the normal http model whereby connections are assumed to be reliable, and if they aren't 
+  it will be obvious the the user who manually presses the refresh button. Most of the rest of this 
+  document covers this case.</p>
+  
+  <p>There is also the possibility of one web page containing two different xs editors, and the server needing
+  to distinguish these. This is straight forward - each xs editor gets its own independent communication channel -
+  everything hereafter is repeated for each editor.</p>
+  
+  <p>Note on nomenclature: I talk about "packets" frequently. These are not actual IP packets, but are really
+  HTTP requests and responses. However the way they are processed is comparable to the way packets are processed, and so I use
+  the loose language.</p>
+  
+  <h2>Tracking packet order - client to server</h2>
+  
+  <p>When the browser sends the server a command, it contains the following information:</p>
+  <ul>
+    <li>A session ID string indicating which xs editor it pertains to.</li>
+    <li>A packet sequence number, starting at 0 for the first packet for this session, 1 for the second packet, etc. </li>
+    <li>The message itself</li>
+  </ul>
+  <p>The server keeps a count of the last packet sequence number processed. If an incoming packet has the expected
+  next sequence number, it gets processed immediately, and the sequence count for that session is incremented. If the
+  count is smaller than the expected next, it is assumed to be a resend of an incorrectly assumed lost command, and is ignored.
+  If the count is higher than the expected next value, it is assumed to be an out-of-order packet, and is saved for later. When
+  all messages up to it have arrived, it will be processed.</p>
+  
+  <p>This guarantees sequential processing, but it will cause the server to wait forever for a missing packet if a packet is
+  lost. For this we have a request for resend system based around acknowledgements returned as a response to the packets from
+  the browser. In particular, each packet sent from the client to the server produces a response with three numbers:</p>
+  <ul>
+    <li>The sequence number of the packet just received</li>
+    <li>The sequence number of the next packet to be processed (usually 1 more than the packet just received, but may be lower if earlier packets are missing or higher if this packet enabled subsequent stored packets to be processed)</li>
+    <li>The largest sequence number of packet to be received.</li> 
+  </ul>
+  
+  <p>When the browser sends a packet off, it saves it in a buffer. When an acknowledgement is received, then that packet
+  gets deleted from the buffer. Furthermore, any sequence numbers less than that of the next packet to be processed can also
+  be deleted (this will only matter if a previous acknowledgement got lost in the network).</p>
+  
+  <p>If the sequence number of the next packet to be processed is less than the current packet, it means that an earlier packet has
+  got lost or delayed. The browser code will assume it has got lost, and resend the next desired packet (if it hasn't arrived after 
+  another half a second delay, in case it was delayed). If it was just delayed - and  
+  therefore arrives twice - it does not matter - it will be ignored by the client.</p>
+  
+  <p>One more problem to deal with is time outs. If no acknowledgements for a packet have arrived ten seconds after sending it, it will be resent.</p>
+  
+  <p>This protocol is not efficient in the case of many packet losses and reorderings, but is simple and has almost no overhead
+  in the common case of almost no packet losses or reorderings.</p> 
+  
+  <h2>What about Websockets?</h2>
+  <p>These would efficiently and simply solve many of the problems above, but are not available in all browsers (or servers). Forthcoming feature.</p>
+  
+  <h2>What else</h2>
+  <p>Packets that involve messages about a change to a field are problematic in that delays could produce incorrect answers. If the server sends
+  a command the the browser to change the tree node being edited, and that message to the browser crosses on the wire with a command from
+  the client to change a particular field, then when it arrives at the server (still in order), it will reference the old node. This will 
+  rarely occur, usually if the user presses on a new node in the tree and them immediately edits a field before the server has had a chance
+  to update the fields. In this case it is not clear whether the user intended to update the field for the new or old object.</p>
+  
+  <p> XS detects this
+  by having packets involving editing a field also send back an identifier for the tree object being edited. If this differs from what the
+  server thinks should have been edited, then there is a problem. The resolution is to ignore that edit. There are good arguments for
+  other approaches, but also good arguments against them. The main rationale for this approach is that the standard "web failure" model
+  most people think of is that the try doing something and nothing happens. This is annoying but familiar. Trying to do something and
+  have the something occur <em>but not the the desired object</em> is unintuitive and, in my opinion, worse. Sorry if you disagree. </p>
+  
+  <h2>Server to client commands</h2>
+  <p>These also need to be in order. However, a lost packet is not as serious as a lost client to server command, as it will have a more
+  intuitive result (lost connection; screen doesn't update; refresh fixes things). A comet approach is used. The client sends a 
+  request to the server which delays up to ten seconds for a response. If it has some commands to send, it sends all of them as a response
+  to the comet request. Comet requests get resent by the browser when the server responds or errors. This will preserve sequence, although
+  possibly lose packets.</p>
+</body>
+</html>

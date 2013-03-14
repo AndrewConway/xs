@@ -1,0 +1,307 @@
+
+.xsTableHolder {
+	width: 500px;
+	/* height: 100px; */
+	outline: 0;
+    border: 1px solid gray;
+    position:relative;
+}
+
+.xsTableGrid {
+	width:100%;
+}
+
+
+/* Override the jquery-ui fonts */
+.ui-widget, .ui-widget select {
+    font-family: inherit;
+    font-size: 1em;
+}
+
+.xsTableHolder .sfx-grid { height:auto; }
+/* .xsTableHolder .xsf-grid .slick-viewport { overflow-x: hidden !important; } */
+
+.xsEdit a img { /* don't put borders around the images in hyperlinks for IE */
+border:0;
+}
+
+.xsEdit {
+	height : 500px;
+	width : 100%;
+}
+
+.xsEdit > div {
+	overflow:auto;
+	border:1px solid #999;
+    border-radius:0.3em;
+    background : white;
+    height:100%;
+}
+.xsEditTree {
+	width:30%;
+	float:left;
+	resize:horizontal;
+	min-width:5%;
+	max-width:90%;
+}
+
+.xsEditTree ul {
+	padding-top:0;
+	padding-bottom:0;
+	padding-left:1.3em;
+    margin:0;
+}
+
+.xsEditTree span.xsOpener {
+	cursor: pointer;
+}
+
+.xsEditTree {
+	-webkit-touch-callout: none;
+    -webkit-user-select: none;
+    -khtml-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+	user-select: none;
+}
+
+.xsEditTree span.xsSelected {
+	background: #ddf;
+}
+
+
+.xsEdit div.xs-dragover {
+	background : #fbb;
+}
+
+.xsEdit div.xs-dragover.xs-dragover-top {
+	background : white;
+	border-top : 3px solid #fbb;
+   /* margin-top : -2px; */
+}
+
+img.xsIcon {
+	height:1em;
+	padding-right: 0.1em;
+	vertical-align: text-bottom; /* you would think that middle would be better... but it looks ugly to me as it anticipates descenders more than are present in practice. // middle; */
+}
+
+.xsEdit fieldset {
+  border-top: 0;
+  border-left:0;
+  border-bottom:0.5em;
+  border-right:0;
+  padding:0;
+  margin:0px 0px 0px 0px;
+  margin-bottom:0.1em;
+}
+
+.xsEdit fieldset:not(:last-child) {
+	border-bottom: 1px solid #bbb;
+}
+.xsEdit fieldset legend {
+	text-align:left;
+    color:#008;
+    font-size:1.1em;
+    padding:0px 0px 0px 0px;
+    margin-left:0;
+}
+
+.xsEdit .XSDetailsPane {
+	background : #f5f5f5;
+}
+
+.xsEdit .XSDetailsPane p {
+  padding:0px 0px 0px 0px;
+  margin:0px 0px 0px 0px;
+  font-size:0.7em;
+}
+
+.xsEdit .XSDetailsPane h3 {
+  padding:0px 0.1em 0px 0.2em;
+  margin:0px 0px 0px 0px;
+  font-size:1.1em;
+}
+
+
+.xsEdit fieldset table.xsForm {
+/*	width : 100%; */
+  padding:0px 0px 0px 0px;
+  margin:0px 0px 0px 0px;
+}
+
+/* Error Icon related code */
+
+.xsErrorLabeled { /** The td field containing the UI element associated with a field */
+	position : relative;
+}
+
+.xsErrorIconHolder { position:relative; }
+.xsTreeSelectable { position:relative; }
+
+.xsErrorIcon {
+	position: absolute;
+	cursor: help;
+	top: -0.1em;
+	left: -0.2em;
+	width: 0.6em;
+	height: 0.6em;
+    background-image:url("ErrorIcon.svg");
+    background-size: 100% 100%;
+	background-repeat: no-repeat;
+	background-position: left top;
+	z-index: 5000;
+}
+
+.xsErrorIcon0 {
+    background-image:url("ErrorIcon.svg");
+}
+
+.xsErrorIcon1 {
+    background-image:url("WarningIcon.svg");
+}
+.xsErrorIcon2 {
+    background-image:url("InfoIcon.svg");
+}
+.xsErrorIcon1000 { /** No errors */
+    display : none;     
+}
+
+.xsSpanErrorTooltip, .xsTableTooltip, .xsErrorIcon > div { /** This is the tooltip */
+	display : none;
+    background: #FFFFAA;
+    border: 1px solid #2BB0D7;
+    border-radius: 2px 2px;
+	box-shadow: 5px 5px 5px rgba(0, 0, 0, 0.1);
+	left: 0.8em;
+    top: 1.2em;
+    position: absolute;
+    padding: 2px; 
+    margin: 2px; 
+    z-index: 6000;
+    white-space: nowrap;
+    font-size:0.7em;
+    white-space: nowrap;
+}
+
+.xsErrorDescription0 { /** This is the text of an error description */
+    background: #FCA;
+}
+
+.xsErrorDescription0 { /** This is the text of an warning description */
+    background: #FFA;
+}
+
+.xsErrorDescription0 { /** This is the text of an info description */
+    background: #9DE;
+}
+
+
+.xsErrorIcon:hover div { /** Only display the tooltip when hovered over */
+	display : block;
+}
+
+div.xsImageField {
+    border: inset 1px #aaa;
+    background : white;
+	min-height:2em;
+	min-width:2em;
+}
+
+div.xsImageField.xsTotallyIllegal {
+    background : #faa;
+    border: inset 1px #a66;
+}
+
+img.xsImageField {
+    height:2em;	
+    font-size:200%;
+    color: #888;
+}
+
+
+/* Pseudo text field related code */
+
+.xsEditorAbsolutelyPositioned {
+	z-index:1000;
+	position:absolute;
+	background:white;
+	/* padding:5px;border:3px solid gray; -moz-border-radius:10px; border-radius:10px; */
+}
+
+.xsEditorAbsolutelyPositioned .xsPseudoTextField {
+	padding: 1px 2px 2px 1px;
+}
+.xsPseudoTextField {
+    border: inset 1px #aaa;
+    background : white;
+    white-space: pre-wrap;
+    min-height:1em;
+    min-width:10em;
+/*    overflow : scroll; */
+}
+
+.slick-cell.selected, .slick-cell.selected .xsPseudoTextField {
+	background: #ddf;
+}
+
+.slick-cell div.xsPseudoTextField.xsOverflowed {
+	background-image:url("overflow.svg");
+    background-size: auto 1em;
+	background-repeat: no-repeat;
+	background-position: right top;
+	z-index: 40;
+}
+
+
+.xsTableHolder .xsPseudoTextField {
+    border: 0;
+    text-overflow: ellipsis;
+    min-width:1em;
+}
+
+.xsTotallyIllegal .xsPseudoTextField { /** In a grid */
+    background : #faa;
+    border: inset 1px #a66;
+}
+
+.xsPseudoTextField.xsTotallyIllegal {
+    background : #faa;
+    border: inset 1px #a66;
+}
+
+
+.xsPseudoTextField:hover {
+    border: inset 1px #00a;
+}
+
+.xsSpanError {
+	position : relative;
+}
+.xsSpanError0 {
+    /* border-bottom: 1px dashed red; */
+    background-image:url("RedSquiggle.gif");
+    background-repeat:repeat-x;
+    background-position:left bottom;
+}
+
+.xsSpanError1 {
+    /* border-bottom: 1px dashed #cc0; */
+    background-image:url("YellowSquiggle.gif");
+    background-repeat:repeat-x;
+    background-position:left bottom;
+}
+
+
+.xsSpanError:hover > .xsSpanErrorTooltip {
+	display:block;
+}
+
+.xsSpanErrorGridTooltip {
+	display:none;
+}
+
+.xsCellReorder {
+	cursor:move;
+	background: #aaa;
+}

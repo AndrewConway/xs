@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="ISO-8859-1">
+<title>Deployment of XS</title>
+</head>
+<body>
+
+  <h2>Server side, code</h2>
+  <p>You will need the xs code base. This can either be a compiled xs.jar or compiled from the source code in the xs project of the xs repository.
+  There is one dependent third party library, jackson-core (MIT license). The code is tested and compiled against version 2.1.1, but different versions are likely
+  to work. jackson-core is only used for the HTML interface; if you just want to use the XML serialization you do not need to include it.</p>
+ 
+  <p>If you are running the demo, you will also need to include the code in the xs-test project of the xs repository.
+
+  <h2>Javascript/css/etc resources</h2>
+  
+  <p>xs has its own set of needed resources located in the /WebContent/xs folder of the xs project of the xs repository. These should
+  be included in some place accessible to clients (in an Eclipse Servlet project, they could be in /WebContent/xs; in Play they could
+  be in /public/xs. You are welcome to put them elsewhere, just make sure that your html files point to the correct place. There are also
+  a variety of third party libraries used:</p>
+  
+  <table>
+    <caption>Third party javascript libraries used by XS</caption>
+    <thead>
+      <tr>
+       <td>Name</td><td>Version tested</td><td>License</td><td>Web site</td><td>Notes</td>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>jQuery</td><td>1.9.1</td><td>MIT</td><td>http://jquery.com/</td><td>If version 1.9 or later is used, then jquery-migrate1.1.0.js is also needed by the current (as at time of writing) version of SlickGrid. Many earlier versions probably work.</td>
+      </tr>
+      <tr>
+        <td>SlickGrid</td><td>Jan 2013</td><td>MIT</td><td>https://github.com/mleibman/SlickGrid</td><td></td>
+      </tr>
+      <tr>
+        <td>jquery.event.drag and jquery.event.drop</td><td>2.2</td><td>MIT</td><td>http://threedubmedia.com/code/event/drag</td><td>Needed for slickgrid..</td>
+      </tr>
+      <tr>
+        <td>jqueryUI</td><td>1.10.0</td><td>MIT</td><td>http://jqueryui.com/about/</td><td>Needed for slickgrid..</td>
+      </tr>
+      <tr>
+        <td>jquery.contextMenu</td><td>1.10.0</td><td>MIT or GPL3</td><td>http://medialize.github.com/jQuery-contextMenu/</td><td></td>
+      </tr>
+    </tbody>
+  </table>
+  
+
+  <h2>Demos</h2>
+  
+  <p>Demos are available for a servlet container and inside Play. Both are present as appropriately named folders in the repository <a href="https://github.com/AndrewConway/xsdemo">xsdemo</a>. Both
+  may run as Eclipse projects.</p>
+  
+  <p>The way resources are handled in these demos is a MESS. In particular, the third party resources are held in a canonical folder "xs-ThirdPartyWebContent". However there is
+  no easy way in Eclipse that I can find that works well with git to include them in the servlet of play deployment directories. Thus they are copied in by hand
+  (well, by ant script) to both places. Similarly, the xs WebContent resources are held in the canonical folder "xs/WebContent" of the main xs folder,
+  and are also copied by ant script. Sorry for this mess - advice on resolution appreciated (particularly if it is simple, which does not include Maven or sbt).
+  Class files and libraries are also needed. This should be handled automatically by the eclipse deployment mechanism for the servlet demo (which means
+  you need the xs and xs-test projects open in eclipse to run it - you may also need to adjust the Scala library path if you have a different version to me).
+  For play it has to be copied in by hand (well, a Jar file is made by ant), which means that the ant needs to be rerun when the source
+  files change in the xs project, or if you upgrade to a new version of Scala that is link-incompatible. Sorry for this mess. This is the main
+  reason why xs is broken up into two git repositories "xs" and "xs-demo". The former is clean, the latter is a mess and may be replaced at
+  some point in the future.
+  </p> 
+    
+  <h2>What your code must do</h2>
+  
+  <p>This is an overview only; I suggest you try one of the above demos for complete examples. Generally you must use XS in an HTML file, and you
+  must also provide the information channel.</p>
+  
+  <h3>Using html page</h3>
+
+  <p>If you want to edit an object <code>O</code>, then you need to create an editing object <code>XSEdit</code>. The constructor takes <code>O</code> as
+  the first argument, and optionally an external resource resolver (see its Scaladocs) as a second argument. This holds the current state of the object and
+  the paraphenalia needed to edit it. Each actual web page that edits it needs its own <code>HTML5Client</code> object, the constructor of which takes
+  the <code>XSEdit</code> as the first argument and a locale as the second. You would typically only have one client per <code>XSEdit</code> object, but
+  you can have multiple ones per object if you want different web pages to edit the same object (and see each others' edits in real time). The demos
+  both have just one object being edited with multiple clients.</p> 
+  
+  <p>The html page then needs the following things:</p>
+  <ul>
+    <li>Javascript and css references for xs and the libraries above. See the demos for a complete list.</li>
+    <li>In the body somewhere, <code>client.baseHTML</code> where <code>client</code> is the <code>HTML5Client</code> object above.</li>
+    <li>Optionally, information channel URLs. See section below.</li>
+  </ul>
+  
+  <p>It is possible to have multiple clients in a single web page - each will then have its own information channel.</p>
+  
+  
+  <h3>Information Channel</h3>
+  
+  <p>The information channel really consists of two independent channels, one for sending data to the server and one for sending data
+  to the client. (future feature - support websockets). These need URLs obviously; the default is to use the current web
+  page with a different query string - see the servlet example - but they can be overwritten to custom URLs by including a script
+  such as the following (from the Play example) in the main web page:</p>
+  <pre>
+             xs.cometURL = '/xsComet';
+             xs.userURL = '/xsUser'; 
+  </pre>
+  <p>Both calls will contain a query string containing a session identifier which is used to work out which
+  client is being spoken to. This string can be decoded via <code>SessionManagement.get(sessionID)</code>.</p>
+  
+  
+  <p>The comet call should be processed via <code>session.cometCallFuture</code> which returns a future (with a ten second timeout) of
+  the message to return (which can be serialized via its <code>serialize</code> method). The Play example uses futures nicely; the
+  servlet example ties up a thread waiting on it (this is not good practice and you should not do it in production but it is more portable
+  for the demo). If you are using a servlet holder that cannot create threads then instead of  <code>session.cometCallFuture</code> 
+  you can call <code>session.cometCallBlocking()</code> which will block - this is undesirable unless absolutely necessary.</p>
+  
+  <p>The client call should have its contents deserialized by <code>ClientMessage.deserialize(request.getInputStream())</code>, and
+  then pass it to <code>session.receivedPossiblyUnorderedMessage(message, messageCount)</code> where <code>message</code> is
+  the deserialized message and <code>messageCount</code> comes from the URL query string. See the demos for details.
+  A return acknowledgement should be sent of the result from <code>session.receivedPossiblyUnorderedMessage(message, messageCount)</code>.</p>
+  
+
+
+  
+</body>
+</html>

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="ISO-8859-1">
+<title>Localization (text resources)</title>
+</head>
+<body>
+  <h1>How things are edited</h1>
+  <p>
+    When editing a class, the fields for a class will be discovered by XS via reflection.
+  </p>
+    <ul>
+      <li>Fields annotated with <code>@IndividuallyEditable</code> are not edited directly in the editable screen; rather they 
+      form children of the given node in the tree and can be edited by themselves. However, there will be actions for them;
+      to add a new one (in the edit screen if the parent) and to delete the one currently being edited (in the edit screen
+      of the child).</li>
+      <li>Fields annotated with <code>@StringEditable</code> are edited as text fields. If the field is also labeled
+      with <code>@RequiredOptions</code> or is a java enumeration then the text field is replaced by a selection list, 
+      and the field is set with one of the given option strings.</li> 
+    </ul>
+  <p>
+    XS acts as if the classes are all immutable (you can use variables, but XS will be unaware of this). So whenever 
+    a field of an object is edited, then a new instance of that object is created, as well as a new instance of
+    any parent objects of its type
+  </p>
+  <h1>Text Resources</h1>
+  <p>The text that appears as labels on the editing screen generally comes from .properties files. These
+  are in the standard Java resource .properties file format. Each class <code>ExampleClass</code> that is <code>@XSSerializable</code>
+  should have an assocated file <code>ExampleClass.properties</code> that contains the text associated with that class. This file
+  should be in the same directory as the class itself. This directly supports internationalization - put the localized text
+  for other locales in files such as <code>ExampleClass_fr.properties</code>. See the standard Java localization documentation
+  for details of localization, character encodings, and format definition.</p>
+  <p>Each .properties file contains a list of <code>key=value</code> pairs. The <code>value</code> part is the actual desired
+  text; the <code>key</code> part indicates what the text is used for. The possible keys are given below:</p>
+  <table>
+    <caption>key values for a <code>.properties</code> file for a <code>@XSSerializable</code> class</caption>
+    <thead>
+      <tr><th>key</th><th>Importance</th><th>Meaning</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>PageTitle</td><td>Low</td><td>If the root object you are editing is this, then the title of the page. Not used by most clients.</td></tr>
+      <tr><td>WholeForm</td><td>Medium</td><td>A title that goes at the top of the edit screen for a given class.</td></tr>
+      <tr><td>WholeForm.tooltip</td><td>Medium</td><td>A tooltip for the whole form.</td></tr>
+      <tr><td>WholeForm.details</td><td>Medium</td><td>More detailed text that goes below the title.</td></tr>
+      <tr><td>WholeForm.icon</td><td>Low</td><td>Not really localized text, but the logical name of an icon for that section. Overrides the @XSIcon annotation for the class which would otherwise be used.</td></tr>
+      <tr><td>Add</td><td>High</td><td>The name of the command (in a parent's edit screen) to add an example of this field.</td></tr>
+      <tr><td>Add.tooltip</td><td>Low</td><td>More detailed text for the add command. Typically shown by the client when the user hovers over the Add command.</td></tr>
+      <tr><td>"fieldname".Add, "fieldname".Add.tooltip</td><td>Low</td><td>Text for the add command in this context, overriding the child's normal Add command text. Rarely used - mainly if you have two fields with the same type and you have to disambiguate which you are adding.</td></tr>
+      <tr><td>"fieldname".Add_"classname", "fieldname".Add_"classname".tooltip</td><td>Low</td><td>Text for the add command in this context, for a specific subclass of the child field, overriding the previous two add texts. Very rarely used.</td></tr>
+      <tr><td>Delete</td><td>High</td><td>The name of the command (in a parent's edit screen) to delete an example of this field.</td></tr>
+      <tr><td>Delete.tooltip</td><td>Low</td><td>More detailed text for the delete command. Typically shown by the client when the user hovers over the Delete command.</td></tr>
+      <tr><td>"fieldname"</td><td>High</td><td>The description of the given field. Here "fieldname" is the name of a field in code. Typically shown to the left of an edit control, or in the heading of a table. If not present, then "fieldname" is used instead.</td></tr>
+      <tr><td>"fieldname".tooltip</td><td>Low</td><td>A more detailed description of the given field.</td></tr>
+      <tr><td>"fieldname".placeholder</td><td>Low</td><td>For text editable fields, some text to appear in an empty field before anything is typed (as in html5 placeholder).</td></tr>
+      <tr><td>"fieldname"."errorname"</td><td>Low</td><td>A nicer than default error message if the field is annotated with an appropriate error. "errorname" can be one of the following :
+                    <ul>
+                      <li>ErrorIfBlank</li>
+                      <li>ErrorIfEmptyCollection</li>
+                      <li>ErrorIfNotInteger</li>
+                      <li>ErrorIfNotNumber</li>
+                      <li>ErrorIfNotRegex</li>
+                      <li>ErrorIfNotSuffix</li>
+                      <li>ErrorIfNotSuffix</li>
+                    </ul></td></tr>
+      <tr><td>"fieldname"."errorname".html</td><td>Low</td><td>html version of the previous error message. May not be supported by all clients.</td></tr>
+      <tr><td>Section."sectionname"</td><td>Medium</td><td>Optional title for a section (see @EditSection annotation). The default section (present if no @EditSection annotation present) has "sectionname" equal to <code>Main</code>.</td></tr>
+      <tr><td>Section."sectionname".tooltip</td><td>Low</td><td>Optional tooltip for the section title.</td></tr>
+      <tr><td>Section."sectionname".icon</td><td>Low</td><td>Not really localized text, but the logical name of an icon for that section. Put here as there is no other obvious place to put it.</td></tr>
+      <tr><td>Section."sectionname".details</td><td>Low</td><td>Optional text to go below the title for a section.</td></tr>
+    </tbody>
+  </table>
+  <p>Java enumerations can also have localized text. If <code>MyEnumeration</code> is a java enumeration, then a properties file
+     <code>MyEnumeration.properties</code> in the same package is also consulted to get human readable text for each option.</p>
+  <table>
+    <caption>key values for a <code>.properties</code> file for a Java Enumeration</caption>
+    <thead>
+      <tr><th>key</th><th>Importance</th><th>Meaning</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>"option"</td><td>High</td><td>The human readable version of the code name.</td></tr>
+      <tr><td>"option".icon</td><td>Low</td><td>Not really localized text, but the logical name of an icon that represents that option. Many clients currently ignore.</td></tr>
+    </tbody>
+  </table>
+</body>
+</html>

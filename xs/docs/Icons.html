@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="ISO-8859-1">
+<title>Icons</title>
+</head>
+<body>
+  <p>Icons are used by XS for fields (generally displayed near the label) and for classes (generally displayed in the tree view near the node name).
+  As the same icon is used in multiple circumstances, and there may be different formats depending upon the front end, there is a level of
+  indirection between the logical description of an icon at the XS api level, and the physical picture that is displayed.</p>
+  
+  <p>The simplest way to associate an icon with a field or class is to use the <code>@XSIcon</code> annotation on the field or class.
+  This annotation contains an argument which is a string naming the icon. XS will then look through its manifests for an icon that
+  matches that name. E.g. <code>@XSIcon("Star")</code>. </p>
+  
+  <p>A manifest for XS consists of a text file <code>xsicons.manifest</code> and associated image files. The file consists of
+  a set of entries. Each entry starts with a line like <code>[Star]</code> meaning that this entry matches the logical icon
+  name "Star". Subsequent lines may be:</p>
+  <ul>
+    <li>The name of an image file in the same directory, like <code>Star.jpg</code></li>
+    <li>The name of an image file in the same directory, preceded by an integer and equals sign, like <code>32=Star32x32.jpg</code>. The integer is an estimate of the height of the icon in pixels,
+    and is used by XS to choose the most appropriate format when more than one file is included.</li>
+    <li>A line starting with <code>Copyright=</code>. This is for internal documentation if third party images are used.</li>
+    <li>Comments starting with the <code>#</code> character</li>
+  </ul>
+  
+  <p>The sample application manifest file is included below as an example.</p>
+  
+<pre>
+[Rocky]
+Copyright=NASA
+Earth80x80.jpg
+
+[GasGiant]
+Copyright=NASA
+Jupiter80x80.jpg
+
+[IceGiant]
+Copyright=NASA
+Uranus40x40.jpg
+
+[Comet]
+Copyright=NASA
+Comet120x120.jpg
+
+[Planet]
+Copyright=NASA
+Saturn80x80.jpg
+
+[Star]
+Copyright=NASA
+Star.jpg
+# Sun80x80.jpg is rather ugly
+
+[Space]
+Copyright=NASA
+Space.jpg
+</pre>
+
+  <p>There can be multiple manifest files. XS will search in the following places in order (in the classpath):</p>
+  <ul>
+    <li>In the package the class referring to it is located in</li>
+    <li>In sub packages of said class</li>
+    <li>In the /xsicons directory of the classpath</li>
+  </ul>  
+  
+  <p>An <code>@IconProvider</code> annotated method can return a string (which will be interpreted as above), or a <code>Icon</code> or <code>ConcreteIcon</code> class. 
+  If you want a fully custom file you can use <code>Icon.ofURL</code>, which can be used with a "data:" URL.</p>
+</body>
+</html>

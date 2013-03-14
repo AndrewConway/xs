@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="ISO-8859-1">
+<title>Roadmap</title>
+</head>
+<body>
+  <h2>High priority items</h2>
+  <ul>
+    <li>Copy/paste between different tables/windows</li>
+    <li>Undo/redo</li>
+    <li>Tooltips for UI part of fields - with ability to have lazy computation (currently all tooltips are computed eagerly so they are ready without network access.)</li>
+    <li>Custom renderers for when XS isn't quite general enough</li>
+    <li>Better use of horizontal space for grids (which are currently a fixed width)</li>
+    <li>Better use of vertical space for the editing area (currently a fixed height)</li>
+    <li>Able have Map collections as fields</li>
+    <li>Ensure works on Chrome and Safari</li>
+    <li>Fix serialization of multiline string attributes. XS uses the java XMLStreamWriter, whose writeAttribute fails to escape newline characters correctly.</li>
+  </ul>
+  
+  <h2>Low priority items</h2>
+  <ul>
+    <li>Non local drag and drop</li>
+    <li>Placeholder, etc. for pseudo-text field</li>
+    <li>Rather than sending back every keypress to the server, wait a fraction of a second and see if new ones coming.</li>
+    <li>Websockets</li>
+    <li>Improve image fields</li>
+    <li>Have running syntax checks for the first field of a new row in a table</li>
+    <li>Lift web app support</li>
+    <li>Swing UI</li>
+    <li>SWT/JFace UI</li>
+    <li>JSON serialization/deserialization as well as XML</li>
+    <li>Make the servlet demo handle comet without waiting on a Promise</li>
+  </ul>
+  
+  <h2>Use of components outside of XS</h2>
+  <ul>
+    <li>Better support for using the pseudo text field outside of XS</li>
+    <li>Better support for using the html5 tree outside of XS</li>
+  </ul>
+</body>
+</html>

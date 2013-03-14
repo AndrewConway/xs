@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="ISO-8859-1">
+<title>Introduction to XS</title>
+</head>
+<body>
+  <p>XS is provides a high quality editor and XML serialization/deserialization for Scala classes that form a tree. 
+  This introduction provides an introduction to the main concepts. More details are available in the Javadocs for the annotations.</p>
+  
+  <h2>XS Classes and fields</h2>
+           <aside>Refers to package <code>org.greatcactus.xs.api</code></aside>
+  
+  <p>A class can be handled by XS if it has the <code>@XS</code> annotation, and contains a constructor listing some suitable, possibly annotated, fields (vals or vars).
+  If the class has multiple constructors then the desired one should be annotated with <code>@XSConstructor</code>.
+  There is one field created for each argument to the constructor; its name is the name of the argument (overridable by the <code>@XSName</code> annotation)
+  A field is suitable if it is:</p>
+  <ul>
+    <li>A class that can be handled by XS</li>
+    <li>A class that can be indirectly handled by XS. This is a superclass of some other class(es) that are themselves handled directly or indirectly by XS. 
+    Such a class must be annotated with <code>@XS</code> and <code>@XSSubclasses</code>, with the 
+    latter annotation listing all the subclasses.</li>
+    <li>A primitive (Int,Double,Char,Byte,Long,Float,Boolean)</li>
+    <li>A string</li>
+    <li>A Java enumeration</li>
+    <li>Some class that can be converted to a string by toString (ie everything) and from a string by a method taking a string as an argument. Places looked (in order of precendence):
+      <ul>
+        <li>an <code>apply</code> method in the companion object (a common Scala idiom)</li>
+        <li>a static <code>valueOf</code> member (a common Java idiom, including some useful Java standard library functions)</li>
+        <li>a constructor for the class</li>
+      </ul>
+    </li>
+    <li>An array, List, Seq, IndexedSeq, Set, or Option of one of the above types.</li>
+  </ul>
+  
+  <p>This covers a large number of practical data structures. It does not allow collections of collections or Tuples directly, 
+  although these can readily be dealt with by making a wrapper class holding the inner collection. (eg. a matrix could not be stored as an array of arrays of doubles, but
+  it could be stored as an array of rows, where each row was a class containing a single field being an array of doubles).</p>
+  
+  <h4>Serialization</h4>
+           <aside>Refers to package <code>org.greatcactus.xs.api.serialization</code></aside>
+  
+  <p>This is generally all the information needed for serialization. Such a class will be serialized into a XML structure with tag name
+  the class' name (override by <code>@XSName</code>), attributes with the fields serialized to Strings (unless annotated by <code>@XSSerializeAsBlock</code>), 
+  and nested XML elements for the other fields.</p>
+  <p> Collections are serialized for attributes as semicolon separated strings (semicolons and backquotes are then escaped by backquotes). Collections for other
+  fields consist of multiple instances of the sub tag. Fields that are null or empty collections have their corresponding attribute or subtag left out. This means that
+  Some(null), None, and null all serialize to the same thing - XS is not the library for you if you routinely want to distinguish these. What a missing field deserializes to depends
+  upon the type: if the type is a collection, it deserializes to an empty collection. Otherwise it deserializes to null. Note that the serializer can distinguish None from
+  Some("") which the editor cannot distinguish.  </p>
+  <p>Polymorphic fields are distinguished by having the sub field have tag name be the name of the class. This causes problems if there are two fields that could
+  contain the same class. This ambiguity is resolved by wrapping the fields with the field name via <code>@XSWrapper</code></p>
+  
+  <p>Backwards compatability when field names change can be provided with <code>@XSObsoleteName</code>
+  <p>UTF8 encoding is used.</p>
+  
+  <p>You can now serialize an object to a stream or byte array via the appropriate method in the object <code>XMLSerialize</code>. You can deserialize
+  an object using <code>XMLDeserialize.deserialize</code>. A code example that defines a class, serializes it, and then deserializes it is shown below:
+<pre>
+@XS class Complex(val r:Double,val i:Double)
+val c = new Complex(0.6,0.8)
+val serializedData : Array[Byte] = XMLSerialize.serializeToByteArray(c)
+val deserialized : Complex = XMLDeserialize.deserialize[Complex](serializedData)
+</pre>
+   
+   <h2>Editing</h2>
+         <aside>Refers to package <code>org.greatcactus.xs.api.edit</code></aside>
+   
+   <p>Editing requires extra annotations on the fields to describe how to edit them. The basic editing paradigm is that the hierarchical structure
+   is represented as a tree (typically on the left hand side of the edit window), with individual nodes having fields that can be edited
+   (on the right hand side). Fields that hold <code>@XS</code> annotated objects are usually annotated with <code>@IndividuallyEditable</code>
+   which means they should be represented by new nodes in the tree. They can also be left unannotated, in which case they will be preserved but
+   not displayed, or annotated with <code>@TableEditable</code> which means they will be displayed as a grid (think Excel).</p>
+   
+   <p>Fields that are serialized to strings are generally edited as fields on the right hand side. They can be edited
+   as checkboxes via <code>@BooleanEditable</code>, as strings via <code>@StringEditable</code> (this includes numbers, and also enumerations with the help of <code>@RequiredOptions</code>), and as image URLs via @ImageEditable.</p>
+   <table>
+    <caption>There are a host of extra annotatations that modify how the editing is done.</caption>
+    <thead>
+      <tr><th>Annotation</th><th>Modifies</th><th>Meaning</th></tr>
+    </thead>
+    <tbody>
+     <tr><td><code>@DefaultValue</code></td><td></td><td>When a new object is created, the default value for a field.</td></tr>
+     <tr><td><code>@DisplayOnly</code></td><td></td><td>Read only</td></tr>
+     <tr><td><code>@DoNotTrim</code></td><td><code>@StringEditable</code></td><td>Do not trim whitespace from the start and end of the user's typing</td></tr>
+     <tr><td><code>@EditSection</code></td><td></td><td>Display this field in a subsection of fields</td></tr>
+     <tr><td><code>@ExpandOnFirstDisplay</code></td><td><code>@IndividuallyEditable</code></td><td>When the tree is opened to display the node containing this field, also expand said fields</td></tr>
+     <tr><td><code>@HideName</code></td><td></td><td>Don't display the label for a field</td></tr>
+     <tr><td><code>@MaxChildren</code></td><td>collections</td><td>The maximum number of elements in a collection</td></tr>
+     <tr><td><code>@MaxLength</code></td><td><code>@StringEditable</code></td><td>Maximum number of characters. Currently unimplemented.</td></tr>
+     <tr><td><code>@Multiline</code></td><td><code>@StringEditable</code></td><td>Allow newlines in the field</td></tr>
+     <tr><td><code>@OrderingPriority</code></td><td><code>@StringEditable</code></td><td>Changes the order that fields are displayed (see also <code>@EditSection</code>)</td></tr>
+     <tr><td><code>@ReadOnly</code></td><td></td><td>Make this field display only (disable editing).</td></tr>
+     <tr><td><code>@RequiredOptions</code></td><td><code>@StringEditable</code></td><td>A list of the possible options a field could be.</td></tr>
+     <tr><td><code>@ResolveNetworkReferences</code></td><td><code>@ImageEditable</code></td><td>Convert a net URL to a data: url. Limited implementation status.</td></tr>
+     <tr><td><code>@SuggestedOptions</code></td><td><code>@StringEditable</code></td><td>Hints for a field. Limited implementation status.</td></tr>
+     <tr><td><code>@WholeLine</code></td><td></td><td>Display a field on a line by itself with the label above it rather than beside it.</td></tr>
+     <tr><td><code>@WidthHint</code></td><td>field in a table</td><td>Estimate of the width (in characters) of a field. Limited implementation status.</td></tr>
+     <tr><td><code>@XSIcon</code></td><td>class or field</td><td>Name of an <a href="Icons.html">icon</a> to display for the field or class.</td></tr>
+    </tbody>
+   </table>
+    
+   <h3>Customising display - text, icons, sections and extra fields </h3>
+      <aside>Refers to package <code>org.greatcactus.xs.api.display</code></aside>
+
+   <h4>Extra fields</h4>
+   <p>Extra (read only) fields can be created by putting the <code>@ExtraDisplayField</code> annotation on a method of a class. This field should then have the appropriate 
+   modifiers listed above (e.g. <code>@XSStringEditable</code>, <code>@EditSection</code>, etc.).</p>
+
+   <h4>Text</h4>   
+   <p>There is a variety of text needed for labels and headings. This is handled via the standard ".properties" files used
+   for Java localization. Details are given <a href="Localization.html">here</a>.</p>
+      
+   <p>Sometimes you will want more control over the labels (for instance, they may be a function of the object itself). For this
+   you can use the <code>@LabelProvider</code> annotation on a method of the class. The annotation should take an argument which
+   is the name of the field it is providing a label for. This allows programmatic creation of labels in a variety of forms
+   (see the <code>@LabelProvider</code> JavaDocs for details) including HTML (see the <code>RichLabel</code> class).</p>
+   
+   <p>Tree nodes are generally labeled via the <code>toString</code> method of the node in question. This can be overridden 
+   by a method with the <code>@LabelProvider</code> annotation and no arguments.</p>
+      
+   <h4>Icons</h4>
+   <p>Icons for both fields and tree nodes come from the <code>@XSIcon</code> annotation on the field or class. This can be
+   overridden in a very similar manner to the  <code>@LabelProvider</code> except with this time <code>@IconProvider</code>.
+   See the Javadocs and <a href="Icons.html">icon document</a> for details.</p>
+   
+   <h4>Visibility</h4>
+   
+   <p>Fields can have their visibility be controlled programmatically by methods with the <code>@VisibilityController</code> annotation.
+   Disabling is also possible with the <code>@EnabledController</code> annotation, although implementation of <code>@EnabledController</code> is patchy.</p>
+   
+   <h4>Sections</h4>
+    <p>Sections are groups of fields that can be displayed together, possibly with a heading.</p>
+    
+    <p>Fields by default will go in the "Main" section, but this can be changed by the <code>@EditSection</code> option.</p> 
+   
+    <p>The providers and controllers above can also be applied to sections by using the section name prepended by "Section." as the argument.</p>  
+      
+   <h3>Errors</h3>
+      <aside>Refers to package <code>org.greatcactus.xs.api.errors</code></aside>
+   
+   <p>One of the most powerful features of XS is the ability to mark errors and warnings on the editor. Errors and Warnings are
+   always associated with a particular object. They may also be associated with a particular field for that object. If so, and the item
+   is a collection, they can be associated with a particular element of the collection. Lastly, they can be associated with particular
+   indices in the text representation of a field element.</p>
+   
+   <p>Errors are computed programatically via methods on the object in question annotated with <code>@ErrorCheck</code>, with an
+   optional arguement of the field name. This function should return zero or more instances of class <code>XSError</code> 
+   (see the Javadocs for a list of valid return types and localization information).</p>
+   
+   <table>
+    <caption>There are a variety of extra annotatations on fields that compute commonly used errors automatically. Look at the Javadocs for detailed usage information.</caption>
+    <thead>
+      <tr><th>Annotation</th><th>Error condition</th></tr>
+    </thead>
+    <tbody>
+     <tr><td><code>@ErrorIfBlank</code></td><td>If blank/None is invalid (including as an element of a collection).</td></tr>
+     <tr><td><code>@ErrorIfEmptyCollection</code></td><td>If a collection should have at least one element.</td></tr>
+     <tr><td><code>@ErrorIfNotGloballyUnique</code></td><td>If some other object has the same value for said field. The implementation is reasonably efficient, but can still be slow for very large objects.</td></tr>
+     <tr><td><code>@ErrorIfNotUniqueInObject</code></td><td>If this field value is repeated somewhere else in the same object (eg a list of include files, you don't want the same file twice).</td></tr>
+     <tr><td><code>@ErrorIfNotUniqueInParent</code></td><td>If this field value is repeated somewhere else in a different child of the same parent (part way between <code>@ErrorIfNotUniqueInObject</code> and <code>@ErrorIfNotGloballyUnique</code>).</td></tr>
+     <tr><td><code>@ErrorIfNotNumber</code></td><td>If this field is not a number.</td></tr>
+     <tr><td><code>@ErrorIfNotRegex</code></td><td>If this field is not a regular expression.</td></tr>
+     <tr><td><code>@ErrorIfNotSuffix</code></td><td>If this field does not have a suffix.</td></tr>
+    </tbody>
+   </table>
+       
+   <h3>Dependency Injection</h3>
+   
+   <aside>Refers to package <code>org.greatcactus.xs.api.dependency</code></aside>
+   
+   <p>It is clear that the <code>@ErrorIfNotUniqueInObject</code> error can be computed by a custom method annotated by <code>@ErrorCheck</code>. But the global uniqueness checks are
+   problematic as an object generally does not have access to its parents. This is an important architectural design choice as it means updates can be done reusing the majority
+   of a complex data structure, improving performance, memory footprint and reliability. This problem is solved by letting the methods annotated by <code>@ExtraDisplayField</code>,
+   <code>@LabelProvider</code>, or indeed any other such annotation have arguments. XS will then provide arguments (if possible) to the methods based on their type (dependency
+   injection). For instance, to access the parent of an object you can use
+   <pre>
+        @LabelProvider("distanceFromPrimary") private def fancyHomeLabel(parent:Parent[HeavenlyBody]) = "Distance from "+parent.get.name
+   </pre>
+   
+   
+   <p>XS will provide the <code>Parent</code> wrapper around the actual parent. You can also create your own classes that will be provided by having a method annotated
+   with <code>@DependencyProvider</code>. The result (if any) of this will can then be used in other methods of the same object, or children if it is annotated
+   with <code>@PropagateToChildren</code> (or both if annotated with both).</p>
+   
+   <p>Efficiency is an issue here and XS does a variety of optimizations to avoid recomputing dependencies when things have not changed. You can help by adding
+   the <code>@OnlyAffectedByFields</code> annotation to a <code>@DependencyProvider</code> method, and list the names of the fields that cause it to need to be recomputed.
+   Note that this means that dependency providers can be used for more than just gaining functionality; they can also be used to improve performance. Suppose you 
+   have two fields, such that a computationally expensive parse of the first field is needed for the error checking for either. Rather than having two <code>@ErrorCheck</code>
+   methods, both of which compute the parse, you can have one <code>@DependencyProvider</code> method that does the parse and returns it in some wrapper object, 
+   and then two simpler and faster <code>@ErrorCheck</code> functions that take the parsed result as an argument. Of course in many cases you can accomplish the same
+   task using private and or lazy fields rather than <code>@DependencyProvider</code>, but not if the parent is needed.</p>
+   
+   <p>A function annotated by <code>@OnlyAffectedByFields</code> and also having its own arguments is reevaluated if those arguments change (using != as the definition of change)
+   even if the fields listed in <code>@OnlyAffectedByFields</code> do not change. Power user trick: a function taking arguments labeled <code>@OnlyAffectedByFields</code> with
+   no fields listed will only be recomputed if the arguments change. This can be used for sophisticated caching of expensive computations.
+   
+   <p>Sometimes you may want to inject some information from outside the object. For instance, a field may be the name of a file. You may want error messages
+   to depend upon the contents of the file. This would seem straight forward - just read the file in the <code>@ErrorCheck</code> method - but it does not
+   handle the file changing under you in which case the error check function needs to be recomputed. This is dealt with by returning an element
+   of type <code>ExternalDependency</code> from a <code>@DependencyProvider</code> method. You will then have to have set up a <code>ExternalDependencyResolver</code>
+   class when you set up the editor initially. The <code>ExternalDependencyResolver</code> will resolve the <code>ExternalDependency</code> and provide notifications
+   of changing. As usual see the Javadocs or main example for details.</p>
+   
+   <p>Sometimes you may want to block a dependency from being propagated to children. This can be done by putting the <code>@BlockDependencyInjection</code> annotation
+   on the class and listing the classes of dependency to block. This is most useful if you have a class that wants to override some dependencies that would otherwise
+   be propagated to children.</p>
+      
+</body>
+</html>
