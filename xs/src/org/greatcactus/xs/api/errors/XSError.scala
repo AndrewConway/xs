@@ -47,6 +47,7 @@ class XSError(
     }
   }
 
+  override def toString = severity.toString+" : "+description+" at "+from+" to "+to
 }
 
 
