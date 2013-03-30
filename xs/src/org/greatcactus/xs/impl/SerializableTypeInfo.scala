@@ -438,6 +438,8 @@ object SerializableTypeInfo {
   private[impl] val typeErrorIfNotGloballyUnique = universe.typeOf[ErrorIfNotGloballyUnique]
 
   private[impl] val typeBoolean = universe.typeOf[Boolean]
+  
+  private[impl] val classOnObsoleteCallback = classOf[OnObsoleteCallback]
 
   private val syncronizeValidityChecks = new Object // object used for making sure validity checks are synchronized. 
 

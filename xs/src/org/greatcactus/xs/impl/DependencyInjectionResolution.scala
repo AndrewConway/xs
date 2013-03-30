@@ -13,6 +13,8 @@ import org.greatcactus.xs.api.errors.XSError
 import scala.collection.GenTraversable
 import org.greatcactus.xs.frontend.DetailsPaneFields
 import org.greatcactus.xs.api.errors.Severity
+import org.greatcactus.xs.api.dependency.ExternallyChangingDependency
+import org.greatcactus.xs.api.dependency.OnObsoleteCallback
 
 
 
@@ -57,17 +59,26 @@ class DependencyInjectionInformation(
 class FunctionEvaluationStatus(val function:DependencyInjectionFunction,val args:Seq[AnyRef],holder:DependencyInjectionCurrentStatus,obj:reflect.runtime.universe.InstanceMirror) {
   var callbackOnDispose : Option[()=>Unit] = None
 
+  def onExternalChange() {
+    callbackOnDispose=None; 
+    holder.changedExternalResource(this)
+  }
+  
   /** The result of the function, or None if it executed with an error */
   val res: Option[AnyRef] = try {
-    function.apply(obj,args) match {
+    val argsWithChanges = for (a<-args) yield if (a==null) new OnObsoleteCallback(onExternalChange _) else a
+    function.apply(obj,argsWithChanges) match {
       case null => None
       case e:ExternalDependency => holder.associatedNode.xsedit.externalDependencyResolver match {
         case Some(resolver) =>
-          val resolved = resolver.resolve(e,()=>{callbackOnDispose=None; holder.changedExternalResource(this)})
+          val resolved = resolver.resolve(e,onExternalChange _)
           callbackOnDispose = resolved.onNoLongerUsed
           Option(resolved.result)
         case None => None
       }
+      case e:ExternallyChangingDependency =>
+        callbackOnDispose = e.onNoLongerUsed
+        Option(e.actual)
       case value => Some(value)
     }
   } catch { case e:Exception => None}
@@ -295,7 +306,8 @@ class DependencyInjectionFunction(
   }
   def getArgs(injections:Traversable[AnyRef]) : Option[Seq[AnyRef]] = {
     Some(for (t<-argTypes) yield {
-      injections.find{inj=>t.isAssignableFrom(inj.getClass())} match {
+      if (t == SerializableTypeInfo.classOnObsoleteCallback) null
+      else injections.find{inj=>t.isAssignableFrom(inj.getClass())} match {
         case Some(injected) => injected
         case None => return None
       }
