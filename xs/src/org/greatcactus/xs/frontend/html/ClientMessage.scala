@@ -193,6 +193,9 @@ object ClientMessage {
   def setHTMLID(id:String,html:NodeSeq) = {
     new SimpleClientMessage("SetHTML",Array(id,html.toString))
   }
+  def setHTMLID(id:String,html:String) = {
+    new SimpleClientMessage("SetHTML",Array(id,html))
+  }
   def setHTMLID(id:String,html:RichLabel) : ClientMessage = {
     if (html==null) setHTMLID(id,NodeSeq.Empty)
     else {
