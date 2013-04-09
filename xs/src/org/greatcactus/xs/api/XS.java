@@ -17,9 +17,12 @@ import java.lang.annotation.*;
  * <p>A field may be either serialized as a string, or a class itself using
  * the above constructor. It is done as a class iff that class has an 
  * XSSerializable tag. It may furthermore be implemented as an XML
- * tag or as an attribute. If it is serialized as a string, AND there is
+ * tag or as an attribute. If it is serialized as a string (other than, ironically, 
+ * fields of class java.lang.String), AND there is
  * no {@link XSSerializeAsBlock} it will be serialized as an attribute;
- * otherwise it will be serialized as a tag.</p>
+ * otherwise it will be serialized as a tag. (java.lang.String is not by
+ * default serialized as an attribute to preserve whitespace. If you want
+ * to serialize a string as an attribute see {@link @XSSerializeAsAttribute).</p>
  * 
  * <p>If a field is serialized as an attribute, the attribute's name 
  * will be the name of the field, unless the {@link XSName} annotation

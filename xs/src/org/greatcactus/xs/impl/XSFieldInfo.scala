@@ -95,7 +95,9 @@ class XSFieldInfo(val fieldSymbol:reflect.runtime.universe.Symbol,val index:Int,
 
     val xsinfo : Option[SerializableTypeInfo[_]]= getWithoutCheckingValidity(baseClass) // plain get can cause an infinite loop. See comment on constructor field of SerializableTypeInfo.
     val isAssertedAsBlock = hasAnnotation(typeXSSerializeAsBlock)
-    val isBlock = xsinfo.isDefined || isAssertedAsBlock || wrapperName.isDefined
+    val isAssertedAsAttribute = hasAnnotation(typeXSSerializeAsAttribute)
+    def couldBeAttribute = !xsinfo.isDefined
+    val isBlock = xsinfo.isDefined || isAssertedAsBlock || wrapperName.isDefined || (baseClassName=="java.lang.String" && !isAssertedAsAttribute)
     
     val getMethod = {
       val m = parentType.member(universe.newTermName(originalName))

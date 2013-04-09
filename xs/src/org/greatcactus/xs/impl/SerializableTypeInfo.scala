@@ -237,8 +237,11 @@ class SerializableTypeInfo[T <: AnyRef] private (val clazz : java.lang.Class[T])
   /** Get the field expected when an tag with a given name is found, plus (if it is serializable and not a wrapper) deserialization help, plus a boolean as to if this is just a wrapper. */
   def getBlockField(name:String) : (XSFieldInfo,Option[SerializableTypeInfo[_ <: AnyRef]],Boolean) = constructor.flatMap{_.blockFieldsFromNames.get(name)}.getOrElse(deserializeError("Unexpected attribute "+name))
   /** Get the field expected when an attribute with a given name is found */
-  def getAttributeField(name:String) : XSFieldInfo = constructor.flatMap{_.attributeFieldsFromNames.get(name)}.getOrElse(deserializeError("Unexpected tag "+name))
-
+  def getAttributeField(name:String) : XSFieldInfo = constructor.flatMap{_.attributeFieldsFromNames.get(name)}.
+          orElse(blockFieldAsAttributeField(name)).getOrElse(deserializeError("Unexpected tag "+name))
+  // found an attribute that should really be a block, but can still read safely.
+  def blockFieldAsAttributeField(name:String) : Option[XSFieldInfo] = constructor.flatMap{_.blockFieldsFromNames.get(name).map{_._1}}.filter{_.couldBeAttribute}
+          
   lazy val fieldsAsBlocks = constructor.map{_.fieldsAsBlocks}.getOrElse(List.empty)
   lazy val fieldsAsAttributes = constructor.map{_.fieldsAsAttributes}.getOrElse(List.empty)
   lazy val fields = constructor.map{_.fields}.getOrElse(List.empty)
@@ -395,6 +398,7 @@ object SerializableTypeInfo {
   private[impl] val typeXSObsoleteName = universe.typeOf[XSObsoleteName]
   private[impl] val typeXSSerializable = universe.typeOf[XS]
   private[impl] val typeXSSerializeAsBlock = universe.typeOf[XSSerializeAsBlock]
+  private[impl] val typeXSSerializeAsAttribute = universe.typeOf[XSSerializeAsAttribute]
   private[impl] val typeDefaultValue = universe.typeOf[DefaultValue]
   private[impl] val typeStringEditable = universe.typeOf[StringEditable]
   private[impl] val typeBooleanEditable = universe.typeOf[BooleanEditable]

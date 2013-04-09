@@ -61,12 +61,12 @@ class ZZZ_Serialization {
   def test4 {
     val t = new Test4("Flintstone",List("Rub>ble"))
     //println("Ser=["+new String(XMLSerialize.serializeToString(t))+"]")
-    assertEquals("""<Test4 hero="Flintstone" barney="Rub&gt;ble"/>""",new String(XMLSerialize.serializeToByteArray(t)))
-    val m = XMLDeserialize.deserialize[Test4]("""<Test1 hero="Flintstone" barney="Rub&gt;ble"></Test1>""".getBytes)
+    assertEquals("""<Test4><hero>Flintstone</hero><barney>Rub&gt;ble</barney></Test4>""",new String(XMLSerialize.serializeToByteArray(t)))
+    val m = XMLDeserialize.deserialize[Test4]("""<Test4><hero>Flintstone</hero><barney>Rub&gt;ble</barney></Test4>""".getBytes)
     assertEquals("Flintstone",m.fred)
     assertEquals(List("Rub>ble"),m.barney)
-    assertEquals("""<Test4 hero="Flintstone" barney="Rub&gt;ble"/>""",new String(XMLSerialize.serializeToByteArray(m)))
-    // test("""<Test4 hero="Two&#10;Lines"/>""",new Test4("Two\nLines",Nil)) // TODO fix. This fails.  XS uses the java XMLStreamWriter, whose writeAttribute fails to escape newline characters correctly. 
+    assertEquals("""<Test4><hero>Flintstone</hero><barney>Rub&gt;ble</barney></Test4>""",new String(XMLSerialize.serializeToByteArray(m)))
+    test("<Test4><hero>Two\nLines</hero></Test4>",new Test4("Two\nLines",Nil)) 
   }
 
   def test[T <: AnyRef :ClassTag](expectedXML:String,obj:T) {
@@ -145,7 +145,7 @@ class ZZZ_Serialization {
 }
 
 
-@XS class Test1 (val fred:String,val barney:Seq[String])
+@XS class Test1 (@XSSerializeAsAttribute val fred:String,@XSSerializeAsAttribute val barney:Seq[String])
 
 
 @XS
@@ -228,7 +228,7 @@ class Test11(val t:List[Test11])
 class Test12(val t:Option[Test12])
 
 @XS
-class Test13(val t1:Option[String],@XSSerializeAsBlock val t2:Option[String])
+class Test13(@XSSerializeAsAttribute val t1:Option[String],@XSSerializeAsBlock val t2:Option[String])
 
 // Things that should fail.
 
