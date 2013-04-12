@@ -35,6 +35,12 @@ function xsProcessClientMessageFromServer(json,session) {
 			$(json.args[0]).addClass(json.args[1]);
 		} else if (json.cmd=="RemoveClass") {
 			$(json.args[0]).removeClass(json.args[1]);
+		} else if (json.cmd=="GotoURL") {
+			window.location.href=json.args[0];
+		} else if (json.cmd=="ToolbarStatus") {
+			var elem = document.getElementById(json.args[0]);
+			elem.disabled = json.args[1]=='false';
+			elem.innerHTML=json.args[2];
 		} else if (json.cmd=="Run") {
 			console.log("Got to Run with "+json.args[0]);
 			try { eval(json.args[0]);} catch(err) { console.log(err);}
@@ -307,6 +313,11 @@ var xs = {
 		  //console.log("Grid DnD "+rows+" "+insertBefore);
 		  this.sendToServer({cmd:"GridDnD",args:[id,rows.toString(),insertBefore.toString(),this.currentlyEditing]});  
 	  };
+
+	  /** Called when a click is done on a toolbar button */
+	  this.toolbar = function(id) {
+		  this.sendToServer({cmd:"Toolbar",args:[id]});
+	  };
 	  
 	  //
 	  // stuff for the tree - should be documented better.
@@ -490,6 +501,7 @@ var xs = {
 	  $(document).ready(function(){
 		  xsthis.cometCall();
       });
+	  
 	  
   }, // end session definition
   

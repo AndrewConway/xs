@@ -78,26 +78,69 @@ class XSTreeNode(
     }
   }
     
+  def getDuplicateStrings(strings:Seq[String]) : Set[String] = {
+    var res : Set[String] = Set.empty
+    var found : Set[String] = Set.empty
+    for (s<-strings) if (found.contains(s)) res+=s else found+=s
+    res
+  }
   
   private def getChildren(fields:Seq[XSFieldInfo],oldChildren:Seq[XSTreeNode]) : TreeNodeChange = {
     val allChildren = new ArrayBuffer[XSTreeNode]
     val addedChildren = new ListBuffer[XSTreeNode]
-    var childrenMap : Map[EqualityByPointerEquality[AnyRef],XSTreeNode]= Map.empty++(for (c<-oldChildren) yield new EqualityByPointerEquality(c.getObject)->c)
+    val deletedChildren = new ListBuffer[XSTreeNode]
+    val subTreeNodeChanges = new ListBuffer[TreeNodeChange]
     // children match by equality of the obj elements
     for (blockField<-fields) {
-      for (elem<-blockField.getAllFieldElements(obj)) if (elem!=null) { // At some point I may want to include a feature such that some classes can be edited inilne as part of their parents. In this case we wouldn't quite want blocks - we want things that show up as children. So must be @XS and should also include subfields which are included at the same level.
-        val holder = new EqualityByPointerEquality(elem.asInstanceOf[AnyRef])
-        childrenMap.get(holder) match {
-          case Some(node) => allChildren+=node; childrenMap-=holder;
-          case None => // not already there.
-            XSTreeNode.apply(elem.asInstanceOf[AnyRef],this,blockField,xsedit) match {
-              case Some(node) => allChildren+=node; addedChildren+=node
-              case None =>
-            }
-        }      
+      val rawContents : Array[AnyRef] = (for (elem<-blockField.getAllFieldElements(obj); if (elem!=null)) yield elem.asInstanceOf[AnyRef]).toArray // the actual user data structure values we are trying to match
+      val oldChildrenThisField : Seq[XSTreeNode] = oldChildren.filter{_.fieldInParent eq blockField}
+      // the new children that match them
+      val foundChildren : Array[XSTreeNode] = new Array[XSTreeNode](rawContents.length) // note that null elements of this array may be improved later
+      def imperfectMatch(index:Int,node:XSTreeNode) {
+        foundChildren(index)=node;
+        subTreeNodeChanges+=node.changeObject(rawContents(index)) 
       }
+      // first try to match by object equality
+      val (failed1indices,failed1nodes) = {
+        var pointerEqualityMap : Map[EqualityByPointerEquality[AnyRef],XSTreeNode]= Map.empty++(for (c<-oldChildrenThisField) yield new EqualityByPointerEquality(c.getObject)->c)
+        val failPointerEqualityBuffer = new ListBuffer[Int]
+        for (i<-0 until rawContents.length) {
+          val holder = new EqualityByPointerEquality(rawContents(i))
+          pointerEqualityMap.get(holder) match {
+            case Some(node) => foundChildren(i)=node; pointerEqualityMap-=holder;
+            case None => failPointerEqualityBuffer+=i
+          }
+        }    
+        (failPointerEqualityBuffer.toList,pointerEqualityMap.values.toSeq)
+      }
+      // second try to match by perfect unique toString equality
+      val failed2indices = {
+        val failStringEqualityBuffer = new ListBuffer[Int]
+        val duplicateStrings = getDuplicateStrings(failed1indices.map{i=>rawContents(i).toString})++ getDuplicateStrings(failed1nodes.map{_.getObject.toString}.toSeq)
+        val perfectStringMatch : Map[String,XSTreeNode] = Map((for (v<-failed1nodes;s=v.getObject.toString;if !duplicateStrings.contains(s)) yield s->v) :_*)
+        for (i<-failed1indices) perfectStringMatch.get(rawContents(i).toString) match {
+            case Some(node) => imperfectMatch(i,node) 
+            case None => failStringEqualityBuffer+=i          
+        }
+        failStringEqualityBuffer.toList
+      }
+      val usedOldChildren : Set[EqualityByPointerEquality[XSTreeNode]] = foundChildren.filter{_!=null}.map{new EqualityByPointerEquality(_)}(collection.breakOut) 
+      var unusedOldChildren : List[XSTreeNode] = oldChildrenThisField.filter{n=> !usedOldChildren.contains(new EqualityByPointerEquality(n))}.toList
+      // third try just match order. If that fails, make a new one.
+      val _ = {
+        for (i<-failed2indices) unusedOldChildren match {
+          case node::t => imperfectMatch(i,node); unusedOldChildren=t
+          case Nil => // run out of options. Make a new one.
+            XSTreeNode.apply(rawContents(i),this,blockField,xsedit) match {
+              case Some(node) => foundChildren(i)=node; addedChildren+=node
+              case None => // can't edit this
+            }
+        }
+      }
+      deletedChildren++=unusedOldChildren
+      for (c<-foundChildren) if (c!=null) allChildren+=c
     }
-    new TreeNodeChange(this,allChildren.toIndexedSeq,childrenMap.values.toSeq,addedChildren.toSeq)
+    new TreeNodeChange(this,allChildren.toIndexedSeq,deletedChildren.toList,addedChildren.toList,subTreeNodeChanges.toList)
   }
   
   /** If this is the nth element of a given field in the parent, return n (0 based). */
@@ -125,7 +168,8 @@ class XSTreeNode(
 
   /** 
    * Child objects should be changed before the parent objects. Otherwise when the class tries to match child objects
-   * to existing child XSTreeNode elements, it will unnecessarily discard and recreate new ones.
+   * to existing child XSTreeNode elements, it will not necessarily get a perfect mapping between children and tree
+   * nodes (although it will try)
    **/
   def changeObject(newobj : AnyRef) : TreeNodeChange = { 
     synchronized {
@@ -159,7 +203,7 @@ class XSTreeNode(
       worstErrorLevelCache.invalidate()
       if (parent!=null) parent.childHadWorstErrorLevelRecomputed()
       //println("Boadcasting clean event for "+this)
-      xsedit.broadcast(new TreeChange(List(new TreeNodeChange(this,treeChildren,Nil,Nil))))
+      xsedit.broadcast(new TreeChange(List(new TreeNodeChange(this,treeChildren,Nil,Nil,Nil))))
     }
   }
   
@@ -171,7 +215,7 @@ class XSTreeNode(
        existing!=newRes 
     }
     if (changed) {
-      xsedit.broadcast(new TreeChange(List(new TreeNodeChange(this,treeChildren,Nil,Nil))))
+      xsedit.broadcast(new TreeChange(List(new TreeNodeChange(this,treeChildren,Nil,Nil,Nil))))
       if (parent!=null) parent.childHadWorstErrorLevelRecomputed()
     }
   }
@@ -267,7 +311,7 @@ class XSTreeNode(
   xsedit.dependencyInjectionCleaningQueue.add(this)
 }
 
-class TreeNodeChange(val parent:XSTreeNode,val children:IndexedSeq[XSTreeNode],val removedChildren:Seq[XSTreeNode],val addedChildren:Seq[XSTreeNode]) {
+class TreeNodeChange(val parent:XSTreeNode,val children:IndexedSeq[XSTreeNode],val removedChildren:List[XSTreeNode],val addedChildren:List[XSTreeNode],val sub:List[TreeNodeChange]) {
   def changedStructure = !(removedChildren.isEmpty&&addedChildren.isEmpty)
   
   private[xs] def disposeRemoved() { for (gone<-removedChildren) gone.dispose() }

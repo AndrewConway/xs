@@ -12,12 +12,16 @@ import org.greatcactus.xs.frontend.TreeChange
 import org.greatcactus.xs.api.icon.Icon
 import scala.xml.NodeSeq
 import org.greatcactus.xs.api.display.RichLabel
+import org.greatcactus.xs.frontend.TreeNodeChange
+import org.greatcactus.xs.frontend.XSToolBar
+import org.greatcactus.xs.frontend.ToolbarStatusListener
+import org.greatcactus.xs.frontend.StatusForToolbar
 
 /**
  * The controller for communication with an HTML client. The details of the transport are not
  * included here - it could be via HTTP or Websockets.
  */
-class HTML5Client(val xsedit:XSEdit,val locale:Locale) {
+class HTML5Client(val xsedit:XSEdit,val toolbar:Option[XSToolBar],val locale:Locale) {
 
   private[this] val cmdBuffer = new ClientMessageBuffer
   
@@ -46,9 +50,9 @@ class HTML5Client(val xsedit:XSEdit,val locale:Locale) {
       def userContextMenu(command:String,nodes:Seq[XSTreeNode]) {
         command match {
           case "copy" => clipboard=Some(xsedit.copyData(nodes))
-          case "cut" => clipboard=Some(xsedit.copyData(nodes)); xsedit.deleteTreeNodes(nodes)
+          case "cut" => clipboard=Some(xsedit.copyData(nodes)); xsedit.deleteTreeNodes(nodes,"cut")
           case "paste" => for (c<-clipboard;node<-nodes.headOption) xsedit.pasteData(node, c, None)
-          case "erase" => xsedit.deleteTreeNodes(nodes)
+          case "erase" => xsedit.deleteTreeNodes(nodes,"erase")
         }
       }
   }
@@ -56,7 +60,11 @@ class HTML5Client(val xsedit:XSEdit,val locale:Locale) {
   xsedit.addTreeListener(new XSEditListener() {
       def apply(changes:TreeChange) { 
         //println("Got tree changes")
-        for (e<-changes.elements) if (!e.parent.isTableLine) treePane.refresh(e.parent)
+        def process(e:TreeNodeChange) {
+          if (!e.parent.isTableLine) treePane.refresh(e.parent)
+          for (sub<-e.sub) process(sub)          
+        }
+        for (e<-changes.elements) process(e)
         flushMessages()
       }
       def setCurrentlyEditing(node:Option[XSTreeNode]) { 
@@ -65,7 +73,41 @@ class HTML5Client(val xsedit:XSEdit,val locale:Locale) {
       }
   })
   
+  var toolbarUndoCurrentValue : Option[String] = Some("")
+  var toolbarRedoCurrentValue : Option[String] = Some("")
+  var saveEnabledCurrentValue = true
+  var revertEnabledCurrentValue = true
+  val toolbarIDprefix = session.sessionPrefix+"toolbar."
   
+
+  val toolbarListener = new ToolbarStatusListener {
+    override def apply(status:StatusForToolbar) {
+      for (t<-toolbar) synchronized {
+        if (t.useUndoRedo) {
+          if (toolbarUndoCurrentValue!=status.undoDesc) {
+            toolbarUndoCurrentValue=status.undoDesc
+            sendMessage(ClientMessage.setToolbarStatus(toolbarIDprefix+"undo",status.undoDesc.isDefined,status.undoDesc match { case Some(s) if s!=null => "Undo "+s; case _ => "Undo" }))
+          }
+          if (toolbarRedoCurrentValue!=status.redoDesc) {
+            toolbarRedoCurrentValue=status.redoDesc
+            sendMessage(ClientMessage.setToolbarStatus(toolbarIDprefix+"redo",status.redoDesc.isDefined,status.redoDesc match { case Some(s) if s!=null => "Redo "+s; case _ => "Redo" }))
+          }
+        }
+        if (saveEnabledCurrentValue!=status.dirty) {
+          saveEnabledCurrentValue=status.dirty
+          sendMessage(ClientMessage.setToolbarStatus(toolbarIDprefix+"save",status.dirty,"Save"))
+        }
+        
+        if (revertEnabledCurrentValue!= !status.dirty) {
+          revertEnabledCurrentValue= !status.dirty
+          sendMessage(ClientMessage.setToolbarStatus(toolbarIDprefix+"revert",!status.dirty,"Revert"))
+        }
+      }
+    }
+  }
+  xsedit.addToolbarStatusListener(toolbarListener)
+  
+  // FIXME add something that shuts down the client when the session expires to stop a memory leak.
   
   private def process(message:SimpleClientMessage) {
     try {
@@ -115,6 +157,14 @@ class HTML5Client(val xsedit:XSEdit,val locale:Locale) {
           if (detailsPane.nodeIDCurrentlyBeingEdited==args(3)) detailsPane.uiNewRowOnGrid(args(0),args(1),args(2))
         case "ChangeGrid" if args.length==5 => 
           if (detailsPane.nodeIDCurrentlyBeingEdited==args(4)) detailsPane.uiChangeGrid(args(0),args(1).toInt,args(2),args(3))
+        case "Toolbar" if args.length==1 =>
+          args(0) match {
+            case "undo" => xsedit.undo()
+            case "redo" => xsedit.redo()
+            case "save" => for (t<-toolbar) { t.onSave(); xsedit.undoRedo.reset(xsedit.currentObject); xsedit.updateToolbar() }
+            case "revert" => for (t<-toolbar) t.onRevert()
+            case _ =>
+          }
         case _ => println("Received unanticipated command "+message.command+"("+args.mkString(",")+")")
       }
     } catch { 
@@ -145,13 +195,29 @@ class HTML5Client(val xsedit:XSEdit,val locale:Locale) {
     for (m<-cmdBuffer.get()) transport.sendMessage(m)
   }
 
-  def baseHTML = 
+  def toolbarHTML = toolbar match {
+    case Some(t) =>
+     def button(id:String,text:String) = {
+       <button id={toolbarIDprefix+id} class={"xsToolbarButton"+id} onclick={session.sessionPrefix+"toolbar('"+id+"')"}>{text}</button>
+     }
+     <div class="xsToolbar">
+      {if (t.useSave) button("save","Save") else NodeSeq.Empty}    
+      {if (t.useRevert) button("revert","Revert") else NodeSeq.Empty}    
+      {if (t.useUndoRedo) button("undo","Undo") else NodeSeq.Empty}    
+      {if (t.useUndoRedo) button("redo","Redo") else NodeSeq.Empty}
+      {for (id<-t.others) yield button(id,id) }
+     </div>
+    case None => NodeSeq.Empty
+  } 
+
+  def mainPanelHTML = 
     <div class="xsEdit">
        {treePane.baseHTML}
        { detailsPane.baseHTML }
        { session.createSessionHTML }
     </div>
-  
+       
+  def baseHTML = toolbarHTML++mainPanelHTML 
   
 }
 

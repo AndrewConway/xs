@@ -84,6 +84,7 @@ class SwingTreePane(edit:XSEdit) extends XSEditListener {
       else jtree.collapsePath(parentpath)
     }
     treeModel.nodeChanged(parent)
+    for (sub<-c.sub) change(sub)
   }
   override def apply(changes:TreeChange) {
     for (e<-changes.elements) change(e)

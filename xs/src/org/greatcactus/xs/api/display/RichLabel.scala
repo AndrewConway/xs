@@ -7,6 +7,7 @@ import scala.xml.NodeSeq
 import java.util.Locale
 import scala.xml.XML
 import java.text.MessageFormat
+import scala.xml.Text
 
 /**
  * A possible result of a @LabelProvider function that can be used as html in a rich client or text in a less rich client.
@@ -28,6 +29,9 @@ final class RichLabel(
     case _ => false
   }
   override def toString = html.toString
+  
+  def isBlank = text.trim.isEmpty
+  def htmlNotBlank = if (isBlank) Text("???") else html
 }
 
 /**

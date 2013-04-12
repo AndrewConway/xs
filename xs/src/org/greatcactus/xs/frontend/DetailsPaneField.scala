@@ -186,7 +186,7 @@ class DetailsPaneFieldActionAdd(
     ) extends DetailsPaneFieldAction {
   def icon = concreteClass.icon
   def go(edit:XSEdit,parent:XSTreeNode) {
-    edit.addField(parent,None, field,concreteClass.newElement().asInstanceOf[AnyRef])
+    edit.addField(parent,None, field,concreteClass.newElement().asInstanceOf[AnyRef],None,"Add")
   }
   override def shouldBeVisible(parent:XSTreeNode) = parent.canAdd(field) && parent.isVisible(name)
   val name = "add."+concreteClass.name

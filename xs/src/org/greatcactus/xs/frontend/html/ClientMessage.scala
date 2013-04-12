@@ -190,6 +190,8 @@ object ClientMessage {
   def setCheckedID(id:String,value:Boolean) = { new SimpleClientMessage("SetChecked",Array(id,value.toString)) }
   def changeErrors(id:String,errors:List[ResolvedXSError]) = new ErrorClientMessage(id,errors,None)
   def changeGridErrors(id:String,errors:List[ResolvedXSError],gridID:String) = new ErrorClientMessage(id,errors,Some(gridID))
+  def gotoURL(url:String) = new SimpleClientMessage("GotoURL",Array(url))
+  def setToolbarStatus(toolbarid:String,enabled:Boolean,html:String) = new SimpleClientMessage("ToolbarStatus",Array(toolbarid,enabled.toString,html))
   def setHTMLID(id:String,html:NodeSeq) = {
     new SimpleClientMessage("SetHTML",Array(id,html.toString))
   }
@@ -200,6 +202,16 @@ object ClientMessage {
     if (html==null) setHTMLID(id,NodeSeq.Empty)
     else {
       val main = setHTMLID(id,html.html)
+      html.postCreationJavascript match {
+        case Nil => main
+        case l => new MultipleClientMessage(main:: l.map{ClientMessage.run(_)})
+      }
+    }
+  }
+  def setHTMLIDnotBlank(id:String,html:RichLabel) : ClientMessage = {
+    if (html==null) setHTMLID(id,"???")
+    else {
+      val main = setHTMLID(id,html.htmlNotBlank)
       html.postCreationJavascript match {
         case Nil => main
         case l => new MultipleClientMessage(main:: l.map{ClientMessage.run(_)})

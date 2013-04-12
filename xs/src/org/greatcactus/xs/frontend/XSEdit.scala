@@ -28,6 +28,8 @@ class XSEdit(original:AnyRef,val externalDependencyResolver:Option[ExternalDepen
   val uidsForTreeNodes = new UniqueIDSource()
   val dependencyInjectionCleaningQueue = new DependencyInjectionCleaningQueue()
   
+  val undoRedo = new UndoRedoManager(original)
+  
   val treeRoot : XSTreeNode = XSTreeNode(original,this) // children can then be got via node.getChildren
   //def treeChildren(node:XSTree) : IndexedSeq[XSTree] = node.
   /** The result of all the editing */
@@ -36,10 +38,12 @@ class XSEdit(original:AnyRef,val externalDependencyResolver:Option[ExternalDepen
   
   private var treeListeners : Set[XSEditListener]= Set.empty
   private var detailsPanes : List[XSDetailsPane[_]] = Nil
-  
+  private var toolbarStatusListeners : Set[ToolbarStatusListener] = Set.empty
   
   def addTreeListener(l:XSEditListener) { synchronized {treeListeners+=l; l.setCurrentlyEditing(Option(currentlyEditing))}}
   def removeTreeListener(l:XSEditListener) { synchronized { treeListeners-=l}}
+  def addToolbarStatusListener(l:ToolbarStatusListener) { synchronized {toolbarStatusListeners+=l; l(getToolbarStatus)}}
+  def removeToolbarStatusListener(l:ToolbarStatusListener) { synchronized { toolbarStatusListeners-=l}}
   def addDetailsPane(l:XSDetailsPane[_]) { synchronized {detailsPanes::=l; l.setCurrentlyEditing(Option(currentlyEditing))}}
   def removeDetailsPane(l:XSDetailsPane[_]) { synchronized { detailsPanes=detailsPanes.filter{_!=l}}}
   
@@ -86,7 +90,7 @@ class XSEdit(original:AnyRef,val externalDependencyResolver:Option[ExternalDepen
     synchronized {
       if (node.isOpen!=open) {
         node.isOpen=open
-        processChangesToKids(List(new TreeNodeChange(node,node.treeChildren,Nil,Nil)))
+        processChangesToKids(List(new TreeNodeChange(node,node.treeChildren,Nil,Nil,Nil)),null,null)
       }
     }
   }
@@ -95,7 +99,7 @@ class XSEdit(original:AnyRef,val externalDependencyResolver:Option[ExternalDepen
   //
   
   /** Delete the whole field */
-  def deleteTreeNode(node:XSTreeNode) { deleteTreeNodes(List(node)) }
+  def deleteTreeNode(node:XSTreeNode) { deleteTreeNodes(List(node),"delete") }
 
      /** 
       * Delete the whole field for a set of fields. This has to be done carefully in order
@@ -107,7 +111,7 @@ class XSEdit(original:AnyRef,val externalDependencyResolver:Option[ExternalDepen
       *    process the oldest ones first, as the only problem with the inconsistency is the children
       *    list reevaluation. Then we need to resolve fix up all the ancestor nodes, which is done youngest to oldest.
       **/
-  def deleteTreeNodes(nodes:Seq[XSTreeNode]) { synchronized {
+  def deleteTreeNodes(nodes:Seq[XSTreeNode],undoDescription:String) { synchronized {
     val asSet = nodes.toSet
     if (asSet.contains(treeRoot)) throw new IllegalArgumentException("Cannot delete tree root")
     if (true) { // deal with deletion of currently being edited element - make new currently being edited the first intact parent. 
@@ -128,9 +132,10 @@ class XSEdit(original:AnyRef,val externalDependencyResolver:Option[ExternalDepen
       val changes = parent.changeObject(newobj)
       assert (changes.removedChildren.length==children.filter{!_.fieldInParent.isTableEditable}.length)
       assert (changes.addedChildren.isEmpty)
+      assert (changes.sub.isEmpty)
       changes
     }
-    processChangesToKids(changes)
+    processChangesToKids(changes,null,undoDescription)
   }}
 
   
@@ -144,7 +149,7 @@ class XSEdit(original:AnyRef,val externalDependencyResolver:Option[ExternalDepen
    * This function makes the structure consistent (by modifying ancestors), and then tells listeners about
    * the changes once everything is consistent.
    */
-  def processChangesToKids(changes:Seq[TreeNodeChange]) { synchronized {
+  def processChangesToKids(changes:Seq[TreeNodeChange],undoRedoKey:AnyRef,undoDescription:String) { synchronized {
     val fullList = new ListBuffer[TreeNodeChange]
     fullList++=changes
     var haveChangedObject : Set[XSTreeNode] = changes.map{_.parent}(collection.breakOut)
@@ -159,11 +164,14 @@ class XSEdit(original:AnyRef,val externalDependencyResolver:Option[ExternalDepen
           val changes = parent.changeObject(res)
           assert (changes.removedChildren.isEmpty)
           assert (changes.addedChildren.isEmpty)
+          assert (changes.sub.isEmpty)
           if (!haveChangedObject.contains(parent)) { haveChangedObject+=parent; fullList+=changes; }
         }
       }
     }
+    if (undoDescription!=null) undoRedo.addUserChange(currentObject,undoRedoKey,undoDescription)
     broadcast(new TreeChange(fullList.toList))
+    updateToolbar()
     dependencyInjectionCleaningQueue.cleanReturningInstantlyIfSomeOtherThreadIsAlreadyCleaning()
   }}
 
@@ -172,6 +180,13 @@ class XSEdit(original:AnyRef,val externalDependencyResolver:Option[ExternalDepen
     for (p<-detailsPanes) p.refresh(changes)
   }
   
+  private var isIntrinsiclyDirty = false
+  def setIntrinsiclyDirty(newIsIntrinsiclyDirty:Boolean) { isIntrinsiclyDirty=newIsIntrinsiclyDirty;updateToolbar() }
+  def getToolbarStatus = new StatusForToolbar(undoRedo.canUndo,undoRedo.canRedo,undoRedo.canUndo.isDefined || isIntrinsiclyDirty)
+  def updateToolbar() {
+    val status = getToolbarStatus
+    for (l<-toolbarStatusListeners) l(status)
+  }
   /**
    * Moving can come from a variety of sources:
    *  (1) Copy/Paste - makes a copy, stuck on end
@@ -183,14 +198,15 @@ class XSEdit(original:AnyRef,val externalDependencyResolver:Option[ExternalDepen
    * Add a new field "element" of the stated type "field" to the node "parent". If "before" is empty, it will be added at the end.
    * Otherwise it will be added before "before"
    */
-  def addField(parent:XSTreeNode,before:Option[XSTreeNode],field:XSFieldInfo,element:AnyRef,executeAfterModificationBeforeRefreshing:Option[()=>Unit]=None) {
+  def addField(parent:XSTreeNode,before:Option[XSTreeNode],field:XSFieldInfo,element:AnyRef,executeAfterModificationBeforeRefreshing:Option[()=>Unit],undoDesc:String) {
     val newobj = parent.info.addFieldAnyRef(parent.getObject,before.map{_.numberOfElementsBeforeThisOneOfGivenType(field)},field,element).asInstanceOf[AnyRef]
     // println("New object in add field "+newobj)
     val changes = parent.changeObject(newobj)
     assert (changes.removedChildren.isEmpty)
     assert (field.isTableEditable || !changes.addedChildren.isEmpty) 
+    assert (changes.sub.isEmpty)
     for (f<-executeAfterModificationBeforeRefreshing) f()
-    processChangesToKids(List(changes))
+    processChangesToKids(List(changes),null,undoDesc)
     for (newnode<-changes.addedChildren.find{_.getObject eq element}) changeCurrentlyEditing(newnode)
   }
 
@@ -201,7 +217,7 @@ class XSEdit(original:AnyRef,val externalDependencyResolver:Option[ExternalDepen
     val newobj = parent.info.setFieldAnyRef(parent.getObject,field,newValue)
     val changes = parent.changeObject(newobj)
     for (f<-executeAfterModificationBeforeRefreshing) f()
-    processChangesToKids(List(changes))
+    processChangesToKids(List(changes),(parent,field),"change field")
   }
   
   def copyData(nodes:Seq[XSTreeNode]) : Array[Byte] = {
@@ -223,13 +239,13 @@ class XSEdit(original:AnyRef,val externalDependencyResolver:Option[ExternalDepen
    * Add a new fields given in the serialized data to the node "parent". If "before" is empty, it will be added at the end.
    * Otherwise it will be added before "before"
    */
-  def pasteData(parent:XSTreeNode,data:Array[Byte],before:Option[XSTreeNode]) {
+  def pasteData(parent:XSTreeNode,data:Array[Byte],before:Option[XSTreeNode],undoDesc:String="paste") {
     val loadBefore = for (b<-before) yield (b.fieldInParent,b.numberOfElementsBeforeThisOneOfGivenType(b.fieldInParent))
     val reader = XMLDeserialize.inputFactory.createXMLStreamReader(new ByteArrayInputStream(data),"UTF-8");
     val (newobj,openNodes) = parent.info.deserializeInto(reader,parent.getObject,loadBefore)
     val changes = parent.changeObject(newobj.asInstanceOf[AnyRef])
     for (c<-changes.addedChildren) c.setOpenNodes(openNodes)
-    processChangesToKids(List(changes))
+    processChangesToKids(List(changes),null,undoDesc)
   }
   
   def dragData(destination:XSTreeNode,source:Seq[XSTreeNode],before:Option[XSTreeNode]) {
@@ -240,8 +256,38 @@ class XSEdit(original:AnyRef,val externalDependencyResolver:Option[ExternalDepen
     //  case _ => before
     //}
     val data = copyData(source)
-    pasteData(destination,data,before) // this may error. Do this before deleting nodes in case exception gets thrown - deleting but not reinserting would be bad for a user.
-    deleteTreeNodes(source)
+    pasteData(destination,data,before,null) // this may error. Do this before deleting nodes in case exception gets thrown - deleting but not reinserting would be bad for a user.
+    deleteTreeNodes(source,"drag")
+  }
+  
+  def replaceRoot(newval:AnyRef) {
+    synchronized {
+      undoRedo.reset(newval)
+      changeRootTo(newval)
+    }
+  }
+  
+  private def changeRootTo(newval:AnyRef) {
+    val change = treeRoot.changeObject(newval)
+    broadcast(new TreeChange(List(change)))
+    updateToolbar()
+    dependencyInjectionCleaningQueue.cleanReturningInstantlyIfSomeOtherThreadIsAlreadyCleaning()
+  }
+  
+  /** return true iff work */
+  def undo() : Boolean = {
+    undoRedo.undo() match {
+      case Some(newval) => changeRootTo(newval); true 
+      case None => false
+    }
+  }
+  
+  /** return true iff work */
+  def redo() : Boolean = {
+    undoRedo.redo() match {
+      case Some(newval) => changeRootTo(newval); true 
+      case None => false
+    }
   }
   
   def getTitle(locale:Locale) : Option[String] = treeRoot.info.textResources(locale).get("PageTitle")
@@ -253,11 +299,26 @@ class XSEdit(original:AnyRef,val externalDependencyResolver:Option[ExternalDepen
 }
 
 class TreeChange(val elements:Seq[TreeNodeChange]) {
-  def contains(node:XSTreeNode) : Boolean = elements.exists{_.parent==node}
+  /** Elements, plus all subs */
+  lazy val elementsIncludingRecursive : List[TreeNodeChange] = {
+    val res = new ListBuffer[TreeNodeChange]
+    def add(e:TreeNodeChange) { res+=e; for (s<-e.sub) add(s) }
+    for (s<-elements) add(s)
+    res.toList
+  }
+  def contains(node:XSTreeNode) : Boolean = elementsIncludingRecursive.exists{_.parent==node} 
   override def toString = elements.mkString(";")
 }
+
 
 trait XSEditListener {
   def apply(changes:TreeChange) : Unit
   def setCurrentlyEditing(node:Option[XSTreeNode])
 }
+
+trait ToolbarStatusListener {
+  def apply(status:StatusForToolbar)
+}
+
+
+class StatusForToolbar(val undoDesc:Option[String],val redoDesc:Option[String],val dirty:Boolean)

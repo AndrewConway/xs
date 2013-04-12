@@ -44,7 +44,7 @@ class HTML5Tree[T <: AnyRef](val locale:Locale,val transport:HTMLTransport,val m
       case None => NodeSeq.Empty
     }
     val labelS = model.title(node)
-    val label = <span id={id+"_label"}>{labelS.html}</span>
+    val label = <span id={id+"_label"}>{labelS.htmlNotBlank}</span>
     postCreationJavascript++=labelS.postCreationJavascript
     val childrenClicksAwayFromVisible = clicksAwayFromVisible+(if (isOpen) 0 else 1)
     val (kidsHTML,kidsLocal) = 
@@ -155,7 +155,7 @@ class HTML5Tree[T <: AnyRef](val locale:Locale,val transport:HTMLTransport,val m
     }
     def setLabel(newlabel:RichLabel) {
       if (newlabel!=label) {
-        transport.sendMessage(ClientMessage.setHTMLID(id+"_label",newlabel))
+        transport.sendMessage(ClientMessage.setHTMLIDnotBlank(id+"_label",newlabel))
         label=newlabel
       }
     }

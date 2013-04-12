@@ -259,7 +259,7 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit) {
     val cs = currentlyShowing.getOrElse(null)
     //println("XSDetailsPane.refresh "+cs)
     if (changes.contains(cs)) refresh()
-    else if (cs!=null) for (c<-changes.elements) if (c.parent.parent==cs) c.parent.getTableLine match {
+    else if (cs!=null) for (c<-changes.elementsIncludingRecursive) if (c.parent.parent==cs) c.parent.getTableLine match {
       case None =>
         //println("Found a child of the thing being displayed that is not a table line")
       case Some((field,linenumber)) => // We have a change for that particular line number for that particular field.
@@ -465,7 +465,7 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit) {
       synchronized {
          currentlyShowing=currentlyShowing :+ newRow
 //         println("Adding "+newobj+" to field "+colfield.name)
-         node.xsedit.addField(node,None,field.field,newobj,noncanonfn)
+         node.xsedit.addField(node,None,field.field,newobj,noncanonfn,"add row")
       }
 //      println("Added new row for column "+columnName+" value "+newValue)
     }
@@ -620,9 +620,9 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit) {
       val nodes = selectedRows.sorted.collect{case r:Int if r>=0 && r<allnodes.length => allnodes(r)}
         command match {
           case "copy" => clipboard=Some(xsedit.copyData(nodes))
-          case "cut" => clipboard=Some(xsedit.copyData(nodes)); xsedit.deleteTreeNodes(nodes)
+          case "cut" => clipboard=Some(xsedit.copyData(nodes)); xsedit.deleteTreeNodes(nodes,"cut")
           case "paste" => for (c<-clipboard) xsedit.pasteData(parent, c, nodes.headOption)
-          case "erase" => xsedit.deleteTreeNodes(nodes)
+          case "erase" => xsedit.deleteTreeNodes(nodes,"erase")
         }
     }
     override def toString = field.label+":"+currentlyShowing
