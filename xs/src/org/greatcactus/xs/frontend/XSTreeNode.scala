@@ -56,6 +56,8 @@ class XSTreeNode(
   private[this] var disposed=false
   var isOpen : Boolean = if (fieldInParent==null) true else fieldInParent.isExpandOnFirstDisplay
   
+  def isStillBeingEdited : Boolean = isRoot || (parent.isStillBeingEdited && parent.treeChildren.contains(this))
+  
   def isRoot = parent==null
   val depth:Int = if (parent==null) 0 else 1+parent.depth
   private[this] var treeChildrenV : IndexedSeq[XSTreeNode] = getTreeChildren(Nil).children

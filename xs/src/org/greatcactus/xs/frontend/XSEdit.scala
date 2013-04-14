@@ -268,9 +268,15 @@ class XSEdit(original:AnyRef,val externalDependencyResolver:Option[ExternalDepen
   }
   
   private def changeRootTo(newval:AnyRef) {
-    val change = treeRoot.changeObject(newval)
-    broadcast(new TreeChange(List(change)))
-    updateToolbar()
+    synchronized {
+      val change = treeRoot.changeObject(newval)
+      var newCurrentlyEditing = currentlyEditing
+      while (!newCurrentlyEditing.isStillBeingEdited) newCurrentlyEditing=newCurrentlyEditing.parent
+      if (newCurrentlyEditing ne currentlyEditing) changeCurrentlyEditing(newCurrentlyEditing)
+      broadcast(new TreeChange(List(change)))
+      updateToolbar()
+      
+    }
     dependencyInjectionCleaningQueue.cleanReturningInstantlyIfSomeOtherThreadIsAlreadyCleaning()
   }
   
