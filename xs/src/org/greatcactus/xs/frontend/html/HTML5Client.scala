@@ -98,9 +98,9 @@ class HTML5Client(val xsedit:XSEdit,val toolbar:Option[XSToolBar],val locale:Loc
           sendMessage(ClientMessage.setToolbarStatus(toolbarIDprefix+"save",status.dirty,"Save"))
         }
         
-        if (revertEnabledCurrentValue!= !status.dirty) {
-          revertEnabledCurrentValue= !status.dirty
-          sendMessage(ClientMessage.setToolbarStatus(toolbarIDprefix+"revert",!status.dirty,"Revert"))
+        if (revertEnabledCurrentValue!=status.dirty) {
+          revertEnabledCurrentValue=status.dirty
+          sendMessage(ClientMessage.setToolbarStatus(toolbarIDprefix+"revert",status.dirty,"Revert"))
         }
       }
     }
