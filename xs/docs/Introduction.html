@@ -210,6 +210,8 @@ val deserialized : Complex = XMLDeserialize.deserialize[Complex](serializedData)
    <p>Sometimes you may want to block a dependency from being propagated to children. This can be done by putting the <code>@BlockDependencyInjection</code> annotation
    on the class and listing the classes of dependency to block. This is most useful if you have a class that wants to override some dependencies that would otherwise
    be propagated to children.</p>
+   
+   <p>The external context can directly add values to be dependency injected into the document using the XSEdit.setRootDependencyInjections function.</p>
       
 </body>
 </html>

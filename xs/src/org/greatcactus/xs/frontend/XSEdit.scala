@@ -292,7 +292,14 @@ class XSEdit(original:AnyRef,val externalDependencyResolver:Option[ExternalDepen
   
   def getTitle(locale:Locale) : Option[String] = treeRoot.info.textResources(locale).get("PageTitle")
 
- 
+  /** 
+   *  Provide extra information to the dependency injection system. This will be provided to the root node and any children (other unless blocked with @BlockDependencyInjection).
+   *  Typically used for external information about the document (e.g. filename), path, user preferences.
+   */
+  def setRootDependencyInjections(toInject:Set[AnyRef]) {
+    treeRoot.dependencyInjection.changedParentInjections(toInject)
+    dependencyInjectionCleaningQueue.cleanReturningInstantlyIfSomeOtherThreadIsAlreadyCleaning()
+  }
     // do this last of all
   
   dependencyInjectionCleaningQueue.cleanReturningInstantlyIfSomeOtherThreadIsAlreadyCleaning()
