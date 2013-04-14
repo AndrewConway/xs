@@ -43,10 +43,18 @@ object TextLocalizationResources {
   def getUncached(locale:Locale,clazz:Class[_]) = {
     val res = new ListBuffer[TextLocalizationSingleFile]
     var c = clazz
+    def checkInterfaces(c:Class[_]) {
+      for (i<-c.getInterfaces()) if (!i.getCanonicalName().startsWith("java") && !i.getCanonicalName().startsWith("scala")) {
+        for (r<-getSingleFileUncached(locale,i,false)) res+=r
+        checkInterfaces(i)
+      }
+    }
     while (c!=null && !c.getCanonicalName().startsWith("java") && !c.getCanonicalName().startsWith("scala")) {
       for (r<-getSingleFileUncached(locale,c,c==clazz)) res+=r
+      checkInterfaces(c)
       c=c.getSuperclass
     }
+    // also look at interfaces
     new TextLocalizationResourcesAsSeq(res.toList)
   }
   private def getTopLevelClass(clazz:Class[_]) : Class[_] = {
