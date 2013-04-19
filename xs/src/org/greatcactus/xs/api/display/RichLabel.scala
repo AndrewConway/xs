@@ -77,7 +77,15 @@ object RichLabel {
   def apply(text:String,html:NodeSeq,postCreationJavascript:List[String]) = new RichLabel(text,html,postCreationJavascript)
   def apply(text:String,html:NodeSeq) = new RichLabel(text,html,Nil)
   def apply(text:String,html:String) = new RichLabel(text,XML.loadString("<span>"+html+"</span>"),Nil)
-  def apply(text:String) = if (text==null) nullLabel else new RichLabel(text,scala.xml.Text(text),Nil)
+  def apply(text:String) = {
+    if (text==null) nullLabel 
+    else {
+      val lines = text.split("\n")
+      val html = if (lines.size<2) scala.xml.Text(text)
+                 else lines.map{s=> <p>{s}</p>}.toSeq
+      new RichLabel(text,html,Nil)
+    }
+  }
   /** Get a rich label from the result of an dependency injection, or None if there it is null */
   def apply(fromInjection:AnyRef,locale:Locale) : Option[RichLabel] = fromInjection match {
       case null => None
