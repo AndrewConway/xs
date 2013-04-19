@@ -8,6 +8,7 @@ import java.io.BufferedReader
 import scala.collection.mutable.ListBuffer
 import java.net.URL
 import org.greatcactus.xs.util.FileUtil
+import scala.language.existentials
 
 case class IconRef(val name:String,val classRef:Class[_])
 

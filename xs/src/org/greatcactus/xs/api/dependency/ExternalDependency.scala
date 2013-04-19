@@ -2,6 +2,7 @@
  * Copyright 2013 Andrew Conway. All rights reserved.
  */
 package org.greatcactus.xs.api.dependency
+import scala.language.existentials
 
 /**
  * Sometimes information from outside the object being edited is needed - for instance, the contents of an external file.
