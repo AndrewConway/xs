@@ -34,13 +34,15 @@ object XMLDeserialize {
   def deserialize[T <: AnyRef : ClassTag](reader:XMLStreamReader) : T = {
     val helper : SerializableTypeInfo[T] = SerializableTypeInfo.get(scala.reflect.classTag[T].runtimeClass).get.asInstanceOf[SerializableTypeInfo[T]]
     while (reader.getEventType()!=XMLStreamConstants.START_ELEMENT) reader.nextTag();
+    val name = reader.getLocalName
+    if (name!=helper.name) throw new WrongDocumentType(name)
     deserialize(reader,helper,new ListBuffer[EqualityByPointerEquality[AnyRef]])
   }
 
   /** 
    * This is called when we have just received a START_ELEMENT tag. It finishes when we get an END_ELEMENT tag. 
    **/
-  def deserialize[T <: AnyRef:ClassTag](reader:XMLStreamReader,helper:SerializableTypeInfo[T],openNodes:ListBuffer[EqualityByPointerEquality[AnyRef]]) : T = {
+  def deserialize[T <: AnyRef](reader:XMLStreamReader,helper:SerializableTypeInfo[T],openNodes:ListBuffer[EqualityByPointerEquality[AnyRef]]) : T = {
     assert (reader.getEventType()==XMLStreamConstants.START_ELEMENT)
     val work = new DeserializeWork(helper)
     work.processAttributes(reader)
@@ -50,7 +52,7 @@ object XMLDeserialize {
   /** 
    * deserialize, merging into a given original object. Extra nodes will be added (if possible) before the given field and index of elements of that field.
    **/
-  def deserializeInto[T <: AnyRef:ClassTag](reader:XMLStreamReader,helper:SerializableTypeInfo[T],original:T,loadBefore:Option[(XSFieldInfo,Int)]) : (T,Set[EqualityByPointerEquality[AnyRef]]) = {
+  def deserializeInto[T <: AnyRef](reader:XMLStreamReader,helper:SerializableTypeInfo[T],original:T,loadBefore:Option[(XSFieldInfo,Int)]) : (T,Set[EqualityByPointerEquality[AnyRef]]) = {
     // val helper : SerializableTypeInfo[T] = SerializableTypeInfo.get(scala.reflect.classTag[T].runtimeClass).get.asInstanceOf[SerializableTypeInfo[T]]
     while (reader.getEventType()!=XMLStreamConstants.START_ELEMENT) reader.nextTag();
     if (reader.getLocalName!=XMLSerialize.CopiedDataTag) throw new IllegalArgumentException("Expected "+XMLSerialize.CopiedDataTag+" got "+reader.getLocalName)
@@ -71,7 +73,7 @@ object XMLDeserialize {
    * (2) Adding extra data to an existing node - in this case, after the object is created but before the processSubtags is called, the
    *     built up fields are preloaded with the existing data. 
    */
-  class DeserializeWork[T <: AnyRef:ClassTag](helper:SerializableTypeInfo[T]) {
+  class DeserializeWork[T <: AnyRef](helper:SerializableTypeInfo[T]) {
     val fields = new Array[AnyRef](helper.numFields) // the contents of the fields, placed in as they are found.
     val buffers = new Array[ArrayBuffer[AnyRef]](helper.numFields) // fields that are arrays or collections are instead built up into here.
     var addToBuffersPostDeserialization : Option[Array[Seq[AnyRef]]] = None // Fields that are preloaded from an existing object that should be added to the buffers after the deserialization. Usually not used.
@@ -135,6 +137,9 @@ object XMLDeserialize {
              inWrapper = Some(field)    
           } else {
             val elem = optsubhelper match {
+              case null =>
+                while (reader.getEventType()!=XMLStreamConstants.END_ELEMENT) reader.nextTag(); // skip ahead to the end element tag for this element.
+                null // special tag meaning null element. Yes, I know somewhere in the docs I said (or should have said) that someone who distinguishes None and null is arguably insane. Sorry. Note the qualifier "arguably".
               case Some(subhelper) => // read as element
                 deserialize(reader,subhelper,openNodes)
               case None => // read as string
@@ -175,3 +180,5 @@ object XMLDeserialize {
   
   
 }
+
+class WrongDocumentType(val starttag:String) extends Exception("Unexpected tag "+starttag+" as start of document")

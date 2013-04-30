@@ -220,7 +220,16 @@ class XSEdit(original:AnyRef,val externalDependencyResolver:Option[ExternalDepen
     processChangesToKids(List(changes),(parent,field),"change field")
   }
   
-  def copyData(nodes:Seq[XSTreeNode]) : Array[Byte] = {
+  /**
+   * Wholesale change to a node. Useful for custom editors.
+   */
+  def changeNode(parent:XSTreeNode,newobj:AnyRef,executeAfterModificationBeforeRefreshing:Option[()=>Unit],undoDescription:String) {
+    val changes = parent.changeObject(newobj)
+    for (f<-executeAfterModificationBeforeRefreshing) f()
+    processChangesToKids(List(changes),(parent,undoDescription),undoDescription)
+  }
+  
+  def copyData(nodes:Seq[XSTreeNode]) : XSClipBoard = {
     val out = new ByteArrayOutputStream
     val writer:XMLStreamWriter = XMLSerialize.outputFactory.createXMLStreamWriter(out,"UTF-8");
     { // write document header
@@ -232,16 +241,16 @@ class XSEdit(original:AnyRef,val externalDependencyResolver:Option[ExternalDepen
     writer.writeEndElement();
 	writer.writeEndDocument();
 	writer.close();
-	out.toByteArray()
+	XSClipBoard.serialized(out.toByteArray())
   }
   
   /**
    * Add a new fields given in the serialized data to the node "parent". If "before" is empty, it will be added at the end.
    * Otherwise it will be added before "before"
    */
-  def pasteData(parent:XSTreeNode,data:Array[Byte],before:Option[XSTreeNode],undoDesc:String="paste") {
+  def pasteData(parent:XSTreeNode,data:XSClipBoard,before:Option[XSTreeNode],undoDesc:String="paste") {
     val loadBefore = for (b<-before) yield (b.fieldInParent,b.numberOfElementsBeforeThisOneOfGivenType(b.fieldInParent))
-    val reader = XMLDeserialize.inputFactory.createXMLStreamReader(new ByteArrayInputStream(data),"UTF-8");
+    val reader = XMLDeserialize.inputFactory.createXMLStreamReader(new ByteArrayInputStream(data.data),"UTF-8");
     val (newobj,openNodes) = parent.info.deserializeInto(reader,parent.getObject,loadBefore)
     val changes = parent.changeObject(newobj.asInstanceOf[AnyRef])
     for (c<-changes.addedChildren) c.setOpenNodes(openNodes)

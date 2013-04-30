@@ -16,6 +16,10 @@ import scala.util.Success
 import scala.util.Failure
 import org.greatcactus.xs.impl.TrimInfo
 import org.greatcactus.xs.impl.CollectionStringUtil
+import scala.concurrent._
+import ExecutionContext.Implicits.global
+import scala.collection.mutable.ArrayBuffer
+import org.greatcactus.xs.impl.GeneralizedField
 
 /**
  * A GUI client should extend this controller to manage the "details" pane of the item currently being edited.
@@ -125,6 +129,12 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit) {
       case f:UIFieldTable => node => f.changedElement(node,rowNumber,columnName,newValue)
     })
   }
+  /** The client should call this when a gui element represented by a grid does a table paste at a particular cell. */
+  def uiPasteGrid(uiElement:T,rowNumber:Int,columnName:String,table:Array[Array[String]]) {
+    uiAction(uiElement,{
+      case f:UIFieldTable => node => f.pasteTable(node,rowNumber,columnName,table)
+    })
+  }
   
   /** The client should call this when a gui element represented by a grid reorders rows by drag and drop or similar */
   def uiDragGridRows(uiElement:T,rowsToBeMoved:Seq[Int],insertBefore:Int) {
@@ -162,6 +172,8 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit) {
   def flushClientCommands()
   /** Create a new object for generating the GUI elements for a new screen */  
   def newCreator() : GUICreator[T]
+  /** Get a custom painter for a given GUI element */
+  def getCustom(f:DetailsPaneFieldCustom) : Option[CustomComponent[_,T]]
   /** XS sending a command to the GUI to change what it is showing. */ 
   def changeUITextField(gui:T,shouldBe:String)
   /** XS sending a command to the GUI to change what an image is showing. The argument is a URL of an image. */ 
@@ -185,15 +197,30 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit) {
   /** XS sending a command to the GUI to change the errors shown for a field */
   def changeErrors(gui:T,errors:List[ResolvedXSError])
   /** XS sending a command to the GUI to change the errors shown for a field in a table. */
-  def changeGridErrors(gui:T,row:Int,col:Int,errors:List[ResolvedXSError])
+  def changeGridErrors(gui:T,row:Int,col:Int,colfield:GeneralizedField,errors:List[ResolvedXSError])
   /** XS sending a command to the GUI to change the fact that the contents are illegal - eg a blank string box when a number is needed. This should do something like set a red background. */
   def setUIFieldIllegalContents(gui:T,isIllegal:Boolean)
   /** XS sending a command to the GUI to change the set of entries in a table that are illegal - eg a blank string box when a number is needed. This should do something like set a red background. The mey of the illegalEntries field is the row number; the contents are the column numbers. */
   def setUITableEntriesIllegalContents(gui:T,illegalEntries:Map[Int,List[Int]])
+  /** XS sending a command to the GUI to redraw a custom control */
+  //def changeUIShowCustom[S](gui:T,custom:CustomComponent[S],shouldBe:S,old:S)
+  
+  //
+  // Clipboard management code - can (and should!) be overridden to provide non-local clipboard
+  //
+  
+  private var localClipboard : Option[XSClipBoard] = None 
+    
+  def getClipboard(param:XSClipboardRequest) : Future[XSClipBoard] = future { localClipboard.get }
+  def setClipboard(data:XSClipBoard) {
+    localClipboard=Some(data)
+  }
+
+
+  
   //
   // Utility functions
   //
-  
   private def makeNewGUI(tree:XSTreeNode,pane:DetailsPaneFields) : UIFields = {
     val creator = newCreator()
     val buffer = new ListBuffer[UIField]
@@ -231,6 +258,14 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit) {
             val initialValue = f.get(tree,locale)
             val gui = creator.createShowTextField(f,state, initialValue)
             buffer+=new UIFieldShowText(f,gui,state, initialValue,locale)
+          case f:DetailsPaneFieldCustom =>
+            def proc[S](custom:CustomComponent[S,T]) {
+                val initialValue = custom.state(tree,locale)
+                val gui = creator.createCustom(f,custom,state, initialValue)
+                val work = custom.getWork(this, gui, initialValue)
+                buffer+=new UIFieldCustom(f,custom,gui,state, work,locale)              
+            }
+            for (custom<-getCustom(f)) proc(custom)
           case f:DetailsPaneFieldImage =>
             val initialValue = f.get(tree)
             val gui = creator.createImageField(f,state, initialValue)
@@ -340,11 +375,12 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit) {
         val errors = node.errors(field.name,locale,humanEditedTrimInfo)
         if (errors!=currentlyShowingErrors) {
           currentlyShowingErrors=errors
-          changeErrors(gui,errors)
+          changeShownErrors(errors)
         }
       }
     }
 
+    def changeShownErrors(errors:List[ResolvedXSError]) { changeErrors(gui,errors) }
   }
 
   class UIFieldHeading(val field:DetailsPaneField,val gui:T,var currently:CurrentFieldState) extends UIField {
@@ -443,11 +479,8 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit) {
         }
       }
     }
-    def addedNewRow(node:XSTreeNode,columnName:String,newValue:String) {
-      val (colfield,colno) = field.columnExtractors.xsFieldNamed(columnName)
-      val newRow = for (i<-0 until field.columnExtractors.length) yield if (i==colno) newValue else ""
-      val parsed = colfield.parseStringPossiblyMultipleSafe(newValue)
-      val baseelem = field.field.newSingleElement()
+    private def modifyElem(baseelem:AnyRef,colfield:XSFieldInfo,newText:String,node:XSTreeNode,colno:Int) : (AnyRef,Option[AnyRef => () => Unit]) = {
+      val parsed = colfield.parseStringPossiblyMultipleSafe(newText)
       val (newobj,isError) = parsed match {
         case Success(newParsedValue) => 
           val newelem = field.field.xsinfo.get.setFieldAnyRef(baseelem,colfield,newParsedValue) 
@@ -455,17 +488,24 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit) {
         case Failure(e) => 
           (baseelem,true)
       } 
-      val noncanonfn : Option[() => Unit] = {
+      val noncanonfn : Option[AnyRef => (() => Unit)] = {
           val canonical = colfield.getFieldAsString(newobj)
-          if (isError || canonical!=newValue) Some(() => {
-            for (row<-node.tableChildren(field.field).find{_.getObject eq newobj}) 
-              addNoncanonicalEntry(new TableNoncanonicalEntry(row,colno,newValue,canonical,isError))
-          }) else None
+          if (isError || canonical!=newText) Some({finalobj:AnyRef => {() => {
+            for (row<-node.tableChildren(field.field).find{_.getObject eq finalobj}) 
+              addNoncanonicalEntry(new TableNoncanonicalEntry(row,colno,newText,canonical,isError))
+          }}}) else None
       }
+      (newobj,noncanonfn)
+    }
+    def addedNewRow(node:XSTreeNode,columnName:String,newText:String) {
+      val (colfield,colno) = field.columnExtractors.xsFieldNamed(columnName)
+      val newRow = for (i<-0 until field.columnExtractors.length) yield if (i==colno) newText else ""
+      val baseelem = field.field.newSingleElement()
+      val (newobj,noncanonfn) = modifyElem(baseelem:AnyRef,colfield:XSFieldInfo,newText:String,node:XSTreeNode,colno:Int)
       synchronized {
          currentlyShowing=currentlyShowing :+ newRow
 //         println("Adding "+newobj+" to field "+colfield.name)
-         node.xsedit.addField(node,None,field.field,newobj,noncanonfn,"add row")
+         node.xsedit.addField(node,None,field.field,newobj,noncanonfn.map{_(newobj)},"add row")
       }
 //      println("Added new row for column "+columnName+" value "+newValue)
     }
@@ -512,6 +552,46 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit) {
       }
       //printNoncanonicals("Edited")
       //println("Edited row "+rowNumber+" column "+columnName+" value "+newValue)
+      
+    }
+    def pasteTable(node:XSTreeNode,rowNumber:Int,columnName:String,table:Array[Array[String]]) {
+       val (_,colno) = field.columnExtractors.xsFieldNamed(columnName)
+       //println("Paste table ("+rowNumber+","+colno+")\n"+table.map{_.mkString("\t")}.mkString("\n"))
+       synchronized {
+        val rows = node.tableChildren(field.field)
+        if (rowNumber<currentlyShowing.length && rowNumber<rows.length) {
+          currentlyShowing=currentlyShowing.updated(rowNumber,currentlyShowing(rowNumber).updated(colno,""))
+          val noncanonfns = new ListBuffer[()=>Unit]
+          val newrows = new ArrayBuffer[AnyRef]
+          for (i<-0 until rowNumber) newrows+=rows(i).getObject
+          def modifyObj(pastedLine:Array[String],obj:AnyRef) = {
+            var modobj = obj
+            val partialnoncanonfns = new ListBuffer[AnyRef => () => Unit] // need to apply the final object after all column mods to this
+            for (pastedColNum<-0 until pastedLine.length) {
+              val workingColNum = colno+pastedColNum
+              if (workingColNum<field.columnExtractors.fields.length) field.columnExtractors.fields(workingColNum) match {
+                case colfield:XSFieldInfo =>       
+                  val (newobj,noncanonfn) = modifyElem(modobj:AnyRef,colfield:XSFieldInfo,pastedLine(pastedColNum):String,node:XSTreeNode,workingColNum:Int)
+                  modobj = newobj
+                  for (f<-noncanonfn) partialnoncanonfns+=f
+                case _ => // field is display only
+              }
+            }
+            for (f<-partialnoncanonfns) noncanonfns+=f(modobj)
+            modobj
+          }
+          for (pastedRowNum<-0 until table.length) {
+            val workingRowNum=rowNumber+pastedRowNum
+            val oldobj = if (workingRowNum<rows.length) rows(workingRowNum).getObject else field.field.newSingleElement()
+            newrows+=modifyObj(table(pastedRowNum),oldobj)
+          }
+          for (i<-rowNumber+table.length until rows.length) newrows+=rows(i).getObject
+          val noncanonfn = if (noncanonfns.isEmpty) None else Some(() => {for (f<-noncanonfns) f()})
+          val newnodeobj = node.info.setFieldAnyRef(node.getObject,field.field,field.field.collectionOfBuffer(newrows.toIndexedSeq)) 
+          node.xsedit.changeNode(node,newnodeobj,noncanonfn,"Paste table")          
+        }       
+      }
+
     }
 
     var humanEdits : Map[XSTreeNode,List[TableNoncanonicalEntry]] = Map.empty
@@ -547,7 +627,7 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit) {
              //println("Found new errors "+errors.mkString(";")+" != old errors "+oldErrors.mkString(";"))
              if (errors.isEmpty) currentlyShowingCellErrors-=key
              else currentlyShowingCellErrors+=key->errors
-             changeGridErrors(gui,linenumber,colnumber,errors)
+             changeGridErrors(gui,linenumber,colnumber,colfield,errors)
            }
         }
       }
@@ -614,14 +694,14 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit) {
       val validrows = rowsToBeMoved.sorted.collect{case r:Int if r>=0 && r<allnodes.length => allnodes(r)}
       parent.xsedit.dragData(parent,validrows,if (insertBefore<allnodes.length) Some(allnodes(insertBefore)) else None)
     }
-    var clipboard : Option[Array[Byte]] = None // TODO allow non local copy/paste
     def uiTableContextMenu(parent:XSTreeNode,command:String,selectedRows:Seq[Int]) {
       val allnodes = field.getNodes(parent)
       val nodes = selectedRows.sorted.collect{case r:Int if r>=0 && r<allnodes.length => allnodes(r)}
-        command match {
-          case "copy" => clipboard=Some(xsedit.copyData(nodes))
-          case "cut" => clipboard=Some(xsedit.copyData(nodes)); xsedit.deleteTreeNodes(nodes,"cut")
-          case "paste" => for (c<-clipboard) xsedit.pasteData(parent, c, nodes.headOption)
+        command match { // TODO make copy and paste tabular data
+          case "copy" => setClipboard(xsedit.copyData(nodes))
+          case "cut" => setClipboard(xsedit.copyData(nodes)); xsedit.deleteTreeNodes(nodes,"cut")
+          case "paste" => //for (c<-clipboard) xsedit.pasteData(parent, c, nodes.headOption)
+            getClipboard(XSClipboardRequest.xsSerializedData).onSuccess { case c =>  xsedit.pasteData(parent, c, nodes.headOption) }
           case "erase" => xsedit.deleteTreeNodes(nodes,"erase")
         }
     }
@@ -693,6 +773,34 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit) {
     override def toString = field.label
   } 
 
+  class UIFieldCustom[S](val field:DetailsPaneFieldCustom,val custom:CustomComponent[S,T],val gui:T,var currently:CurrentFieldState,val work:CustomComponentWork[S],locale:Locale) extends UIField {
+    def humanEditedTrimInfo:Array[Option[TrimInfo]] = TrimInfo.empty
+    def refresh(node:XSTreeNode) {
+      //println("Refreshing node "+node.uid)
+      work.refresh(custom.state(node,locale))
+      /*
+      val shouldBe = custom.state(node,locale)
+      if (shouldBe!=currentlyShowing) {
+        val old = currentlyShowing
+        currentlyShowing=shouldBe;
+        changeUIShowCustom(gui,custom,shouldBe,old)
+      }*/
+      refreshCurrently(node)
+    }/*
+    def humanInitiatedAction(node:XSTreeNode,action:Any) {
+      work.
+      currentlyShowing = custom.resolveHumanEdited(node,action)
+    }*/
+    override def toString = field.label
+    
+    override def changeShownErrors(errors:List[ResolvedXSError]) { 
+      val (generalErrors,customErrors) = errors.partition{_.customComponentInformation.isEmpty}
+      changeErrors(gui,generalErrors) 
+      work.changeErrors(customErrors)
+    }
+
+  } 
+
   
   
 }
@@ -721,6 +829,8 @@ abstract class GUICreator[T] {
   def createTableField(field:DetailsPaneFieldTable,currently:CurrentFieldState,initialValue:IndexedSeq[IndexedSeq[String]]) : T
   /** Called to create a just-display text field (inside a section) */
   def createShowTextField(field:DetailsPaneFieldShowText,currently:CurrentFieldState,initialValue:RichLabel) : T
+  /** Called to create a custom field (inside a section) */
+  def createCustom[S](field:DetailsPaneFieldCustom,custom:CustomComponent[S,T],currently:CurrentFieldState,initialValue:S) : T
   /** Called at the end of each section, with the id created in startSection */
   def endSection(section:DetailsPaneFieldSection,id:T,currently:CurrentFieldState)
   /** Last thing called when the form is finished */

@@ -32,7 +32,7 @@ sealed abstract class ClientMessage {
   }
 }
 
-class SimpleClientMessage(val command:String,val args:Array[String]) extends ClientMessage {
+case class SimpleClientMessage(val command:String,val args:Array[String]) extends ClientMessage {
   def serialize(g:JsonGenerator) {
     g.writeStartObject()
     g.writeStringField("cmd",command)
@@ -82,21 +82,21 @@ class MultipleClientMessage(val commands:Seq[ClientMessage]) extends ClientMessa
   override def toString = commands.mkString("[",";","]")
 }
 
-class SetRow(val baseid:String,val rownumber:Int,val row:IndexedSeq[String],val columns:ColumnExtractors) extends ClientMessage {
+class SetRow(val baseid:String,val rownumber:Int,val row:IndexedSeq[String],val columnNames:Int=>String) extends ClientMessage {
    def serialize(g:JsonGenerator) {
     g.writeStartObject()
     g.writeStringField("cmd","SetRow")
     g.writeStringField("id",baseid)
     g.writeNumberField("num",rownumber)
     g.writeObjectFieldStart("row")
-    for (i<-0 until columns.length) g.writeStringField(columns.fields(i).name,row(i))
+    for (i<-0 until row.length) g.writeStringField(columnNames(i),row(i))
     g.writeEndObject()
     g.writeEndObject()
   }
   override def toString = "SetRow("+baseid+","+rownumber+","+row.mkString(";")+")"  
 }
 
-class SetRows(val baseid:String,val rows:Seq[Seq[String]],val columns:ColumnExtractors) extends ClientMessage {
+class SetRows(val baseid:String,val rows:Seq[Seq[String]],val columnNames:Int=>String) extends ClientMessage {
    def serialize(g:JsonGenerator) {
     g.writeStartObject()
     g.writeStringField("cmd","SetRows")
@@ -104,7 +104,7 @@ class SetRows(val baseid:String,val rows:Seq[Seq[String]],val columns:ColumnExtr
     g.writeArrayFieldStart("rows")
     for (row<-rows) {
       g.writeStartObject()
-      for (i<-0 until columns.length) g.writeStringField(columns.fields(i).name,row(i))
+      for (i<-0 until row.length) g.writeStringField(columnNames(i),row(i))
       g.writeEndObject()
     }
     g.writeEndArray()
@@ -113,7 +113,26 @@ class SetRows(val baseid:String,val rows:Seq[Seq[String]],val columns:ColumnExtr
   override def toString = "SetRows("+baseid+","+rows.map{_.mkString("[",";","]")}.mkString(";")+")"  
 }
 
-class GridSetCellCssStyles(val baseid:String,illegalEntries:Map[Int,List[Int]],val columns:ColumnExtractors,val cssStyle:String) extends ClientMessage {
+class SetGridRowMetadata(val baseid:String,val rows:Seq[Map[String,String]]) extends ClientMessage {
+   def serialize(g:JsonGenerator) {
+    g.writeStartObject()
+    g.writeStringField("cmd","SetGridRowMetadata")
+    g.writeStringField("id",baseid)
+    g.writeArrayFieldStart("rows")
+    for (row<-rows) {
+      g.writeStartObject()
+      for ((key,value)<-row) g.writeStringField(key, value)
+      g.writeEndObject()
+    }
+    g.writeEndArray()
+    g.writeEndObject()
+  }
+  override def toString = "SetGridRowMetadata("+baseid+","+rows.map{_.mkString("[",";","]")}.mkString(";")+")"  
+  
+}
+
+
+class GridSetCellCssStyles(val baseid:String,illegalEntries:Map[Int,List[Int]],val columnNames:Int=>String,val cssStyle:String) extends ClientMessage {
    def serialize(g:JsonGenerator) {
     g.writeStartObject()
     g.writeStringField("cmd","GridSetCellCssStyles")
@@ -122,7 +141,7 @@ class GridSetCellCssStyles(val baseid:String,illegalEntries:Map[Int,List[Int]],v
     g.writeObjectFieldStart("what")
     for ((row,cols)<-illegalEntries) {
       g.writeObjectFieldStart(""+row)
-      for (col<-cols) if (col<columns.length) g.writeStringField(columns.fields(col).name,cssStyle)
+      for (col<-cols) try { g.writeStringField(columnNames(col),cssStyle) } catch { case _:Exception => } // catch takes care of case of where column names is not long enough.
       g.writeEndObject()
     }
     g.writeEndObject()
@@ -191,6 +210,8 @@ object ClientMessage {
   def changeErrors(id:String,errors:List[ResolvedXSError]) = new ErrorClientMessage(id,errors,None)
   def changeGridErrors(id:String,errors:List[ResolvedXSError],gridID:String) = new ErrorClientMessage(id,errors,Some(gridID))
   def gotoURL(url:String) = new SimpleClientMessage("GotoURL",Array(url))
+  def gotoURLNewTab(url:String) = new SimpleClientMessage("GotoURLNewTab",Array(url))
+  def errorMessage(message:String) = new SimpleClientMessage("message",Array(message))
   def setToolbarStatus(toolbarid:String,enabled:Boolean,html:String) = new SimpleClientMessage("ToolbarStatus",Array(toolbarid,enabled.toString,html))
   def setHTMLID(id:String,html:NodeSeq) = {
     new SimpleClientMessage("SetHTML",Array(id,html.toString))
@@ -225,11 +246,28 @@ object ClientMessage {
   def ackMessage(ackid:String) = new SimpleClientMessage("ACK",Array(ackid))
   def run(command:String) = new SimpleClientMessage("Run",Array(command))
   
-  def startGrid(baseid:String,columns:String,onInputObj:String) = new SimpleClientMessage("StartGrid",Array(baseid,columns,onInputObj))
+  val defaultStartGridOptions = """[{"autoHeight":true, "editable":true, "enableAddRow":true, "enableCellNavigation":true, "fullWidthRows":true, "forceFitColumns":true}][0]""" // produces an error if I have l instead of [l][0]. I don't know why.
+  def startGrid(baseid:String,columns:String,onInputObj:String,options:String=defaultStartGridOptions) = new SimpleClientMessage("StartGrid",Array(baseid,columns,onInputObj,options))
   def stopGrid(baseid:String) = new SimpleClientMessage("StopGrid",Array(baseid))
-  
+  def setGridRowCSSStyles(baseid:String,classes:Seq[String]) = {
+    def asmap(c:String) : Map[String,String] = if (c==null || c.isEmpty) Map.empty else Map("cssClasses"->c) 
+    new SetGridRowMetadata(baseid,classes.map{asmap}) // {c:String=>if (c==null || c.isEmpty) Map.empty else Map("cssClasses"->c)}) 
+  }
+
   def acknowledge(justReceived:Long,expectedNext:Long,biggestEverReceived:Long) = new SimpleClientMessage("ACK",Array(justReceived.toString,expectedNext.toString,biggestEverReceived.toString))
   
+  /** Paste data is converted into a 1D array, starting at index 4, with each row prepended by the length of the row */
+  def unmungePasteGrid(args:Array[String]) : Array[Array[String]] = {
+    val res = new ArrayBuffer[Array[String]]
+    var upto = 4
+    while (upto<args.length) {
+      val len = args(upto).toInt
+      upto+=1
+      res+=args.slice(upto,upto+len)
+      upto+=len
+    }
+    res.toArray
+  }
 }
 
 /** If you want to store up client messages and merge into a bigger message, use this. */

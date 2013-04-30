@@ -17,6 +17,7 @@ import java.util.Locale
 import org.greatcactus.xs.api.display.RichLabel
 import org.greatcactus.xs.api.icon.Icon
 import org.greatcactus.xs.api.errors.ResolvedXSError
+import org.greatcactus.xs.impl.GeneralizedField
 
 
 
@@ -49,7 +50,7 @@ class ZZZ_EditSpace {
     assertTrue(edit.undo())
     assertEquals(" - Space\n  . History\n  - Sol\n*  . New planet",edit.toString)
     assertTrue(edit.undo())
-    assertEquals(" - Space\n  . History\n  . Sol",edit.toString)
+    assertEquals(" - Space\n  . History\n* . Sol",edit.toString)
     assertTrue(edit.redo())
     edit.changeCurrentlyEditing(edit.treeRoot.allChildren(1).allChildren(0))
     assertEquals(" - Space\n  . History\n  - Sol\n*  . New planet",edit.toString)
@@ -88,14 +89,14 @@ class ZZZ_EditSpace {
     // copy Venus
     val sol = edit.currentlyEditing
     val venusCopy = edit.copyData(List(sol.treeChildren(1)))
-    val venusCopyS = new String(venusCopy,"UTF-8")
+    val venusCopyS = new String(venusCopy.data,"UTF-8")
     println(venusCopyS)
     assertEquals("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<xs-copied-data><Planet distanceFromPrimary=\"0.72\" tidallyLocked=\"false\"><name>Venus</name></Planet></xs-copied-data>",venusCopyS)
     edit.pasteData(sol,venusCopy,None)
     assertEquals(" - Space\n  . History\n* - Sol\n   . Mercury\n   . Venus\n   + Earth (1 moon)\n   . Venus",edit.toString)
     // Copy Venus and Earth
     val venusEarthCopy = edit.copyData(List(sol.treeChildren(1),sol.treeChildren(2)))
-    val venusEarthCopyS = new String(venusEarthCopy,"UTF-8")
+    val venusEarthCopyS = new String(venusEarthCopy.data,"UTF-8")
     assertEquals("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<xs-copied-data><Planet distanceFromPrimary=\"0.72\" tidallyLocked=\"false\"><name>Venus</name></Planet><Planet distanceFromPrimary=\"1.0\" tidallyLocked=\"false\"><name>Earth</name><Planet distanceFromPrimary=\"0.0\" tidallyLocked=\"false\"><name>Luna</name></Planet></Planet></xs-copied-data>",venusEarthCopyS)
     edit.pasteData(sol,venusEarthCopy,None)
     assertEquals(" - Space\n  . History\n* - Sol\n   . Mercury\n   . Venus\n   + Earth (1 moon)\n   . Venus\n   . Venus\n   + Earth (1 moon)",edit.toString)
@@ -154,11 +155,12 @@ class TestXSDetailsPane(_locale:Locale,_xsedit:XSEdit) extends XSDetailsPane[Str
   def changeUILabelIcon(gui:String,icon:Option[Icon]) {}
   def changeUIBooleanField(id:String,shouldBe:Boolean) { }
   def changeErrors(gui:String,errors:List[ResolvedXSError]) {}
-  def changeGridErrors(gui:String,row:Int,col:Int,errors:List[ResolvedXSError]) {}
+  def changeGridErrors(gui:String,row:Int,col:Int,colfield:GeneralizedField,errors:List[ResolvedXSError]) {}
   def setUIFieldIllegalContents(gui:String,isIllegal:Boolean) {}
   def changeUIWholeTable(gui:String,shouldBe:IndexedSeq[IndexedSeq[String]]) {} 
   def changeUISingleLineTable(gui:String,index:Int,shouldBe:IndexedSeq[String]) {} 
   def setUITableEntriesIllegalContents(gui:String,illegalEntries:Map[Int,List[Int]]) {}
+  def getCustom(f:DetailsPaneFieldCustom) : Option[CustomComponent[_,String]] = None
 
 }
 
@@ -174,4 +176,5 @@ class TestGUICreator extends GUICreator[String] {
   def createShowTextField(field:DetailsPaneFieldShowText,currently:CurrentFieldState,initialValue:RichLabel) = field.name
   def createBooleanField(field:DetailsPaneFieldBoolean,currently:CurrentFieldState,initialValue:Boolean) = field.name
   def createTableField(field:DetailsPaneFieldTable,currently:CurrentFieldState,initialValue:IndexedSeq[IndexedSeq[String]]) = field.name
+  def createCustom[S](field:DetailsPaneFieldCustom,custom:CustomComponent[S,String],currently:CurrentFieldState,initialValue:S) = field.name
 }

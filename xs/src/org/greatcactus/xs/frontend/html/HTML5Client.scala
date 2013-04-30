@@ -16,7 +16,8 @@ import org.greatcactus.xs.frontend.TreeNodeChange
 import org.greatcactus.xs.frontend.XSToolBar
 import org.greatcactus.xs.frontend.ToolbarStatusListener
 import org.greatcactus.xs.frontend.StatusForToolbar
-
+import org.greatcactus.xs.frontend.XSClipboardRequest
+import scala.concurrent.ExecutionContext.Implicits.global
 /**
  * The controller for communication with an HTML client. The details of the transport are not
  * included here - it could be via HTTP or Websockets.
@@ -46,12 +47,11 @@ class HTML5Client(val xsedit:XSEdit,val toolbar:Option[XSToolBar],val locale:Loc
         xsedit.dragData(if (above) dest.parent else dest,List(source),if (above) Some(dest) else None)
       } 
       def errorLevel(node:XSTreeNode) : Int = node.worstErrorLevel  
-      var clipboard : Option[Array[Byte]] = None // TODO allow non local copy/paste
       def userContextMenu(command:String,nodes:Seq[XSTreeNode]) {
         command match {
-          case "copy" => clipboard=Some(xsedit.copyData(nodes))
-          case "cut" => clipboard=Some(xsedit.copyData(nodes)); xsedit.deleteTreeNodes(nodes,"cut")
-          case "paste" => for (c<-clipboard;node<-nodes.headOption) xsedit.pasteData(node, c, None)
+          case "copy" => session.setClipboard(xsedit.copyData(nodes))
+          case "cut" => session.setClipboard(xsedit.copyData(nodes)); xsedit.deleteTreeNodes(nodes,"cut")
+          case "paste" => session.getClipboard(XSClipboardRequest.xsSerializedData).onSuccess{ case c=> for (node<-nodes.headOption) xsedit.pasteData(node, c, None) }
           case "erase" => xsedit.deleteTreeNodes(nodes,"erase")
         }
       }
@@ -113,6 +113,15 @@ class HTML5Client(val xsedit:XSEdit,val toolbar:Option[XSToolBar],val locale:Loc
     try {
       transport.startBuffering();
       val args = message.args
+      // first see if a custom controller can deal with the message
+      for (c<-detailsPane.customControllerProcessMessages) {
+        println("Got message "+message)
+        if (c.isDefinedAt(message)) {
+          println("Sent to custom")
+          c(message)
+          return
+        }
+      }
       message.command match {
         case "Action" if args.length==2 =>
           //println("Got action command "+args(0))
@@ -155,8 +164,12 @@ class HTML5Client(val xsedit:XSEdit,val toolbar:Option[XSToolBar],val locale:Loc
         case "PartialEdit" if args.length==2 => detailsPane.uiChangedTextField(args(0),args(1),false)
         case "NewRowOnGrid" if args.length==4 => 
           if (detailsPane.nodeIDCurrentlyBeingEdited==args(3)) detailsPane.uiNewRowOnGrid(args(0),args(1),args(2))
-        case "ChangeGrid" if args.length==5 => 
+        case "ChangeGrid" if args.length==5 =>  
           if (detailsPane.nodeIDCurrentlyBeingEdited==args(4)) detailsPane.uiChangeGrid(args(0),args(1).toInt,args(2),args(3))
+        case "PasteTable" =>
+          val id = args(0)
+          val gridInd = id.lastIndexOf("_grid")
+          if (detailsPane.nodeIDCurrentlyBeingEdited==args(1) && gridInd!= -1) detailsPane.uiPasteGrid(id.substring(0,gridInd),args(2).toInt,args(3),ClientMessage.unmungePasteGrid(args))          
         case "Toolbar" if args.length==1 =>
           args(0) match {
             case "undo" => xsedit.undo()

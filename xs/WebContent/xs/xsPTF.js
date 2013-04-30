@@ -178,6 +178,10 @@ var xsPTF = {
        // finished step (1), start step (2)
        if (options && !(options.overrideText===undefined)) {
     	   contents.text=options.overrideText || "";
+       } else if (contents.table && target.getAttribute("data-ontablepasteobj")) {
+    	   var fn = eval(target.getAttribute("data-ontablepasteobj"));
+    	   fn.ptfGridPaste(target,contents.table);
+    	   contents.text="";
        } else if (target.getAttribute("data-text")!=contents.text) this.callbackOnChange(target,contents.text);
        if (options && options.selectAll) {
     	   contents.startSelection=0;
@@ -195,7 +199,13 @@ var xsPTF = {
       };
     },
     
-    
+    /** 
+     * Get the contents of the pseudo text field. Returns a structure containing:
+     *   text : The actual text 
+     *   startSelection : An integer representing the start position of a selection
+     *   endSelection : An integer representing the start position of a selection
+     *   table : null, or if a table was pasted, then an array of arrays of strings (first index being row number, second column number) 
+     **/
     getPTFContents : function(target) {
    	   //console.log(target.innerHTML);
     	var suppressNL = target.getAttribute("data-xsSuppressNL")=="true";
@@ -214,6 +224,9 @@ var xsPTF = {
         }
         var resText = "";
         var hadDiv = false;
+        var hadTable = false;
+        var currentTableRow = new Array();
+        var tableRows = new Array();
         var procNode = function(parentNode) {
           //console.log(parentNode);
           var children = parentNode.childNodes;
@@ -223,6 +236,11 @@ var xsPTF = {
             var node = children[i];
             //console.log(node);
             var nodeName = node.nodeName;
+            // process tables
+            if (nodeName=="TABLE") hadTable = true;
+            else if (nodeName=="TR") { currentTableRow = new Array(); tableRows.push(currentTableRow); }
+            else if (nodeName=="TD") { currentTableRow.push(node.innerText?node.innerText:node.textContent); }
+            // end process tables
             if (nodeName=="BR") {
               if (node.className!="xsDummyFinalBR" && !suppressNL) resText+="\n";
             } else if (xsPTF.isPTFErrorTooltip(node)) {
@@ -248,8 +266,9 @@ var xsPTF = {
           endSelection.checkPos(parentNode,children.length,resText);
         };
         procNode(target);
+        if (hadTable) console.log(tableRows);
         //console.log("start Range = "+startSelection.res+ " end range="+endSelection.res);
-        return { text : resText, startSelection : startSelection.res, endSelection : endSelection.res };    	
+        return { text : resText, startSelection : startSelection.res, endSelection : endSelection.res, table:hadTable?tableRows:null };    	
     },
     
     setPTFSelection : function(target,startSelectionPosition,endSelectionPosition) {

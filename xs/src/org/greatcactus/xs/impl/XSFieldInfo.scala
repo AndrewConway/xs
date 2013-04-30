@@ -30,6 +30,7 @@ class XSFieldInfo(val fieldSymbol:reflect.runtime.universe.Symbol,val index:Int,
     val wrapperName = getOptionalValue(fieldSymbol,typeXSWrapper).map{n=>if (n==null || n.isEmpty) originalName else n}
     
     val name = overridingName.getOrElse(fieldSymbol.name.decoded)
+    val nullElementName = "null-"+name
     
     val ftype = fieldSymbol.typeSignature
     private def ptypeIs(tpe:universe.Symbol) = ftype.baseType(tpe) != universe.NoType
@@ -108,7 +109,7 @@ class XSFieldInfo(val fieldSymbol:reflect.runtime.universe.Symbol,val index:Int,
         else if (!mm.paramss.isEmpty) error("Method "+originalName+" takes parameters")
         else if (!(mm.returnType =:= ftype )) error("Method "+originalName+" has the wrong return type")
         else mm
-      } else error("Problem with method "+originalName)
+      } else error("Problem with accessing method "+originalName+" - possibly you need to make it a val in the constructor definition or remove other methods with the same name.")
     }
     
     /** Get the value of this field for a given parent instance */
@@ -195,6 +196,9 @@ class XSFieldInfo(val fieldSymbol:reflect.runtime.universe.Symbol,val index:Int,
     /** True if the string representation should be trimmed before parsing */
     val shouldTrimStringrep = !hasAnnotation(typeDoNotTrim)
     
+    /** value for a blank string. If the parser interprets a blank string, then it. Otherwise null. */
+    val nullValue = try { parser("")} catch { case _:Exception => null}
+    
     /** Given a string representation of the baseClass object, get the object. This Does not work for semicolon separated lists. It will return None if there is an error in the parsing. */
     def parseStringSingleSafe(stringrep:String) : Try[AnyRef] = {
       val s = if (stringrep==null) "" else if (shouldTrimStringrep) stringrep.trim else stringrep
@@ -210,7 +214,10 @@ class XSFieldInfo(val fieldSymbol:reflect.runtime.universe.Symbol,val index:Int,
           } else if (isCollectionOrArray) {
             val textreps : Array[String] =CollectionStringUtil.separateSemicolonListEscaped(stringrep) 
             val buffer = new ArrayBuffer[AnyRef](textreps.length)
-            for (s<-textreps) buffer+=parser(if (shouldTrimStringrep) s.trim else s)
+            for (s<-textreps) {
+              val ts = if (shouldTrimStringrep) s.trim else s
+              buffer+= (if (ts.isEmpty) nullValue else parser(ts))
+            }
             collectionOfBuffer(buffer)
           } else if (s.isEmpty && !baseClassIsPrimitive) null else parser(s)
       } 

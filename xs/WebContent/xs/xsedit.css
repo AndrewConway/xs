@@ -1,4 +1,18 @@
 
+table.xsPasteTable  {
+	border: 1px solid black;
+    border-collapse:collapse;
+}
+
+table.xsPasteTable td {
+	border: 1px solid black;
+    vertical-align:top;
+}
+table.xsPasteTable tr:nth-child(odd) {
+	background : #eee;
+} 
+
+
 .xsTableHolder {
 	width: 500px;
 	/* height: 100px; */

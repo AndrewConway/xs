@@ -7,6 +7,25 @@
 
 xs.grid = {
 
+    majorDataChange : function (elem,restoreEditorData) {
+		var slickgrid = elem.dataxs_sg;
+		if (slickgrid) {
+			var saved = xs.saveSlickGridEditor(slickgrid);
+			slickgrid.setData(xs.grid.getDataModel(elem)); 
+			slickgrid.updateRowCount();
+			slickgrid.render();
+			xs.restoreSlickGridEditor(slickgrid, saved,restoreEditorData);
+		};    	
+    },
+    
+    getDataModel : function(elem) {
+    	return {
+			getLength : function () { return elem.dataxs_rows.length; },
+			getItem : function (index) { return elem.dataxs_rows[index]; },
+			getItemMetadata : function(index) { return elem.dataxs_rowmetadata&&elem.dataxs_rowmetadata.length>index?elem.dataxs_rowmetadata[index]:null;}
+		};
+    },
+    
     checkForOverflow : function(id) {
     	var tf = document.getElementById(id);
     	if (tf) {
@@ -77,7 +96,8 @@ xs.grid = {
      },
     
     SlickGridPTFFormatter : function(row, cell, value, columnDef, dataContext) {
-    	var id = columnDef.mainID+"_grid_R"+row+"C"+cell;
+    	//console.log(columnDef);
+    	var id = columnDef.mainID+"_grid_R"+row+"C"+columnDef.id;
     	var text = value || "" ;
     	var errorlist = [];
     	//console.log("Slick formatter for "+text);
@@ -104,7 +124,7 @@ xs.grid = {
           var gridpos = args.grid.getActiveCell();
           //console.log(gridpos);
           //console.log(gridpos.row);
-      	  id = args.column.mainID+"_grid_R"+gridpos.row+"C"+gridpos.cell;
+      	  id = args.column.mainID+"_grid_R"+gridpos.row+"C"+args.column.id;
           // id = args.grid.xsPTFid+"_R"+gridpos.row+"C"+gridpos.cell+"_grid_ui";
           //console.log(id);
           var $container = $("body");
@@ -113,7 +133,7 @@ xs.grid = {
           $wrapper = $("<div class='xsErrorLabeled xsEditorAbsolutelyPositioned'><div class='xsErrorIconHolder'><div class='xsErrorIcon xsErrorIcon1000' id='"+id+"_erroricon'><div id='"+id+"_errortooltip'></div></div></div></div>")
               .appendTo($container);
 
-          $input = $("<div id='"+id+"' class='xsPseudoTextField' data-xsSuppressNL='"+ (!args.column.multiline)+"' data-text='' xs-data-gridRow='"+gridpos.row+"' xs-data-gridCol='"+args.column.id+"' data-onInputObj='"+args.grid.xsPTFonInputObj+"' contenteditable='true' spellcheck='false' oninput='xsPTF.input(event)' onkeyup='xsPTF.inputSurrogate(event)' onblur='xsPTF.inputSurrogate(event)' onpaste='xsPTF.inputSurrogate(event)' oncut='xsPTF.inputSurrogate(event)' ></div>")
+          $input = $("<div id='"+id+"' class='xsPseudoTextField' data-ontablepasteobj='"+args.grid.xsPTFonInputObj+"' data-xsSuppressNL='"+ (!args.column.multiline)+"' data-text='' xs-data-gridRow='"+gridpos.row+"' xs-data-gridCol='"+args.column.id+"' data-onInputObj='"+args.grid.xsPTFonInputObj+"' contenteditable='true' spellcheck='false' oninput='xsPTF.input(event)' onkeyup='xsPTF.inputSurrogate(event)' onblur='xsPTF.inputSurrogate(event)' onpaste='xsPTF.inputSurrogate(event)' oncut='xsPTF.inputSurrogate(event)' ></div>")
               .appendTo($wrapper);
           target = document.getElementById(id);
           var elem = document.getElementById(args.column.mainID+"_ui");
@@ -201,7 +221,7 @@ xs.grid = {
 
         this.isValueChanged = function () {
           var value = target.getAttribute("data-text") || "";
-          var res= value && (!(value == "" && defaultValue == null)) && (value != defaultValue);
+          var res= (!(value == "" && defaultValue == null)) && (value != defaultValue);
           //console.log("isValueChanged "+id+" ="+res);
           return res;
         };
@@ -247,6 +267,10 @@ xs.grid = {
       };
     },
 
+    isTrueString : function(string) {
+    	return string && string.toUpperCase && string.toUpperCase()=="TRUE";
+    },
+    
     clickSlickGridBoolean : function(elem) {
     	//console.log("Invert");
     	var row = elem.getAttribute("data-gridRow");
@@ -264,8 +288,8 @@ xs.grid = {
     },
     
     SlickGridBooleanFormatter : function(row, cell, value, columnDef, dataContext) {
-      	var id = columnDef.mainID+"_grid_R"+row+"C"+cell;
-      	var isChecked = value=="true";
+      	var id = columnDef.mainID+"_grid_R"+row+"C"+columnDef.id;
+      	var isChecked = xs.grid.isTrueString(value);
       	//console.log("isChecked = "+isChecked);
       	var base = "<span id='"+id+"_ui' class='xsGridCheckbox"+isChecked+"' onclick='xs.grid.clickSlickGridBoolean(event.target)' data-gridRow='"+row+"' data-gridColField='"+columnDef.field+"' tabindex='0' role='button'>"+(isChecked?"✓":"✗")+"</span>";
     	//console.log("Slick formatter for "+text);
@@ -279,9 +303,9 @@ xs.grid = {
      SlickGridBooleanEditor : function(args) {
          var gridpos = args.grid.getActiveCell();
          var datarow = args.grid.getData()[gridpos.row];
-       	 var id = args.column.mainID+"_grid_R"+gridpos.row+"C"+gridpos.cell;
+       	 var id = args.column.mainID+"_grid_R"+gridpos.row+"C"+args.column.id;
        	 var getElem = function() { return document.getElementById(id+"_ui"); };
-       	 var defaultValue = (datarow&&(datarow[args.column.field]=="true"))?"true":"false";
+       	 var defaultValue = (datarow&&(xs.grid.isTrueString(datarow[args.column.field])))?"true":"false";
          var $input=$(xs.grid.SlickGridBooleanFormatter(gridpos.row,gridpos.cell,defaultValue,args.column,null));
          var getValue = function() {
              return (getElem().innerHTML=="✓")?"true":"false";
@@ -310,7 +334,7 @@ xs.grid = {
          this.focus = function () { $input.focus(); };
 
          this.loadValue = function (item) {
-            getElem().innerHTML=item[args.column.field]=="true"?"✓":"✗";
+            getElem().innerHTML=xs.grid.isTrueString(item[args.column.field])?"✓":"✗";
          };
 
            this.serializeValue = getValue;
@@ -336,7 +360,7 @@ xs.grid = {
      },
      
      SlickGridChoiceFormatter : function(row, cell, value, columnDef, dataContext) {
-       	var id = columnDef.mainID+"_grid_R"+row+"C"+cell;
+       	var id = columnDef.mainID+"_grid_R"+row+"C"+columnDef.id;
      	var choices = columnDef.choices;
        	var base = "";
        	for (var i=0;i<choices.length;i++) {
@@ -372,7 +396,7 @@ xs.grid = {
      SlickGridChoiceEditor : function(args) {
          var gridpos = args.grid.getActiveCell();
          var datarow = args.grid.getData()[gridpos.row];
-       	 var id = args.column.mainID+"_grid_R"+gridpos.row+"C"+gridpos.cell;
+       	 var id = args.column.mainID+"_grid_R"+gridpos.row+"C"+args.column.id;
        	 var getElem = function() { return document.getElementById(id+"_ui"); };
        	 var choices = args.column.choices;
        	 var defaultValue = datarow&&(datarow[args.column.field]);

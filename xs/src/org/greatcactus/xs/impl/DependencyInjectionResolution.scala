@@ -22,6 +22,9 @@ import org.greatcactus.xs.api.dependency.OnObsoleteCallback
 class ExtraDisplayFieldInfo(val function:DependencyInjectionFunction,val name:String,val displayOptions:FieldDisplayOptions) {
   
 }
+class CustomFieldInfo(val function:DependencyInjectionFunction,val name:String,val displayOptions:FieldDisplayOptions,val customComponentName:String) {
+  
+}
 
 class FunctionForField(val function:DependencyInjectionFunction,val field:Option[String]) {
   def fieldOrElseWhole : String = field.getOrElse(DetailsPaneFields.wholeFormAsFieldName)
@@ -33,13 +36,14 @@ class DependencyInjectionInformation(
   val iconProviders : Seq[FunctionForField],
   val labelProviders : Seq[FunctionForField],
   val extraText : Seq[ExtraDisplayFieldInfo],
+  val customFields : Seq[CustomFieldInfo],
   val enabledControllers : Seq[FunctionForField],
   val visibilityControllers : Seq[FunctionForField],
   val errorChecks : Seq[FunctionForField],
   val kidFilter : CanPassToChildren,
   val simpleErrorChecks:SimpleErrorChecks
   ) {
-  val allFunctions : Seq[DependencyInjectionFunction] = providers++(iconProviders.map{_.function})++(labelProviders.map{_.function})++(extraText.map{_.function})++(enabledControllers.map{_.function})++(visibilityControllers.map{_.function})++(errorChecks.map{_.function})
+  val allFunctions : Seq[DependencyInjectionFunction] = providers++(iconProviders.map{_.function})++(labelProviders.map{_.function})++(extraText.map{_.function})++(customFields.map{_.function})++(enabledControllers.map{_.function})++(visibilityControllers.map{_.function})++(errorChecks.map{_.function})
   val classLabelProvider : Option[DependencyInjectionFunction] = labelProviders.find{_.field==None}.map{_.function}
   val classIconProvider : Option[DependencyInjectionFunction] = iconProviders.find{_.field==None}.map{_.function}
   val fieldIconProvider : Map[String,DependencyInjectionFunction] = Map.empty++(for (ip<-iconProviders;f<-ip.field) yield f->ip.function)

@@ -66,8 +66,9 @@ object XMLSerialize {
       if (field!=null) {
         f.wrapperName.map{writer.writeStartElement(_)}
         def print(fieldElement:Any) { 
-          if (fieldElement==null) info.error("Contains a collection containing a null") // could conceivably extend to do something constructive.
-          f.xsinfo match {
+          if (fieldElement==null) writer.writeEmptyElement(f.nullElementName) 
+            // info.error("Contains a collection containing a null"
+          else f.xsinfo match {
             case Some(subHelper) =>
               val subinfo = if (subHelper.clazz==fieldElement.getClass) subHelper else SerializableTypeInfo.get(fieldElement.getClass).getOrElse(subHelper.error("Couldn't deal with subclass "+fieldElement.getClass))
               serialize(fieldElement.asInstanceOf[AnyRef],writer,subinfo,f.overridingName,openInfo)

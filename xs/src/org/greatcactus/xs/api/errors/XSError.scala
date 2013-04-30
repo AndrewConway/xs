@@ -22,7 +22,13 @@ class XSError(
     /** The last (exclusive) character that this refers to, or -1 */
     val to:Int,
     /** The element in the collection this refers to, 0 if not a collection, or -1 if not applicable */
-    val collectionIndex:Int
+    val collectionIndex:Int,
+    /** 
+     * If you have a custom component where you want control of where the error actually goes, then put such information in here.
+     * If this is None, then the error gets displayed at the normal place (just to the left of the field). Otherwise, the
+     * error is handed over to the custom component.
+     **/
+    val customComponentInformation:Option[Any] = None
     ) {
   
   override def hashCode = severity.hashCode*65521+(if (description==null) 0 else description.hashCode()*31)+from+to+collectionIndex
@@ -42,8 +48,8 @@ class XSError(
       case Some(lens:LengthInfo) if collectionIndex>=0 && collectionIndex<lens.numFields => 
         val newfrom = if (from== -1) lens.startField(collectionIndex) else lens.relativePosition(collectionIndex,from)
         val newto = if (to== -1) lens.endField(collectionIndex) else lens.relativePosition(collectionIndex,to)
-        new ResolvedXSError(severity,desc,newfrom,newto)
-      case _ => new ResolvedXSError(severity,desc,from,to)
+        new ResolvedXSError(severity,desc,newfrom,newto,customComponentInformation)
+      case _ => new ResolvedXSError(severity,desc,from,to,customComponentInformation)
     }
   }
 
@@ -64,11 +70,14 @@ object XSError {
   def warning(description:AnyRef,from:Int,to:Int) : XSError = new XSError(Severity.WARNING,description,from,to,0)
   def warning(description:AnyRef,collectionIndex:Int) : XSError = new XSError(Severity.WARNING,description,-1,-1,collectionIndex)
   def warning(description:AnyRef) : XSError = new XSError(Severity.WARNING,description,-1,-1,0)
+  
+  def customError(description:AnyRef,customInfo:Any) = new XSError(Severity.ERROR,description,-1,-1,0,Some(customInfo))
+  def customWarning(description:AnyRef,customInfo:Any) = new XSError(Severity.WARNING,description,-1,-1,0,Some(customInfo))
 }
 
 
 /** Like XSError, except with description resolved, and collectionIndex dealt with by modifying from and to to be with respect to the semicolon joined string representation of the collection. */
-class ResolvedXSError(val severity:Severity,val description:RichLabel,val from:Int,val to:Int) {
+class ResolvedXSError(val severity:Severity,val description:RichLabel,val from:Int,val to:Int,val customComponentInformation:Option[Any]) {
   override def hashCode = severity.hashCode*65521+(if (description==null) 0 else description.hashCode()*31)+from+to
   
   override def equals(obj:Any) = obj match {

@@ -82,6 +82,7 @@ class ZZZ_Serialization {
     val t2b = new Test2(0,-1.6,null)
     test("""<T5><Test1 fred="Flintstone" barney="Rubble"/></T5>""",new Test5(t1,null))
     test("""<T5><Test1 fred="Flintstone" barney="Rubble"/><Test2 f1="4" f2="3.6" f3="5;4;3"/><Test2 f1="0" f2="-1.6"/></T5>""",new Test5(t1,Array(t2a,t2b)))
+    test("""<T5><Test1 fred="Flintstone" barney="Rubble"/><Test2 f1="4" f2="3.6" f3="5;4;3"/><null-f2/><Test2 f1="0" f2="-1.6"/></T5>""",new Test5(t1,Array(t2a,null,t2b)))
   }
   
   @Test
@@ -121,6 +122,11 @@ class ZZZ_Serialization {
   @Test
   def test12 { // test optional structures
      test("""<Test12><Test12/></Test12>""",new Test12(Some(new Test12(None))))
+  }
+  
+  @Test
+  def testA1 { // test arrays of null as an attribute
+    test("""<TestA1 a="5;;4"/>""",new TestA1(Array(5,null,4)))
   }
 
   def shouldFail[T:ClassTag] {
@@ -229,6 +235,9 @@ class Test12(val t:Option[Test12])
 
 @XS
 class Test13(@XSSerializeAsAttribute val t1:Option[String],@XSSerializeAsBlock val t2:Option[String])
+
+@XS
+class TestA1(val a:Array[java.lang.Integer])
 
 // Things that should fail.
 

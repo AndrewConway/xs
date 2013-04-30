@@ -213,5 +213,11 @@ val deserialized : Complex = XMLDeserialize.deserialize[Complex](serializedData)
    
    <p>The external context can directly add values to be dependency injected into the document using the XSEdit.setRootDependencyInjections function.</p>
       
+   <h3>Custom editors</h3>
+   <p>Sometimes you want something special, and the XS editors are not sufficient. You can embed your own.</p>
+   <p>On the data structure, make a dummy function (it may as well return Unit). Annotate this with @CustomEditable with the argument the name of your custom widget.
+   This will make a new field with the name of the function (which can be localized and controlled as normal).</p>
+   <p>On the server, you should make a custom controller (with the standard HTML client, it should implement org.greatcactus.xs.frontend.HTMLCustomComponent with the name 
+   given as the argument to @CustomEditable. Register it with org.greatcactus.xs.frontend.HTML5DetailsPane.addCustom). See Javadocs for details.</p>
 </body>
 </html>

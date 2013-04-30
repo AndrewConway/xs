@@ -7,10 +7,13 @@ import java.util.concurrent.LinkedBlockingQueue
 import scala.collection.mutable.PriorityQueue
 import scala.math.Ordered
 import scala.collection.mutable.ListBuffer
-import scala.concurrent.Future
+import scala.concurrent._
+import ExecutionContext.Implicits.global
 import scala.concurrent.Promise
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.Executors
+import org.greatcactus.xs.frontend.XSClipBoard
+import org.greatcactus.xs.frontend.XSClipboardRequest
 
 /**
  * Keep track of who is still talking to us (and thus for whom we need to keep track of what is currently showing on their browser in order to be able to send diffs).
@@ -195,6 +198,22 @@ class HTTPSession(val worker:HTTPSessionWorker) {
   }
   
   SessionManagement.addSession(this)
+  
+  private var localClipboard : Option[XSClipBoard] = None 
+    
+  def getClipboard(param:XSClipboardRequest) : Future[XSClipBoard] = future { 
+    localClipboard match {
+      case None => throw new IllegalArgumentException("Nothing on the clipboard")
+      case Some(clip) =>
+        if (clip.datatype==param) clip
+        else throw new IllegalArgumentException("Clipboard is in the wrong format")
+    }
+   
+  }
+  def setClipboard(data:XSClipBoard) {
+    localClipboard=Some(data)
+  }
+
 }
 
 class HTTPSessionWorker {

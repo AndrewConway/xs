@@ -85,7 +85,7 @@ class HTML5Tree[T <: AnyRef](val locale:Locale,val transport:HTMLTransport,val m
     } 
   }
 
-    /** Called by the client when the opener is clicked on for a given id */
+    /** Called by the client when the node proper is clicked on for a given id */
   def clickedOnNode(id:String) {
     //println("Clicked on node for "+id)
     for (n<-clientNodes.get(id)) {

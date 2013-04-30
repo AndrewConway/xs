@@ -120,6 +120,7 @@ class SerializableTypeInfo[T <: AnyRef] private (val clazz : java.lang.Class[T])
           if (res.contains(name)) error("Attribute "+name+" applies to more than one field")
           res+=name->(field,tpe,isWrapper)
         }
+        if (field.isCollectionOrArray) add(field.nullElementName,null,false)
         if (field.wrapperName.isDefined) add(field.wrapperName.get,None,true)
         else field.xsinfo match {
           case Some(info) =>
@@ -166,6 +167,7 @@ class SerializableTypeInfo[T <: AnyRef] private (val clazz : java.lang.Class[T])
     val enabledControllers = new ListBuffer[FunctionForField]
     val errorChecks = new ListBuffer[FunctionForField]
     val extraText = new ListBuffer[ExtraDisplayFieldInfo]
+    val customFields = new ListBuffer[CustomFieldInfo]
     val classesToBlockForChildren:Seq[Class[_]] = clazz.getAnnotation(classOf[BlockDependencyInjection]) match {
       case a if a!=null && a.value!=null => a.value().toList
       case _ => Nil
@@ -178,9 +180,10 @@ class SerializableTypeInfo[T <: AnyRef] private (val clazz : java.lang.Class[T])
       val ptc = hasAnnotation(method,typePropagateToChildren)
       val ec = getOptionalValue(method,typeErrorCheck)
       val edf = hasAnnotation(method,typeExtraDisplayField)
+      val cdf = getOptionalValue(method,typeCustomEditable)
       val visC = getOptionalValue(method,typeVisibilityController)
       val enC = getOptionalValue(method,typeEnabledController)
-      val numSpecial = (if (ip.isDefined) 1 else 0)+(if (lp.isDefined) 1 else 0)+(if (ec.isDefined) 1 else 0)+(if (edf) 1 else 0)+(if (visC.isDefined) 1 else 0)+(if (enC.isDefined) 1 else 0)
+      val numSpecial = (if (ip.isDefined) 1 else 0)+(if (lp.isDefined) 1 else 0)+(if (ec.isDefined) 1 else 0)+(if (edf) 1 else 0)+(if (cdf.isDefined) 1 else 0)+(if (visC.isDefined) 1 else 0)+(if (enC.isDefined) 1 else 0)
         if (numSpecial>1) error("Conflicting annotations on method "+method.name)
         if (dp||ptc||numSpecial>0) {
           if (visC.isDefined || enC.isDefined) { // check returns boolean
@@ -196,12 +199,13 @@ class SerializableTypeInfo[T <: AnyRef] private (val clazz : java.lang.Class[T])
           else if (ec.isDefined) errorChecks+=fff(ec)
           else if (visC.isDefined) visibilityControllers+=fff(visC)  
           else if (enC.isDefined) enabledControllers+=fff(enC) 
+          else if (cdf.isDefined) customFields+=new CustomFieldInfo(function,method.name.decoded,new FieldDisplayOptions(method,iconSource),cdf.get) 
           else if (edf) extraText+=new ExtraDisplayFieldInfo(function,method.name.decoded,new FieldDisplayOptions(method,iconSource))
           else providers+=function
         }
     }
-    val fieldNames : Set[String] = Set("delete")++fields.flatMap{_.namesOfExpectedFields}++extraText.toList.map{_.name} 
-    val fieldAndSectionNames : Set[String] = fieldNames ++ fields.flatMap{_.displayOptions.editSection} ++ extraText.toList.flatMap{_.displayOptions.editSection}
+    val fieldNames : Set[String] = Set("delete")++fields.flatMap{_.namesOfExpectedFields}++extraText.toList.map{_.name}++customFields.toList.map{_.name} 
+    val fieldAndSectionNames : Set[String] = fieldNames ++ fields.flatMap{_.displayOptions.editSection} ++ extraText.toList.flatMap{_.displayOptions.editSection}++ customFields.toList.flatMap{_.displayOptions.editSection}
     def check(list:List[FunctionForField],what:String,allowEmpty:Boolean,allowDuplicates:Boolean,allowSections:Boolean) {
       if (!allowDuplicates) for ((field,entries)<-list.groupBy{_.field}) if (entries.length>1) error("Conflicting "+what)
       if ((!allowEmpty) && list.exists{_.field.isEmpty}) error("Empty "+what)
@@ -228,7 +232,7 @@ class SerializableTypeInfo[T <: AnyRef] private (val clazz : java.lang.Class[T])
       }
       buffer.get
     }
-    new DependencyInjectionInformation(providers.toList,iconProviders.toList,labelProviders.toList,extraText.toList,enabledControllers.toList,visibilityControllers.toList,errorChecks.toList,new CanPassToChildren(classesToBlockForChildren),simpleErrorChecks)
+    new DependencyInjectionInformation(providers.toList,iconProviders.toList,labelProviders.toList,extraText.toList,customFields.toList,enabledControllers.toList,visibilityControllers.toList,errorChecks.toList,new CanPassToChildren(classesToBlockForChildren),simpleErrorChecks)
   }
   
   
@@ -352,7 +356,7 @@ class SerializableTypeInfo[T <: AnyRef] private (val clazz : java.lang.Class[T])
   
   val classTag : ClassTag[T] = ClassTag(clazz)
   def deserializeInto(reader:XMLStreamReader,original:AnyRef,loadBefore:Option[(XSFieldInfo,Int)]) : (T,Set[EqualityByPointerEquality[AnyRef]]) =
-    XMLDeserialize.deserializeInto[T](reader,this,original.asInstanceOf[T],loadBefore)(classTag)
+    XMLDeserialize.deserializeInto[T](reader,this,original.asInstanceOf[T],loadBefore)
     
     
   //
@@ -404,6 +408,7 @@ object SerializableTypeInfo {
   private[impl] val typeBooleanEditable = universe.typeOf[BooleanEditable]
   private[impl] val typeIndividuallyEditable = universe.typeOf[IndividuallyEditable]
   private[impl] val typeTableEditable = universe.typeOf[TableEditable]
+  private[impl] val typeCustomEditable = universe.typeOf[CustomEditable]
   private[impl] val typeEditSection = universe.typeOf[EditSection]
   private[impl] val typeOrderingPriority = universe.typeOf[OrderingPriority]
   private[impl] val typeMaxLength = universe.typeOf[MaxLength]

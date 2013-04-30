@@ -24,6 +24,7 @@ import scala.swing.CheckBox
 import scala.swing.event.ButtonClicked
 import org.greatcactus.xs.api.errors.ResolvedXSError
 import org.greatcactus.xs.frontend._
+import org.greatcactus.xs.impl.GeneralizedField
 /**
  * XSDetailsPane specialized for Swing client
  *
@@ -80,15 +81,18 @@ class SwingDetailsPane(_locale:Locale,_xsedit:XSEdit) extends XSDetailsPane[Comp
   override def changeUILabelText(gui:Component,shouldBe:RichLabel) {} // TODO also handle on creation
   override def changeUILabelIcon(gui:Component,icon:Option[org.greatcactus.xs.api.icon.Icon]) {} // TODO also handle on creation
   override def changeErrors(gui:Component,errors:List[ResolvedXSError]) {} // TODO
-  override def changeGridErrors(gui:Component,row:Int,col:Int,errors:List[ResolvedXSError]) {} // TODO
+  override def changeGridErrors(gui:Component,row:Int,col:Int,colfield:GeneralizedField,errors:List[ResolvedXSError]) {} // TODO
   override def setUIFieldIllegalContents(gui:Component,isIllegal:Boolean) {} // TODO
   override def changeUIImageField(gui:Component,shouldBe:String) {} // TODO
   override def changeUIWholeTable(gui:Component,shouldBe:IndexedSeq[IndexedSeq[String]]) {} // TODO
   override def changeUISingleLineTable(gui:Component,index:Int,shouldBe:IndexedSeq[String]) {} // TODO
   override def setUITableEntriesIllegalContents(gui:Component,illegalEntries:Map[Int,List[Int]]) {} // TODO
+  
+  def getCustom(f:DetailsPaneFieldCustom) : Option[CustomComponent[_,Component]] = SwingDetailsPane.getCustom(f)
 
 }
 
+object SwingDetailsPane extends CustomComponentStore[Component]
 
 /** 
  * A GUI creator for Swing, where the definer of an object is its component. 
@@ -187,6 +191,7 @@ class GUICreatorSwing(pane:SwingDetailsPane) extends GUICreator[Component] {
   
   def createImageField(field:DetailsPaneFieldImage,currently:CurrentFieldState,initialValue:String) : scala.swing.Component = ??? // TODO implement
   def createTableField(field:DetailsPaneFieldTable,currently:CurrentFieldState,initialValue:IndexedSeq[IndexedSeq[String]]) = ??? // TODO implement
+  override def createCustom[S](field:DetailsPaneFieldCustom,custom:CustomComponent[S,Component],currently:CurrentFieldState,initialValue:S) = ??? // TODO implement
   
   def createShowTextField(field:DetailsPaneFieldShowText,currently:CurrentFieldState,initialValue:RichLabel) : scala.swing.Component = {
     val gui = new Label("<html>"+initialValue.html.toString+"</html>")

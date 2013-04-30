@@ -37,6 +37,10 @@ function xsProcessClientMessageFromServer(json,session) {
 			$(json.args[0]).removeClass(json.args[1]);
 		} else if (json.cmd=="GotoURL") {
 			window.location.href=json.args[0];
+		} else if (json.cmd=="GotoURLNewTab") {
+			window.open(json.args[0],'_blank');
+		} else if (json.cmd=="message") {
+			alert(json.args[0]);
 		} else if (json.cmd=="ToolbarStatus") {
 			var elem = document.getElementById(json.args[0]);
 			elem.disabled = json.args[1]=='false';
@@ -67,14 +71,11 @@ function xsProcessClientMessageFromServer(json,session) {
 		} else if (json.cmd=="SetRows") {
 			var elem = document.getElementById(json.id+"_ui");
 			elem.dataxs_rows = json.rows;
-			var slickgrid = elem.dataxs_sg;
-			if (slickgrid) {
-				var saved = xs.saveSlickGridEditor(slickgrid);
-				slickgrid.setData(elem.dataxs_rows); 
-				slickgrid.updateRowCount();
-				slickgrid.render();
-				xs.restoreSlickGridEditor(slickgrid, saved,false);
-			};
+			xs.grid.majorDataChange(elem,false);
+		} else if (json.cmd=="SetGridRowMetadata") {
+			var elem = document.getElementById(json.id+"_ui");
+			elem.dataxs_rowmetadata = json.rows;
+			xs.grid.majorDataChange(elem,true);
 		} else if (json.cmd=="SetRow") {
 			var elem = document.getElementById(json.id+"_ui");
 			elem.dataxs_rows[json.num] = json.row;
@@ -102,10 +103,12 @@ function xsProcessClientMessageFromServer(json,session) {
 		} else if (json.cmd=="StartGrid") {
 			var id = json.args[0]+"_ui";
 			var elem = document.getElementById(id);
+			var dialogid = id+"_export";
+			$(elem).append("<div id='"+dialogid+"' title='Copy to other application (like Excel)'><p>Select and copy the table below, being the currently selected rows. To paste data from a spreadsheet, close this, click to edit the start cell, then paste.</p> <table class='xsPasteTable' id='"+dialogid+"_table'></table></div>");
+			$("#"+dialogid).dialog({modal:true, autoOpen:false,width:$(window).width()*3/4});
 			var cols = eval(json.args[1]);
-			var rows = elem.dataxs_rows;
-			var options = {autoHeight:true,editable:true,enableAddRow:true,enableCellNavigation:true,fullWidthRows:true,forceFitColumns:true};
-			var slickgrid = new Slick.Grid("#"+json.args[0]+"_grid",rows,cols,options);
+			var options = eval(json.args[3]); 
+			var slickgrid = new Slick.Grid("#"+json.args[0]+"_grid",xs.grid.getDataModel(elem),cols,options);
 			slickgrid.xsPTFonInputObj = json.args[2];
 			slickgrid.xsPTFid = json.args[0];
 			elem.dataxs_sg=slickgrid;
@@ -183,13 +186,14 @@ var xs = {
 		  //console.log(saved.active);
 		  grid.setActiveCell(saved.active.row,saved.active.cell);
 		  if (saved.editor) {
-			  console.log("Reenabling editor");
-			  console.log(saved);
+			  //console.log("Reenabling editor");
+			  //console.log(saved);
 			  grid.editActiveCell();
 			  if (saved.contents) {
+				  //console.log("saved.contents = "+saved.contents);
 	 		      var target = grid.getCellEditor()?grid.getCellEditor().getTarget():null;
                   if (target) {
-                	  console.log("restoreText : "+restoreText);
+                	  //console.log("restoreText : "+restoreText);
         			  if (restoreText) grid.getCellEditor().setValue(saved.contents.text);
                       xsPTF.setPTFSelection(target,saved.contents.startSelection,saved.contents.endSelection);                	  
                   }				  
@@ -294,6 +298,16 @@ var xs = {
 	  this.ptfInput = function(target,newtext) {
 		  var id = target.id.slice(0,-3); // remove _ui
 		  this.sendToServer({cmd:"Change",args:[id,newtext,this.currentlyEditing,target.getAttribute("xs-data-gridRow")||"",target.getAttribute("xs-data-gridCol")||""]});
+	  };
+	  /** Called when a pseudo text field changes by a pasted table */
+	  this.ptfGridPaste = function(target,table) {
+		  var tosend = [target.id,this.currentlyEditing,target.getAttribute("xs-data-gridRow")||"",target.getAttribute("xs-data-gridCol")||""];
+		  for (var i=0;i<table.length;i++) {
+			  var row = table[i];
+			  tosend.push(""+row.length);
+			  for (var j=0;j<row.length;j++) tosend.push(row[j]);
+		  }
+		  this.sendToServer({cmd:"PasteTable",args:tosend});		  
 	  };
 	  /** Called when a check box field changes */
 	  this.changeCB = function(id) { 
@@ -532,17 +546,52 @@ $(function() {
 	$.contextMenu({
 		selector: '.xsTableHolder',
 		callback: function(key,options) {
-			console.log(this);
+			//console.log(this);
 			var tableid = this[0].getAttribute("id");
+			var dialogid = tableid+"_export";
 			tableid=tableid.substring(0,tableid.length-3); // remove _ui
 			var slickgrid = this[0].dataxs_sg;
 			var obj = eval(slickgrid.xsPTFonInputObj);
 			var selected = slickgrid.getSelectedRows();
-			obj.gridContextMenu(key,tableid,selected);
+			if ((!selected) || selected.length==0) {
+				alert("Select a row or rows first.");
+			} else if (key=="copyExport") {
+				var cols = slickgrid.getColumns();
+				console.log(cols);
+				var data = slickgrid.getData();
+				console.log(data);
+				var table = document.getElementById(dialogid+"_table");
+				var contents = "";
+				selected=selected.sort();
+				console.log(selected);
+				console.log(selected.sort());
+				for (var i=0;i<selected.length;i++) {
+					var row = data.getItem(selected[i]);
+					contents+="<tr>";
+					for (var j=0;j<cols.length;j++) {
+						contents+="<td>"+xsPTF.escapeText(row[cols[j].id]||"").replace(/\n/g,"<br/>")+"</td>";
+					}
+					contents+="</tr>";
+				}
+				table.innerHTML = contents;
+				$("#"+dialogid).dialog("open");
+				if (document.body.createTextRange) { //ms
+				  var range = document.body.createTextRange();
+				  range.moveToElementText(table);
+				  range.select();
+				} else if (window.getSelection) { //all others
+				  var selection = window.getSelection();        
+				  var range = document.createRange();
+				  range.selectNodeContents(table);
+				  selection.removeAllRanges();
+				  selection.addRange(range);
+				}
+			} else obj.gridContextMenu(key,tableid,selected);
 		},
 		items: {
 			cut : { name:"Cut", icon:"cut" },
 			copy : { name:"Copy", icon:"copy" },
+			copyExport : { name:"Copy to other application", icon:"copy" },
 		    paste : { name:"Paste", icon:"paste" },
 		    erase : { name:"Delete", icon:"delete" }
 		}

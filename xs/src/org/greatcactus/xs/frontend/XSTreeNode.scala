@@ -291,7 +291,7 @@ class XSTreeNode(
   } 
   override def toString = obj.toString
   
-  private[xs] def getObject = obj
+  def getObject = obj
   
   //
   // code for handling uniqueness annotations

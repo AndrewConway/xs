@@ -12,6 +12,9 @@ import org.greatcactus.xs.frontend._
 import org.greatcactus.xs.api.icon.Icon
 import org.greatcactus.xs.api.display.RichLabel
 import org.greatcactus.xs.api.errors.ResolvedXSError
+import scala.concurrent._
+import ExecutionContext.Implicits.global
+import org.greatcactus.xs.impl.GeneralizedField
 
 /**
  * XSDetailsPane specialized for HTML5. This is not a complete implementation - it ignores transport.
@@ -21,6 +24,8 @@ import org.greatcactus.xs.api.errors.ResolvedXSError
 class HTML5DetailsPane(val client:HTML5Client) extends XSDetailsPane[String](client.locale,client.xsedit) {
   
   val detailsPaneID = "xsDP_"+client.session.jsSessionID // the ID of the main div holding all the details pane.
+  
+  var customControllerProcessMessages : List[PartialFunction[SimpleClientMessage,Unit]] = Nil
   
   /** Send a javascript command to set the inner html of the stated id to the given html. */
   def jsSetHTML(id:String,html:NodeSeq) {
@@ -36,14 +41,25 @@ class HTML5DetailsPane(val client:HTML5Client) extends XSDetailsPane[String](cli
   }
   def message(message:ClientMessage) { client.queueMessage(message) }
   
+  override def dispose() {
+    synchronized {
+      super.dispose()
+      customControllerProcessMessages=Nil
+    }
+  }
+
   def dispose(guis:UIFields) {
     // disposal is automatic, except for tables which need to be explicitly deallocated.
     for (uifield<-guis.elems) uifield match {
       case table:UIFieldTable => message(ClientMessage.stopGrid(table.gui))
+      case custom:UIFieldCustom[_] => custom.work.dispose()
       case _ =>
     }
   } 
 
+  override def getClipboard(param:XSClipboardRequest) : Future[XSClipBoard] = client.session.getClipboard(param)
+  override def setClipboard(data:XSClipBoard) { client.session.setClipboard(data)}
+    
   def setBlankScreen() { jsSetHTML(detailsPaneID,NodeSeq.Empty)}
   
   def flushClientCommands() { client.flushMessages() }
@@ -61,11 +77,19 @@ class HTML5DetailsPane(val client:HTML5Client) extends XSDetailsPane[String](cli
   def changeUILabelText(id:String,shouldBe:RichLabel) { jsSetHTML(id+"_labeltext",shouldBe) }
   def changeUILabelIcon(id:String,shouldBe:Option[Icon]) { jsSetHTML(id+"_labelicon",GUICreatorHTML5.rawicon(shouldBe)) }
   def changeErrors(gui:String,errors:List[ResolvedXSError]) { client.queueMessage(ClientMessage.changeErrors(gui+"_ui",errors))}
-  def changeGridErrors(gui:String,row:Int,col:Int,errors:List[ResolvedXSError]) { client.queueMessage(ClientMessage.changeGridErrors(gui+"_grid_R"+row+"C"+col, errors, gui))}
+  def changeGridErrors(gui:String,row:Int,col:Int,colfield:GeneralizedField,errors:List[ResolvedXSError]) { client.queueMessage(ClientMessage.changeGridErrors(gui+"_grid_R"+row+"C"+colfield.name, errors, gui))}
   def setUIFieldIllegalContents(gui:String,isIllegal:Boolean) { client.queueMessage(ClientMessage.setFieldIllegalContentsID(gui+"_ui",isIllegal))}
-  def changeUIWholeTable(gui:String,shouldBe:IndexedSeq[IndexedSeq[String]]) { for (columns<-getColumnExtractor(gui)) message(new SetRows(gui,shouldBe,columns))} 
-  def changeUISingleLineTable(gui:String,index:Int,shouldBe:IndexedSeq[String]) { for (columns<-getColumnExtractor(gui)) message(new SetRow(gui,index,shouldBe,columns))} 
-  override def setUITableEntriesIllegalContents(gui:String,illegalEntries:Map[Int,List[Int]]) { for (columns<-getColumnExtractor(gui)) message(new GridSetCellCssStyles(gui,illegalEntries,columns,"xsTotallyIllegal"))} 
+  def changeUIWholeTable(gui:String,shouldBe:IndexedSeq[IndexedSeq[String]]) { for (columns<-getColumnExtractor(gui)) message(new SetRows(gui,shouldBe,columns.names))} 
+  def changeUISingleLineTable(gui:String,index:Int,shouldBe:IndexedSeq[String]) { for (columns<-getColumnExtractor(gui)) message(new SetRow(gui,index,shouldBe,columns.names))} 
+  override def setUITableEntriesIllegalContents(gui:String,illegalEntries:Map[Int,List[Int]]) { for (columns<-getColumnExtractor(gui)) message(new GridSetCellCssStyles(gui,illegalEntries,columns.names,"xsTotallyIllegal"))} 
+  /*override def changeUIShowCustom[S](gui:String,custom:CustomComponent[S,String],shouldBe:S,old:S) { 
+    custom match {
+      case drawer:HTMLCustomComponent[S] => 
+        for (m<-drawer.change(gui,shouldBe,old)) message(m)
+      case _ => 
+    }
+  }*/
+
 
   def baseHTML = <div class="XSDetailsPane" id={detailsPaneID}>Contacting server...</div>
   
@@ -80,9 +104,16 @@ class HTML5DetailsPane(val client:HTML5Client) extends XSDetailsPane[String](cli
     nodeIDCurrentlyBeingEdited=id
   }
 
+  def getCustom(f:DetailsPaneFieldCustom) : Option[CustomComponent[_,String]] = HTML5DetailsPane.getCustom(f)
+
 }
 
+object HTML5DetailsPane extends CustomComponentStore[String]
+
 object GUICreatorHTML5 {
+  
+  
+  
   def addOption(html:xml.Elem,name:String,value:Option[Any]) = value match {
     case Some(s) => html % Attribute(None,name,Text(s.toString),scala.xml.Null)
     case None => html
@@ -115,7 +146,7 @@ class GUICreatorHTML5(pane:HTML5DetailsPane) extends GUICreator[String] {
   private[this] def newid() = { idIndex+=1; idBase+idIndex }
   private[this] val rowBuffer = new ListBuffer[xml.Elem]
   private[this] val sectionBuffer = new ListBuffer[xml.Elem]
-  private[this] val postCreationJavascript = new ListBuffer[ClientMessage]
+  val postCreationJavascript = new ListBuffer[ClientMessage]
   
   private def addRow(row:xml.Elem,visible:Boolean) { 
     val withvisibility = XSHTMLUtil.possiblySetNoDisplay(row,visible)
@@ -283,7 +314,7 @@ class GUICreatorHTML5(pane:HTML5DetailsPane) extends GUICreator[String] {
         g.writeRawValue(editor)       
       }
     })
-    postCreationJavascript+=new SetRows(id,initialValue,field.columnExtractors);
+    postCreationJavascript+=new SetRows(id,initialValue,field.columnExtractors.names);
     postCreationJavascript+=ClientMessage.startGrid(id,columns,sessionPrefixNoTrailingPeriod)
     //run(varid+"=new Slick.Grid('#"+id+"_ui',"+baseVarID+"_rows,"+columns+",{autoHeight:true,editable:true,enableAddRow:true,enableCellNavigation:true,fullWidthRows:true})")
     //postCreationJavascript+=ClientMessage.run(varid+".setSelectionModel(new Slick.CellSelectionModel())")
@@ -292,6 +323,17 @@ class GUICreatorHTML5(pane:HTML5DetailsPane) extends GUICreator[String] {
     id    
   }
 
+  override def createCustom[S](field:DetailsPaneFieldCustom,custom:CustomComponent[S,String],currently:CurrentFieldState,initialValue:S) : String = {
+    val id = newid()
+    val contents = custom match {
+      case drawer:HTMLCustomComponent[S] =>
+        drawer.createHTML(id,field,initialValue,this)
+      case _ => <em>Missing custom component {custom.name}</em>
+    }
+    val holder = <div id={id+"_ui"} class={"xsCustom"+custom.name}>{contents}</div>
+    addLabeledField(holder,id,field,currently)
+    id
+  }
   def errorIcon(id:String) : xml.Elem = <div class="xsErrorIconHolder"><div class="xsErrorIcon xsErrorIcon1000" id={id+"_ui_erroricon"}><div id={id+"_ui_errortooltip"}></div></div></div>
   def errorIcon(id:String,canContainErrorIcon:Boolean) : NodeSeq = if (canContainErrorIcon) errorIcon(id) else NodeSeq.Empty
 

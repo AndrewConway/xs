@@ -91,7 +91,11 @@ object DetailsPaneFields {
     }
     for (f<-t.dependencyInjectionInfo.extraText) { // put in the (read only) pseudo text fields
       val field = new DetailsPaneFieldShowText(f.function,text(f.name),text.get(f.name+".tooltip"),f.displayOptions.icon,f.displayOptions.multiline,f.displayOptions.hideName,f.displayOptions.wholeLine,t.dependencyInjectionInfo.fieldsThatCouldHaveErrors)
-        fields+=new EditPaneElem(field,f.displayOptions.editSection,f.displayOptions.orderingPriority)
+      fields+=new EditPaneElem(field,f.displayOptions.editSection,f.displayOptions.orderingPriority)
+    }
+    for (f<-t.dependencyInjectionInfo.customFields) { // put in the custom fields
+      val field = new DetailsPaneFieldCustom(f.function,text(f.name),text.get(f.name+".tooltip"),f.displayOptions.icon,f.displayOptions.multiline,f.displayOptions.hideName,f.displayOptions.wholeLine,t.dependencyInjectionInfo.fieldsThatCouldHaveErrors,f.customComponentName)
+      fields+=new EditPaneElem(field,f.displayOptions.editSection,f.displayOptions.orderingPriority)
     }
     if (mayDelete) { // put in (if relevent) the "delete"
       val field = new DetailsPaneFieldActionDelete(text("Delete"),text.get("Delete.Tooltip"))
@@ -220,6 +224,15 @@ class DetailsPaneFieldShowText(val function:DependencyInjectionFunction,val labe
   override def columnExtractor = Some(function)
 }
 
+class DetailsPaneFieldCustom(val function:DependencyInjectionFunction,val label:String,val tooltip:Option[String],val icon:Option[Icon],val multiline:Boolean,val hideName:Boolean,val wholeLine:Boolean,fieldsThatCouldHaveErrors:Set[String],val customComponentName:String) extends DetailsPaneFieldLabeled {
+  //def get(parent:XSTreeNode,locale:Locale) : RichLabel = parent.getPseudoField(function,locale)
+  def name = function.name
+  override def toString = label
+  val couldContainErrorIcon : Boolean = fieldsThatCouldHaveErrors.contains(name)
+  override def columnExtractor = Some(function)
+}
+
+
 class DetailsPaneFieldBoolean(val field:XSFieldInfo,val label:String,val tooltip:Option[String],val icon:Option[Icon],fieldsThatCouldHaveErrors:Set[String]) extends DetailsPaneFieldLabeled with DetailsPaneFieldBasedOnSimpleField {
   def get(parent:XSTreeNode) : Boolean = field.getField(parent.getObject).asInstanceOf[Boolean]
   def set(edit:XSEdit,parent:XSTreeNode,newValue:Boolean) { 
@@ -292,6 +305,8 @@ class ColumnExtractors(val fields:IndexedSeq[GeneralizedField],val locale:Locale
     }
   }
   def length : Int = fields.length
+  
+  def names(i:Int):String = fields(i).name
 }
 
 class DetailsPaneFieldText(
