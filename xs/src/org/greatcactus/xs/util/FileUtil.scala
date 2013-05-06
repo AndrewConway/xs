@@ -12,6 +12,12 @@ import scala.collection.mutable.ArrayBuffer
 object FileUtil {
 
   def readAllOfInputStream(is:InputStream) : Array[Byte] = {
+    val res = readAllOfInputStreamWithoutClosing(is)
+    is.close()
+    res
+  }
+
+  def readAllOfInputStreamWithoutClosing(is:InputStream) : Array[Byte] = {
     val res = new ArrayBuffer[Array[Byte]]
     var finished = false
     while (!finished) {
@@ -21,7 +27,6 @@ object FileUtil {
       else if (len==buf.length) res+=buf
       else res+=buf.slice(0,len)
     }
-    is.close()
     if (res.length==1) res(0)
     else res.toArray.flatten
   }

@@ -340,12 +340,12 @@ class GUICreatorHTML5(pane:HTML5DetailsPane) extends GUICreator[String] {
   def addLabeledField(input:xml.Elem,id:String,field:DetailsPaneFieldLabeled,currently:CurrentFieldState) {
     val withenabled = addEnabled(input,currently.enabled)      
     val inrow = {
-      def mainTD(colspan:Int) : xml.Elem = <td colspan={colspan.toString} class="xsErrorLabeled">{errorIcon(id,field.couldContainErrorIcon)}{withenabled}</td>
+      def mainTD(colspan:Int) : xml.Elem = <td colspan={colspan.toString} class={"xsErrorLabeled xsColMainWidth"+colspan}>{errorIcon(id,field.couldContainErrorIcon)}{withenabled}</td>
       if (field.hideName) <tr id={id+"_all"}>{mainTD(2)}</tr>
       else {
         val label = addTitle(<label for={id+"_ui"}>{iconlabel(field.icon,currently,id)}{textlabel(field.label,currently,id)}</label>,field.tooltip)
         if (field.wholeLine) <tbody id={id+"_all"}><tr><td colspan="2" >{label}</td></tr><tr>{mainTD(2)}</tr></tbody>
-        else <tr id={id+"_all"}><td>{label}</td>{mainTD(1)}</tr>
+        else <tr id={id+"_all"}><td class="xsColLabel">{label}</td>{mainTD(1)}</tr>
       }
     }
     addRow(inrow,currently.visible) 

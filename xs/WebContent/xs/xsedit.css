@@ -12,9 +12,21 @@ table.xsPasteTable tr:nth-child(odd) {
 	background : #eee;
 } 
 
+.xsForm .xsColMainWidth1 {
+	width: 99%;
+}
+.xsForm .xsColMainWidth2 {
+	width: 100%;
+}
+.xsForm .xsColLabel {
+	white-space: nowrap;
+}
+
+
 
 .xsTableHolder {
-	width: 500px;
+	width: 100%;
+	overflow-x:hidden;
 	/* height: 100px; */
 	outline: 0;
     border: 1px solid gray;
@@ -22,7 +34,8 @@ table.xsPasteTable tr:nth-child(odd) {
 }
 
 .xsTableGrid {
-	width:100%;
+	width:300px;
+	overflow-x:hidden;
 }
 
 table.xsForm > tbody > tr > td {

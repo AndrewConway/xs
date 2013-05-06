@@ -153,7 +153,7 @@ function xsProcessClientMessageFromServer(json,session) {
               e.stopImmediatePropagation();
             });
 
-            
+            xs.resizeSlickGrid(elem);
             slickgrid.render();
             /* Set up grid context menu */
 
@@ -169,8 +169,46 @@ function xsProcessClientMessageFromServer(json,session) {
 }
 
 
+
 var xs = {
 	
+  resizeAllSlickGrids : function () {
+	$(".xsTableHolder").each(function () { xs.resizeSlickGrid(this);});  
+  },
+  
+  /** 
+   * Resizing the grid is more complex than one might think. The width has to be specified explitly (slick grid requirement). 
+   * Making it bigger is not too bad - if the area is expanded, the table is made wider, and extra slop goes into the wide cell because of the CSS width=99%. You get the width of the div it is in, and resize to that size (although it creates a scrollbar if there is not a 1-2 pixel slop - see to do below)
+   *
+   * Making it smaller is harder - the td it is in will not shrink as it contains a wide grid. We can't make the table layout algorithm ignore its with
+   * without also ignoring its height... So look at parents and adjust.
+   */
+  resizeSlickGrid : function(tableHolderElem) {
+	//console.log("width = "+tableHolderElem.clientWidth);  
+	//console.log("width = "+tableHolderElem.offsetWidth);  
+	var td = xs.getParentTD(tableHolderElem);
+//	console.log(td);
+	if (!td) return;
+	var tr = td.parentNode;
+//	console.log(tr);
+	if (!tr) return;
+	//console.log("tr.width = "+tr.clientWidth);  
+	//console.log("tr.width = "+tr.offsetWidth);  
+	var pdiv = xs.getParentDiv(tr);
+	if (!pdiv) return;
+	//console.log("pdiv.width = "+pdiv.clientWidth);  
+	//console.log("pdiv.width = "+pdiv.offsetWidth);  
+	var toowide = tr.offsetWidth-pdiv.clientWidth+4;  // TODO get this pixel perfect. The +4 works on most size clients, with a little slop
+	var w=tableHolderElem.clientWidth-2; // TODO get this pixel perfect. Again there is a little slop here
+	if (toowide>0) w=w-toowide;
+	if (w<100) w=100;
+	if (tableHolderElem.dataCurrentWidth == w) return;
+	tableHolderElem.dataCurrentWidth = w;
+	var slickgrid = tableHolderElem.dataxs_sg;
+    $(tableHolderElem).children('.xsTableGrid').css({'width':""+w+'px'});
+    slickgrid.resizeCanvas();
+  },
+  
   saveSlickGridEditor : function(grid) {
 	var target = (grid.getCellEditor()&&grid.getCellEditor().getTarget)?grid.getCellEditor().getTarget():null;
 	return {
@@ -209,6 +247,15 @@ var xs = {
 	  if (elem.parentNode) return xs.getParentDiv(elem.parentNode);
 	  return null;
   },
+
+  // get the first ancestor of DOM element elem that is a TD (or null if none).		
+  getParentTD : function(elem) {
+	  if (elem==null) return null;
+	  if (elem.nodeType==1 && elem.nodeName=="TD") return elem;
+	  if (elem.parentNode) return xs.getParentTD(elem.parentNode);
+	  return null;
+  },
+  
   
   Session : function(sessionid) {
 	  this.id = sessionid;
@@ -597,3 +644,5 @@ $(function() {
 		}
 	});
 });
+
+setInterval(xs.resizeAllSlickGrids,200); // onresize doesn't work for divs.
