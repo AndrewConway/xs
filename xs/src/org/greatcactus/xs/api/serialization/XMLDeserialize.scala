@@ -79,6 +79,7 @@ object XMLDeserialize {
     var addToBuffersPostDeserialization : Option[Array[Seq[AnyRef]]] = None // Fields that are preloaded from an existing object that should be added to the buffers after the deserialization. Usually not used.
     for (field<-helper.fieldsAsBlocks) if (field.isCollectionOrArray) buffers(field.index) = new ArrayBuffer[AnyRef]
     var hadOpenTag = false
+    for (field<-helper.fields; leftOutValue<-field.leftOutValue) fields(field.index)=leftOutValue
     
     /** Preload esisting data into the structure. Used when extra nodes are being added to an existing node. Extra nodes will be added (if possible) before the given field and index of elements of that field. */
     def preload(existing:T,loadBefore:Option[(XSFieldInfo,Int)]) {

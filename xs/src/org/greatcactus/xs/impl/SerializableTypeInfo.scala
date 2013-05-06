@@ -107,9 +107,8 @@ class SerializableTypeInfo[T <: AnyRef] private (val clazz : java.lang.Class[T])
   
     /** create the object! */
     def create(args:Seq[AnyRef]) : T = {
-      //println("Creating "+name)
-      //args.foreach{a => println("  "+a.getClass+" => "+a)}
-      //for (aa <- args) println("  "+a.getClass+" => "+a)
+      //println("Creating "+name+" with "+args.length+" arguments")
+      //for (a <- args) println("  "+(if (a==null) "" else a.getClass.toString)+" => "+a)
       reflectedConstructor.apply(args:_*).asInstanceOf[T] 
     }
   

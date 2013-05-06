@@ -78,6 +78,7 @@ class XSFieldInfo(val fieldSymbol:reflect.runtime.universe.Symbol,val index:Int,
     }
     val baseClassIsPrimitive = baseClass.isPrimitive()
     
+   
     val fixedOptions : Option[EnumeratedOptions] = {
       val sco = baseClass.getAnnotation(classOf[SuggestedOptions])
       val rco = baseClass.getAnnotation(classOf[RequiredOptions])
@@ -187,6 +188,9 @@ class XSFieldInfo(val fieldSymbol:reflect.runtime.universe.Symbol,val index:Int,
           case _ => null
         }
     }
+    /** What value should be used if nothing is given during deserialization. This is null, except for primitives which NEED something. */
+    val leftOutValue : Option[AnyRef] = if (isCollectionOrArray || !baseClassIsPrimitive) None else Some{defaultElementValue}
+      
     
     def newPossiblyMultipleElement() : AnyRef = {
       if (isCollectionOrArray) collectionOfBuffer(IndexedSeq())
