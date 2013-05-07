@@ -112,6 +112,9 @@ class ToChildDependencies(val base:Set[AnyRef],val parent:Parent[_]) {
   }
 }
 
+object DependencyInjectionCurrentStatus {
+  var debugDependencyInjections=false
+}
 /**
  * Information about dependency injection functions and error functions for one particular tree node object.
  * 
@@ -242,8 +245,14 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
         sendToChildren = new ToChildDependencies(injectedFromParent.filter(info.kidFilter).filter{! _.isInstanceOf[Parent[_]]}++existingResolved.values.filter{_.shouldInjectToKids}.map{_.res.get},new Parent(parentObject))
         for (c<-associatedNode.allChildren) c.dependencyInjection.changedParentInjections(sendToChildren.get(c.info.dependencyInjectionInfo.fromParentDependencyInfo))
         dirty=false
-        //println("Successfully resolved "+lastGoodResolved.values.map{_.function.name}.mkString(","))
-        //if (!mustDo.isEmpty) println("Unsuccessful resolution of "+mustDo.map{_.name}.mkString(","))
+        if (DependencyInjectionCurrentStatus.debugDependencyInjections && !(lastGoodResolved.values.isEmpty && mustDo.isEmpty)) {
+          println("Dependency Injection for "+parentObject)
+          if (!lastGoodResolved.values.isEmpty) println(" Successfully resolved "+lastGoodResolved.values.map{_.function.name}.mkString(","))
+          if (!mustDo.isEmpty) {
+            println(" Unsuccessful resolution of "+mustDo.map{_.name}.mkString(","))
+            println("  Available types :"+resInjections.toSeq.map{_.getClass.getSimpleName}.mkString(","))
+          }
+        }
         dirtySimpleErrorChecks=false
         true
       } else if (dirtySimpleErrorChecks) {

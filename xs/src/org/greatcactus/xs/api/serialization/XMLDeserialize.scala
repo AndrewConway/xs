@@ -32,7 +32,7 @@ object XMLDeserialize {
   }
   
   def deserialize[T <: AnyRef : ClassTag](reader:XMLStreamReader) : T = {
-    val helper : SerializableTypeInfo[T] = SerializableTypeInfo.get(scala.reflect.classTag[T].runtimeClass).get.asInstanceOf[SerializableTypeInfo[T]]
+    val helper : SerializableTypeInfo[T] = SerializableTypeInfo.get(scala.reflect.classTag[T].runtimeClass).getOrElse(throw new IllegalArgumentException("Cannot deserialize "+scala.reflect.classTag[T].runtimeClass)).asInstanceOf[SerializableTypeInfo[T]]
     while (reader.getEventType()!=XMLStreamConstants.START_ELEMENT) reader.nextTag();
     val name = reader.getLocalName
     if (name!=helper.name) throw new WrongDocumentType(name)
