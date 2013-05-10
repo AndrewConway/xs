@@ -224,7 +224,8 @@ val deserialized : Complex = XMLDeserialize.deserialize[Complex](serializedData)
    
    <h3>Commands</h3>
    <p>If you annotate a method with <code>@XSCommand</code> then it becomes an action button that will be executed (server side, of course) when the user clicks on it.
-   The method can take arguments from the dependency injection list, as well as a <code>ProgressMonitor</code>, which can give progress information back to the user.
+   The method can take arguments from the dependency injection list, as well as a <code>ProgressMonitor</code> (expected work 1.0) or <code>ProgressMonitorSource</code>, 
+   which can give progress information back to the user.
    The method should return a <code>CommandResult</code> object. XS will then display a progress monitor and success status. The user can cancel if your (long running)
    server side process regularly checks the isCancelled method on the progress monitor. If your method throws a <code>CancelledThrowable</code> exception then
    the status shown on the client will be cancelled. If some other exception is thrown, a stack trace will be shown on the client (so catch them yourself and give a

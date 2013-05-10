@@ -17,9 +17,9 @@ trait ProgressMonitorUI {
 /**
  * More friendly version of a progress monitor, adjusting units, allowing subtasks, and allowing subtasks with unknown extents.
  */
-class ProgressMonitor private(ui:Option[ProgressMonitorUI],expectedWork:Option[Double],parent:Option[ProgressMonitor]) {
+class ProgressMonitor private[command](ui:Option[ProgressMonitorUI],expectedWork:Option[Double],parent:Option[ProgressMonitor]) {
   private var childPortionWork : Double = _;
-  private var child : Option[ProgressMonitor] = None
+  private[command] var child : Option[ProgressMonitor] = None
   private var workDone = 0.0
   private var workDoneInChild = 0.0
   private var lastPortionSentUp = Double.NaN
@@ -58,6 +58,15 @@ class ProgressMonitor private(ui:Option[ProgressMonitorUI],expectedWork:Option[D
     workDoneInChild=0.0
     res
   }
+  /** More common method - makes a stub that a receiving function can use to set Task appropriately. This is used at the call site, and the get method is used at the start of the called function and together they are the same as startTask. */
+  def subTask(portionOfParent:Double) : ProgressMonitorSource = {
+    for (c<-child) c.finished()
+    val res = new ProgressMonitor(None,expectedWork,Some(this))
+    child = None
+    childPortionWork=portionOfParent
+    workDoneInChild=0.0
+    new ProgressMonitorSource(None,Some(this))
+  }
   private def childHasFinished() {
     childHasDoneWork(1.0)
     child=None
@@ -89,6 +98,24 @@ class ProgressMonitor private(ui:Option[ProgressMonitorUI],expectedWork:Option[D
   def finished() {
     for (p<-parent) p.childHasFinished()
   }
+}
+
+/**
+ * Used for arguments to functions. The functions can then make their own subtask, giving it title and expected work.
+ * So most functions that take a ProgressMonitor should actually take a ProgressMonitorPortion and then start with a line
+ * like <pre>val progressMonitor = progressMonitorSource.get("This function",Some(6.0))</pre>
+ */
+class ProgressMonitorSource private[command](ui:Option[ProgressMonitorUI],parent:Option[ProgressMonitor]) {
+  def get(name:String,expectedWork:Option[Double],workUnits:Option[String]=None) : ProgressMonitor = {
+    val res = new ProgressMonitor(ui,expectedWork,parent)
+    for (p<-parent) p.child = Some(res)
+    res
+  }
+}
+
+object ProgressMonitorSource {
+  val dummy = new ProgressMonitorSource(None,None)
+  def apply(ui:ProgressMonitorUI) = new ProgressMonitorSource(Some(ui),None)
 }
 
 class CancelledThrowable extends Throwable

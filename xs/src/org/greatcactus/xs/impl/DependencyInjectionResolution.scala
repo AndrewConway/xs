@@ -292,7 +292,8 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
   def executeCommandInSeparateThread(function:DependencyInjectionFunction,getMonitor : ProgressMonitorInfo) { synchronized {
     clean()
     val monitor = try { getMonitor.getMonitor() } catch { case _:ActionBusy => return}
-    val possibleArgs = monitor::lastGoodResolved.toList
+    val monitorSource = monitor.subTask(1.0)
+    val possibleArgs = monitor::monitorSource::lastGoodResolved.toList
     function.getArgs(possibleArgs) match {
       case Some(args) =>
         //println("Got args")
