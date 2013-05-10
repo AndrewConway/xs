@@ -163,6 +163,33 @@ function xsProcessClientMessageFromServer(json,session) {
 			if (slickgrid) {
 				slickgrid.destroy();
 			}
+		} else if (json.cmd=="ProgressBar") {
+			var id = json.args[0]+"_ui";
+			var progid = id+"_progressLine";
+			var statusid = id+"_status";
+			var statusBar = id+"_progress";
+			var statusPercent = id+"_progressPercent";
+			if (!document.getElementById(progid)) {
+				$(document.getElementById(id).parentNode).append("<div class='xsProgressStatus' id='"+progid+"'>Status : <span id='"+statusid+"'></span></div>");
+			}
+			var statusel = document.getElementById(statusid);
+			var cmd = json.args[1];
+			if (cmd=="Start") {
+				statusel.className="xsStatusWorking";
+ 			    statusel.innerHTML = "<progress value='0' max='100' id='"+statusBar+"'></progress> <span id='"+statusPercent+"'>0%</span> <button onclick='xs.S"+session.id+".cancelJob(\""+json.args[0]+"\");'>Cancel</button>";
+			} else if (cmd=="Progress") {
+				var percent = Math.round(parseFloat(json.args[2])*100.0);
+				var p1 = document.getElementById(statusBar);
+				if (p1) p1.value=percent;
+				var p2 = document.getElementById(statusPercent);
+				if (p2) p2.textContent=""+percent+"%";
+			} else if (cmd=="FinishedOK") {
+				statusel.innerHTML="Finished : "+json.args[2]; 
+				statusel.className="xsStatusGood";
+			} else if (cmd=="FinishedError") {
+				statusel.innerHTML="Failed : "+json.args[2]; 
+				statusel.className="xsStatusError";
+			}
 		} else alert("Unknown client message "+json.cmd);
 	};
   };
@@ -313,7 +340,11 @@ var xs = {
 		  considerResending(10000,cmd.index);
 	  };
 	  /** Called by a client action - eg clicking on a "new X" action */
-	  this.action = function(id) { this.sendToServer({cmd:"Action",args:[id,this.currentlyEditing]});};
+	  this.action = function(id) {
+		  var elem = document.getElementById(id+"_ui");
+		  if (elem.getAttribute("disabled")=="disabled") return;
+		  this.sendToServer({cmd:"Action",args:[id,this.currentlyEditing]});
+	  };
 	  /** Called by a client clicking on the opener for a tree */
 	  this.treeOpen = function(id) {
 		  var elem = document.getElementById(id+"_opener");
@@ -378,6 +409,10 @@ var xs = {
 	  /** Called when a click is done on a toolbar button */
 	  this.toolbar = function(id) {
 		  this.sendToServer({cmd:"Toolbar",args:[id]});
+	  };
+	  
+	  this.cancelJob = function(id) {
+		  this.sendToServer({cmd:"CancelJob",args:[id,this.currentlyEditing]});
 	  };
 	  
 	  //

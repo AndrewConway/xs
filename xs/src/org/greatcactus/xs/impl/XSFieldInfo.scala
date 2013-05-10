@@ -18,6 +18,9 @@ import scala.util.Try
 import org.greatcactus.xs.api.display.TextLocalizationSource
 import org.greatcactus.xs.api.display.TextLocalizationResources
 import org.greatcactus.xs.api.display.PrefixedTextLocalizationResources
+import org.greatcactus.xs.api.edit.FiniteOptionList
+import org.greatcactus.xs.api.edit.FiniteOptionListWithPrettyNames
+import org.greatcactus.xs.api.edit.FiniteOptionListWithIcons
 
 /**
  * Information on a field inside a class. This is not designed to be used outside of XS
@@ -84,11 +87,37 @@ class XSFieldInfo(val fieldSymbol:reflect.runtime.universe.Symbol,val index:Int,
       val rco = baseClass.getAnnotation(classOf[RequiredOptions])
       val rfo = annotationValueStringArray(typeRequiredOptions)
       val sfo = annotationValueStringArray(typeSuggestedOptions)
-      if (rfo.isDefined) Some(new EnumeratedOptions(true,rfo.get.toList,None))
-      else if (sfo.isDefined) Some(new EnumeratedOptions(true,sfo.get.toList,None))
-      else if (rco!=null) Some(new EnumeratedOptions(true,rco.value.toList,Some(baseClass)))
-      else if (sco!=null) Some(new EnumeratedOptions(false,sco.value.toList,Some(baseClass)))
-      else if (baseClass.getSuperclass() == classOf[java.lang.Enum[_]]) Some(new EnumeratedOptions(true,baseClass.getEnumConstants().map{_.toString}.toList,Some(baseClass)))  
+      if (rfo.isDefined) Some(new EnumeratedOptions(true,rfo.get.toList,Map.empty,Map.empty,None))
+      else if (sfo.isDefined) Some(new EnumeratedOptions(true,sfo.get.toList,Map.empty,Map.empty,None))
+      else if (rco!=null) Some(new EnumeratedOptions(true,rco.value.toList,Map.empty,Map.empty,Some(baseClass)))
+      else if (sco!=null) Some(new EnumeratedOptions(false,sco.value.toList,Map.empty,Map.empty,Some(baseClass)))
+      else if (baseClass.getSuperclass() == classOf[java.lang.Enum[_]]) Some(new EnumeratedOptions(true,baseClass.getEnumConstants().map{_.toString}.toList,Map.empty,Map.empty,Some(baseClass)))  
+      else if (classOf[FiniteOptionList].isAssignableFrom(baseClass)) Some({
+                // see if there is a Scala style companion object with an allValues method
+        ValueOfString.searchForCompanionObjectMethod(baseClass,"allValues",Nil) match {
+          case Some(m) => 
+            val possibilities : List[Any] = m.apply() match {
+              case s:Seq[Any] => s.toList 
+              case s:Array[Any] => s.toList
+              case _ => error("Unacceptable result for allValues method for "+baseClass.getName())
+            }
+            var prettyPrint : Map[String,String] = Map.empty
+            var icons : Map[String,String] = Map.empty
+            for (p<-possibilities) {
+              p match {
+                case x:FiniteOptionListWithPrettyNames if x.humanReadableName!=null => prettyPrint+=x.toString->x.humanReadableName
+                case _ =>
+              }
+              p match {
+                case x:FiniteOptionListWithIcons if x.icon!=null => icons+=x.toString->x.icon
+                case _ =>
+              }
+            }
+            new EnumeratedOptions(true,possibilities.map{_.toString},prettyPrint,icons,Some(baseClass))
+          case None =>
+            error("No companion object with allValues method for "+baseClass.getName())
+        }
+      })
       else None // should handle Scala enumerations as well
     } 
       
@@ -345,7 +374,15 @@ class FieldDisplayOptions(val field:reflect.runtime.universe.Symbol,iconSource:I
   
 }
 
-class EnumeratedOptions(val required:Boolean,val options:Seq[String],val classForLocalizationResources:Option[Class[_]]) {
+class EnumeratedOptions(
+    val required:Boolean,
+    /** Identifiers for all the options */
+    val options:Seq[String],
+    /** Optional pretty printing for the options - map from identifiers to pretty values. Can be overrriden by localization. */
+    val prettyPrint:Map[String,String],
+    /** Optional icons for the options - map from identifiers to pretty values. Can be overrriden by localization. */
+    val icons:Map[String,String],
+    val classForLocalizationResources:Option[Class[_]]) {
   lazy val iconSource : Option[IconManifests] = classForLocalizationResources.map{IconManifests.getIconManifests(_)}
 }
 

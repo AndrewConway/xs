@@ -15,6 +15,8 @@ import org.greatcactus.xs.api.errors.ResolvedXSError
 import scala.concurrent._
 import ExecutionContext.Implicits.global
 import org.greatcactus.xs.impl.GeneralizedField
+import org.greatcactus.xs.api.command.ProgressMonitor
+import org.greatcactus.xs.api.command.ProgressMonitorUI
 
 /**
  * XSDetailsPane specialized for HTML5. This is not a complete implementation - it ignores transport.
@@ -62,7 +64,7 @@ class HTML5DetailsPane(val client:HTML5Client) extends XSDetailsPane[String](cli
     
   def setBlankScreen() { jsSetHTML(detailsPaneID,NodeSeq.Empty)}
   
-  def flushClientCommands() { client.flushMessages() }
+  override def flushClientCommands() { client.flushMessages() }
     
   def newCreator() = new GUICreatorHTML5(this)
 
@@ -222,6 +224,18 @@ class GUICreatorHTML5(pane:HTML5DetailsPane) extends GUICreator[String] {
     addRow(inrow,currently.visible)
     id
   }
+  override def createProgressMonitor(id:String) : ()=>ProgressMonitor = () => {
+    pane.message(ClientMessage.progressStart(id))
+    pane.flushClientCommands()
+    val ui = new ProgressMonitorUI {
+      def donePortion(progressPortion:Double) { pane.message(ClientMessage.progressProgress(id, progressPortion)); pane.flushClientCommands()}  
+      def failed(message:Option[RichLabel]) { pane.message(ClientMessage.progressFinishedError(id, message)); pane.flushClientCommands() }
+      def succeeded(message:Option[RichLabel]) { pane.message(ClientMessage.progressFinishedGood(id, message)); pane.flushClientCommands() }
+    }
+    ProgressMonitor(ui)
+  }
+
+  
   def createTextField(field:DetailsPaneFieldText,currently:CurrentFieldState,initialValue:String) : String = {
     val id = newid()
     val input = field.choices match {

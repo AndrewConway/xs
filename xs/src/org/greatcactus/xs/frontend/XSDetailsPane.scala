@@ -20,6 +20,8 @@ import scala.concurrent._
 import ExecutionContext.Implicits.global
 import scala.collection.mutable.ArrayBuffer
 import org.greatcactus.xs.impl.GeneralizedField
+import org.greatcactus.xs.api.command.ProgressMonitor
+import org.greatcactus.xs.api.command.ProgressMonitorUI
 
 /**
  * A GUI client should extend this controller to manage the "details" pane of the item currently being edited.
@@ -148,6 +150,13 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit) {
       case f:UIFieldTable => node => f.uiTableContextMenu(node,command,selectedRows)
     })        
   }
+  /** The client should call this when the user clicks on a cancel button for a long running command */
+  def uiCancelJob(uiElement:T) {
+    uiAction(uiElement,{
+      case f:UIFieldAction => node => f.cancel()
+      case g => node => println("Cancel else "+g)
+    })        
+  }
   /** perform the given action on the uiElement */
   private def uiAction(uiElement:T,action:PartialFunction[UIField,XSTreeNode=>Unit]) {
     synchronized {
@@ -168,7 +177,7 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit) {
   def dispose(guis:UIFields) : Unit
   /** Called when the screen should be set to blank */
   def setBlankScreen() : Unit
-  /** Called after multiple possibly defered client commands */
+  /** Possibly overridden method that says make sure everything is sent to the client. Useful for clients (like HTML) that may bunch multiple commands up into one packet. */
   def flushClientCommands()
   /** Create a new object for generating the GUI elements for a new screen */  
   def newCreator() : GUICreator[T]
@@ -245,7 +254,7 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit) {
         field match {
           case f:DetailsPaneFieldAction =>  
             val gui = creator.createAction(f,state)
-            buffer+=new UIFieldAction(f,gui,state)
+            buffer+=new UIFieldAction(f,gui,state,creator.createProgressMonitor(gui))
           case f:DetailsPaneFieldText =>
             val initialValue = f.get(tree)
             val gui = creator.createTextField(f, state, initialValue)
@@ -323,6 +332,8 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit) {
 
   def uiField(gui:T) : Option[UIField] = currentUIElements.flatMap{_.map.get(gui)}
   
+
+  
   sealed abstract class UIField  {
     def field:DetailsPaneField
     def gui:T
@@ -343,9 +354,11 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit) {
     /** Update the GUI with the contents of the object. */
     def refresh(node:XSTreeNode) : Unit
     
+    def busy : Boolean = false
+    
     def refreshCurrently(node:XSTreeNode) {
       // println("refreshCurrently() for "+field.name)
-      val shouldBeEnabled = field.shouldBeEnabled(node)
+      val shouldBeEnabled = field.shouldBeEnabled(node) && !busy
       if (shouldBeEnabled!=currently.enabled) {
         currently.enabled=shouldBeEnabled
         changeUIenabledness(gui,shouldBeEnabled)
@@ -749,13 +762,37 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit) {
     override def toString = field.label+":"+currentlyShowing
   }
 
-  class UIFieldAction(val field:DetailsPaneFieldAction,val gui:T,var currently:CurrentFieldState) extends UIField {
+  class UIFieldAction(val field:DetailsPaneFieldAction,val gui:T,var currently:CurrentFieldState,getMonitor:()=>ProgressMonitor) extends UIField {
     def humanEditedTrimInfo:Array[Option[TrimInfo]] = TrimInfo.empty
 
+    var inProgress : Option[ProgressMonitor] = None
+    override def busy = inProgress.isDefined
+    
+    def cancel() {
+      for (p<-inProgress) p.cancel()
+    }
+    private def getMonitorWork(node:XSTreeNode) = { synchronized {
+      if (busy) throw new ActionBusy()
+      val monitor = getMonitor()
+      inProgress = Some(monitor)
+      refreshCurrently(node)
+      flushClientCommands()
+      monitor
+    }}
+    
     def refresh(node:XSTreeNode) {
       refreshCurrently(node)
     }
-    def go(node:XSTreeNode) { field.go(xsedit,node) }
+    def go(node:XSTreeNode) {
+      if (busy) return;
+      val progressMonitorInfo = new ProgressMonitorInfo {
+        def getMonitor() : ProgressMonitor = getMonitorWork(node)
+        def releaseMonitor() { inProgress=None; refreshCurrently(node); flushClientCommands() }
+      }
+      //println("UIFieldAction.go")
+      refreshCurrently(node)
+      field.go(xsedit,node,progressMonitorInfo) 
+    }
     override def toString = field.label
   }
   
@@ -819,6 +856,8 @@ abstract class GUICreator[T] {
   def startSection(section:DetailsPaneFieldSection,currently:CurrentFieldState) : T
   /** Called to create an action field (inside a section) */
   def createAction(field:DetailsPaneFieldAction,currently:CurrentFieldState) : T
+  /** Called for actions to get code that will, on demand, create a progress monitor for said field */
+  def createProgressMonitor(gui:T) : ()=>ProgressMonitor = () =>ProgressMonitor.dummy
   /** Called to create a text field (inside a section) */
   def createTextField(field:DetailsPaneFieldText,currently:CurrentFieldState,initialValue:String) : T
   /** Called to create a boolean field - typically a checkbox (inside a section) */

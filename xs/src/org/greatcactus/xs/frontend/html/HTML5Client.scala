@@ -178,6 +178,8 @@ class HTML5Client(val xsedit:XSEdit,val toolbar:Option[XSToolBar],val locale:Loc
             case "revert" => for (t<-toolbar) t.onRevert()
             case _ =>
           }
+        case "CancelJob" if args.length==2 =>
+          if (detailsPane.nodeIDCurrentlyBeingEdited==args(1)) detailsPane.uiCancelJob(args(0))
         case _ => println("Received unanticipated command "+message.command+"("+args.mkString(",")+")")
       }
     } catch { 
@@ -230,6 +232,7 @@ class HTML5Client(val xsedit:XSEdit,val toolbar:Option[XSToolBar],val locale:Loc
        { session.createSessionHTML }
     </div>
        
+  def justDetailsPaneHTML : NodeSeq = detailsPane.baseHTML++session.createSessionHTML     
   def baseHTML = toolbarHTML++mainPanelHTML 
   
 }

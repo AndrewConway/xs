@@ -17,6 +17,7 @@ import org.greatcactus.xs.api.display.RichLabel
 import scala.util.Success
 import scala.collection.GenTraversable
 import org.greatcactus.xs.impl.GeneralizedField
+import org.greatcactus.xs.api.command.ProgressMonitor
 
 /**
  * Immutable description of the fields on the details pane.
@@ -68,9 +69,10 @@ object DetailsPaneFields {
             // println("s="+s+"  lc(s.icon)="+lc.flatMap(_.get(s+".icon"))+"  lc(s_icon)="+lc.flatMap(_.get(s+"_icon"))+"  lc(s)="+lc.flatMap(_.get(s)))
             for (llc<-lc; is<-c.iconSource; logicalName<-llc.get(s+".icon"); icon<-is.iconOfLogicalName(logicalName)) yield icon 
           }
-          def getIcon(s:String) : Option[Icon] = iconFromMain(s).orElse(iconFromOther(s))
+          def iconFromFiniteOptionListWithIcons(s:String) : Option[Icon] = for (logicalName<-c.icons.get(s); icon<-t.iconSource.iconOfLogicalName(logicalName)) yield icon
+          def getIcon(s:String) : Option[Icon] = iconFromMain(s).orElse(iconFromOther(s)).orElse(iconFromFiniteOptionListWithIcons(s))
           def optloc(s:String) = text.get(prefix+s).orElse(lc.flatMap{_.get(s)})
-          def loc(s:String) = optloc(s).getOrElse(s) 
+          def loc(s:String) = optloc(s).orElse(c.prettyPrint.get(s)).getOrElse(s) 
           new LocalizedTextChoices(c.required,for (s<-c.options) yield new LocalizedChoice(s,loc(s),getIcon(s)))
         } 
         val field = new DetailsPaneFieldText(f,text(f.name),text.get(f.name+".tooltip"),f.displayOptions.icon,f.errorIfBlank,f.displayOptions.maxLength,f.expectedRegex,f.displayOptions.displayOnly,f.displayOptions.multiline,f.displayOptions.hideName,f.displayOptions.wholeLine,text.get(f.name+".placeholder"),f.displayOptions.knownInterpretation,choices,t.dependencyInjectionInfo.fieldsThatCouldHaveErrors)
@@ -91,6 +93,10 @@ object DetailsPaneFields {
     }
     for (f<-t.dependencyInjectionInfo.extraText) { // put in the (read only) pseudo text fields
       val field = new DetailsPaneFieldShowText(f.function,text(f.name),text.get(f.name+".tooltip"),f.displayOptions.icon,f.displayOptions.multiline,f.displayOptions.hideName,f.displayOptions.wholeLine,t.dependencyInjectionInfo.fieldsThatCouldHaveErrors)
+      fields+=new EditPaneElem(field,f.displayOptions.editSection,f.displayOptions.orderingPriority)
+    }
+    for (f<-t.dependencyInjectionInfo.commands) { // put in the (read only) pseudo text fields
+      val field = new DetailsPaneFieldActionCommand(f.function,text(f.name),text.get(f.name+".tooltip"),f.displayOptions.icon)
       fields+=new EditPaneElem(field,f.displayOptions.editSection,f.displayOptions.orderingPriority)
     }
     for (f<-t.dependencyInjectionInfo.customFields) { // put in the custom fields
@@ -169,10 +175,14 @@ class DetailsPaneFieldSection(
   override def toString = title.getOrElse(name)
 }
 
-
+ trait ProgressMonitorInfo {
+    def getMonitor() : ProgressMonitor
+    def releaseMonitor()
+ }
+ class ActionBusy extends Exception
 
 sealed abstract class DetailsPaneFieldAction extends DetailsPaneField {
-  def go(edit:XSEdit,parent:XSTreeNode)
+  def go(edit:XSEdit,parent:XSTreeNode,getMonitor:ProgressMonitorInfo)
   def label:String
   def tooltip:Option[String]
   def icon:Option[Icon]
@@ -189,7 +199,7 @@ class DetailsPaneFieldActionAdd(
     val concreteClass:SerializableTypeInfo[_]
     ) extends DetailsPaneFieldAction {
   def icon = concreteClass.icon
-  def go(edit:XSEdit,parent:XSTreeNode) {
+  def go(edit:XSEdit,parent:XSTreeNode,getMonitor:ProgressMonitorInfo) {
     edit.addField(parent,None, field,concreteClass.newElement().asInstanceOf[AnyRef],None,"Add")
   }
   override def shouldBeVisible(parent:XSTreeNode) = parent.canAdd(field) && parent.isVisible(name)
@@ -200,12 +210,26 @@ class DetailsPaneFieldActionDelete(
     val label:String,
     val tooltip:Option[String]
     ) extends DetailsPaneFieldAction {
-  def go(edit:XSEdit,nodeBeingDeleted:XSTreeNode) {
+  def go(edit:XSEdit,nodeBeingDeleted:XSTreeNode,getMonitor:ProgressMonitorInfo) {
     edit.deleteTreeNode(nodeBeingDeleted)
   }
   def icon = Some(SystemIcons.delete)
   def name = "delete"
 }
+
+class DetailsPaneFieldActionCommand(
+    val function:DependencyInjectionFunction,
+    val label:String,
+    val tooltip:Option[String],
+    val icon:Option[Icon]
+    ) extends DetailsPaneFieldAction {
+  def go(edit:XSEdit,parent:XSTreeNode,getMonitor:ProgressMonitorInfo) {
+    parent.dependencyInjection.executeCommandInSeparateThread(function,getMonitor)
+  }
+  val name = function.name
+}
+
+
 
 sealed abstract class DetailsPaneFieldLabeled extends DetailsPaneField {
     def label:String

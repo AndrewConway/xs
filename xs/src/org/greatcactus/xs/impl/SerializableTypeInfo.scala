@@ -22,6 +22,7 @@ import org.greatcactus.xs.api.dependency._
 import org.greatcactus.xs.api.edit._
 import org.greatcactus.xs.api.display._
 import org.greatcactus.xs.util.EqualityByPointerEquality
+import org.greatcactus.xs.api.command.XSCommand
 
 
 /**
@@ -167,6 +168,7 @@ class SerializableTypeInfo[T <: AnyRef] private (val clazz : java.lang.Class[T])
     val errorChecks = new ListBuffer[FunctionForField]
     val extraText = new ListBuffer[ExtraDisplayFieldInfo]
     val customFields = new ListBuffer[CustomFieldInfo]
+    val commands = new ListBuffer[CommandMethod]
     val classesToBlockForChildren:Seq[Class[_]] = clazz.getAnnotation(classOf[BlockDependencyInjection]) match {
       case a if a!=null && a.value!=null => a.value().toList
       case _ => Nil
@@ -179,10 +181,11 @@ class SerializableTypeInfo[T <: AnyRef] private (val clazz : java.lang.Class[T])
       val ptc = hasAnnotation(method,typePropagateToChildren)
       val ec = getOptionalValue(method,typeErrorCheck)
       val edf = hasAnnotation(method,typeExtraDisplayField)
+      val cmd = hasAnnotation(method,typeXSCommand)
       val cdf = getOptionalValue(method,typeCustomEditable)
       val visC = getOptionalValue(method,typeVisibilityController)
       val enC = getOptionalValue(method,typeEnabledController)
-      val numSpecial = (if (ip.isDefined) 1 else 0)+(if (lp.isDefined) 1 else 0)+(if (ec.isDefined) 1 else 0)+(if (edf) 1 else 0)+(if (cdf.isDefined) 1 else 0)+(if (visC.isDefined) 1 else 0)+(if (enC.isDefined) 1 else 0)
+      val numSpecial = (if (ip.isDefined) 1 else 0)+(if (lp.isDefined) 1 else 0)+(if (ec.isDefined) 1 else 0)+(if (edf) 1 else 0)+(if (cmd) 1 else 0)+(if (cdf.isDefined) 1 else 0)+(if (visC.isDefined) 1 else 0)+(if (enC.isDefined) 1 else 0)
         if (numSpecial>1) error("Conflicting annotations on method "+method.name)
         if (dp||ptc||numSpecial>0) {
           if (visC.isDefined || enC.isDefined) { // check returns boolean
@@ -200,6 +203,7 @@ class SerializableTypeInfo[T <: AnyRef] private (val clazz : java.lang.Class[T])
           else if (enC.isDefined) enabledControllers+=fff(enC) 
           else if (cdf.isDefined) customFields+=new CustomFieldInfo(function,method.name.decoded,new FieldDisplayOptions(method,iconSource),cdf.get) 
           else if (edf) extraText+=new ExtraDisplayFieldInfo(function,method.name.decoded,new FieldDisplayOptions(method,iconSource))
+          else if (cmd) commands+=new CommandMethod(function,method.name.decoded,new FieldDisplayOptions(method,iconSource))
           else providers+=function
         }
     }
@@ -231,7 +235,7 @@ class SerializableTypeInfo[T <: AnyRef] private (val clazz : java.lang.Class[T])
       }
       buffer.get
     }
-    new DependencyInjectionInformation(providers.toList,iconProviders.toList,labelProviders.toList,extraText.toList,customFields.toList,enabledControllers.toList,visibilityControllers.toList,errorChecks.toList,new CanPassToChildren(classesToBlockForChildren),simpleErrorChecks)
+    new DependencyInjectionInformation(providers.toList,iconProviders.toList,labelProviders.toList,extraText.toList,customFields.toList,enabledControllers.toList,visibilityControllers.toList,errorChecks.toList,new CanPassToChildren(classesToBlockForChildren),simpleErrorChecks,commands.toList)
   }
   
   
@@ -429,6 +433,7 @@ object SerializableTypeInfo {
   private[impl] val typePropagateToChildren = universe.typeOf[PropagateToChildren]
   private[impl] val typeErrorCheck = universe.typeOf[ErrorCheck]
   private[impl] val typeExtraDisplayField = universe.typeOf[ExtraDisplayField]
+  private[impl] val typeXSCommand = universe.typeOf[XSCommand]
   private[impl] val typeVisibilityController = universe.typeOf[VisibilityController]
   private[impl] val typeEnabledController = universe.typeOf[EnabledController]
   private[impl] val typeOnlyAffectedByFields = universe.typeOf[OnlyAffectedByFields]

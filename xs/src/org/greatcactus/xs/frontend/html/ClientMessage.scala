@@ -254,6 +254,11 @@ object ClientMessage {
     new SetGridRowMetadata(baseid,classes.map{asmap}) // {c:String=>if (c==null || c.isEmpty) Map.empty else Map("cssClasses"->c)}) 
   }
 
+  def progressStart(baseid:String) = new SimpleClientMessage("ProgressBar",Array(baseid,"Start"))
+  def progressProgress(baseid:String,progress:Double) = new SimpleClientMessage("ProgressBar",Array(baseid,"Progress",progress.toString))
+  def progressFinishedGood(baseid:String,message:Option[RichLabel]) = new SimpleClientMessage("ProgressBar",Array(baseid,"FinishedOK",message.getOrElse(RichLabel.nullLabel).html.toString))
+  def progressFinishedError(baseid:String,message:Option[RichLabel]) = new SimpleClientMessage("ProgressBar",Array(baseid,"FinishedError",message.getOrElse(RichLabel.nullLabel).html.toString))
+  
   def acknowledge(justReceived:Long,expectedNext:Long,biggestEverReceived:Long) = new SimpleClientMessage("ACK",Array(justReceived.toString,expectedNext.toString,biggestEverReceived.toString))
   
   /** Paste data is converted into a 1D array, starting at index 4, with each row prepended by the length of the row */

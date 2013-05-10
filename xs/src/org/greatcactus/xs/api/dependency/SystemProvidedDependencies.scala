@@ -24,3 +24,8 @@ abstract class ObjectHolder[T] {
  * Class passed to children as an available dependency, containing a reference to the immediate parent.
  */
 class Parent[T <: AnyRef](val get:T) extends ObjectHolder[T]
+
+/**
+ * Class passed to children that are members of a collection, containing a reference to the index of this element in that collection. 
+ */
+case class IndexInParentField(val index:Int)

@@ -191,7 +191,7 @@ var xsPTF = {
        // finished step (2), start step (3)
        var errorList = this.getErrorList(target);
        // finished step (3), start step (4)
-       var resHTML = this.PTFinnerHTMLOfText(contents.text,errorList,xs.grid.getGridFromAncestor(target));
+       var resHTML = this.PTFinnerHTMLOfText(contents.text,errorList,xs && xs.grid && xs.grid.getGridFromAncestor(target));
        target.innerHTML = resHTML;
        // finished step (4), start step (5)
        if (window.getSelection && document.createRange && contents.startSelection != -1 && contents.endSelection!= -1) {
@@ -207,7 +207,7 @@ var xsPTF = {
      *   table : null, or if a table was pasted, then an array of arrays of strings (first index being row number, second column number) 
      **/
     getPTFContents : function(target) {
-   	   //console.log(target.innerHTML);
+   	    //console.log(target.innerHTML);
     	var suppressNL = target.getAttribute("data-xsSuppressNL")=="true";
     	var savedRange=null;
     	if(window.getSelection && window.getSelection().rangeCount > 0) {//FF,Chrome,Opera,Safari,IE9+
@@ -276,20 +276,22 @@ var xsPTF = {
         var sel = window.getSelection();
         var range = document.createRange();
         var sofar = 0;
+        var foundStart = false; // unsuccessful attempt to work around a Firefox bug where sometimes the backspace key deletes more than expected when it is before a span.
+        var foundEnd = false;
         var procTextNode = function (node) {
            var len = node.textContent.length;
            var off1 = startSelectionPosition-sofar;
-           if (off1>0 && off1<=len) range.setStart(node,off1);
+           if (off1>0 && off1<=len && !foundStart) { range.setStart(node,off1); foundStart=true; }
            var off2 = endSelectionPosition-sofar;
-           if (off2>0 && off2<=len) range.setEnd(node,off2);
+           if (off2>0 && off2<=len && !foundEnd) { range.setEnd(node,off2); foundEnd=true; }
            sofar+=len;
         };
         var procSingleNode = function (parentNode) {
           var newChildren = parentNode.childNodes;
           var checkHere = function(count) {
              //console.log("sofar="+sofar+"  count="+count+" startSelection="+startSelection.res+"parentNode="+parentNode);
-             if (sofar==startSelectionPosition) range.setStart(parentNode,count);
-             if (sofar==endSelectionPosition) range.setEnd(parentNode,count);
+             if (sofar==startSelectionPosition && !foundStart) { foundStart=true; range.setStart(parentNode,count); }
+             if (sofar==endSelectionPosition && !foundEnd) { foundEnd=true; range.setEnd(parentNode,count); }
           };
           for (var i=0;i<newChildren.length;i++) {
             checkHere(i);

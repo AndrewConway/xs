@@ -69,34 +69,10 @@ object ValueOfString {
       case "java.lang.String" => ValueOfStringString  
       case _ =>
         // see if there is a Scala style companion object with an apply(String) function 
-        import scala.reflect.runtime._
-        val rootMirror = universe.runtimeMirror(c.getClassLoader)
-        val classSymbol = rootMirror.classSymbol(c)
-        val classMirror = rootMirror.reflectClass(classSymbol)
-        try {
-          val moduleSymbol = rootMirror.moduleSymbol(c)
-          //println("module symbol="+moduleSymbol)
-          val moduleMirror = rootMirror.reflectModule(moduleSymbol)
-         // println("module mirror="+moduleMirror)
-          val symbol = moduleMirror.symbol // is this the same as moduleSymbol???
-          if (symbol.moduleClass.isClass) {
-            //println("Found companion "+symbol)
-            val applyMethods = symbol.moduleClass.asClass.toType.member(universe.newTermName("apply"))
-            //println("Found apply method(s) "+applyMethods)
-            if (applyMethods!=null && applyMethods.isTerm) for (applyMethod<-applyMethods.asTerm.alternatives;params <- applyMethod.asMethod.paramss) {
-              // check to see if takes a string
-              if (params.length==1 && params.head.typeSignature.typeSymbol.fullName=="java.lang.String") {
-                val instanceMirror = rootMirror.reflect(moduleMirror.instance)
-                val methodMirror = instanceMirror.reflectMethod(applyMethod.asMethod)
-                return new ValueOfStringCompanionApply(methodMirror)
-              }
-            }
-          }
-        } catch { case e : Exception => /* e.printStackTrace */ }
-        //println("Companion for "+c+"  is "+classMirror.companion)
-        //println("Companion instance for "+c+"  is "+classMirror.companion.get.instance)
-        //println("Companion is class : "+classMirror.companion.get.symbol.moduleClass)
-        // for (companion <- classMirror.companion;symbol=companion.symbol.moduleClass if symbol.isClass) {        }
+        searchForCompanionObjectMethod(c,"apply",List("java.lang.String")) match {
+          case Some(m) => return new ValueOfStringCompanionApply(m)
+          case None => 
+        }
         // see if there is a Java style static valueOf(String) function
         try {
           val javaStaticValueOfMethod = c.getMethod("valueOf",classOf[java.lang.String])
@@ -112,7 +88,39 @@ object ValueOfString {
     }
   }
   
+  import scala.reflect.runtime._
 
+  /**
+   * Search the companion object for class c for a method called desiredName with argument list length equal to desiredArgs.length with the full name of the type of each arg given by desiredArgs.
+   */
+  def searchForCompanionObjectMethod(c:java.lang.Class[_],desiredName:String,desiredParams:List[String]) : Option[universe.MethodMirror] = {
+          // see if there is a Scala style companion object with an apply(String) function 
+        val rootMirror = universe.runtimeMirror(c.getClassLoader)
+        val classSymbol = rootMirror.classSymbol(c)
+        val classMirror = rootMirror.reflectClass(classSymbol)
+        try {
+          val moduleSymbol = rootMirror.moduleSymbol(c)
+          //println("module symbol="+moduleSymbol)
+          val moduleMirror = rootMirror.reflectModule(moduleSymbol)
+         // println("module mirror="+moduleMirror)
+          val symbol = moduleMirror.symbol // is this the same as moduleSymbol???
+          if (symbol.moduleClass.isClass) {
+            //println("Found companion "+symbol)
+            val applyMethods = symbol.moduleClass.asClass.toType.member(universe.newTermName(desiredName))
+            //println("Found apply method(s) "+applyMethods)
+            if (applyMethods!=null && applyMethods.isTerm) for (applyMethod<-applyMethods.asTerm.alternatives;params <- applyMethod.asMethod.paramss.headOption.orElse(Some(List()))) {
+              // check to see if takes a string
+              val actualParams : List[String] = params.map{_.typeSignature.typeSymbol.fullName}.toList
+              if (actualParams==desiredParams) {
+                val instanceMirror = rootMirror.reflect(moduleMirror.instance)
+                val methodMirror = instanceMirror.reflectMethod(applyMethod.asMethod)
+                return Some(methodMirror)
+              }
+            }
+          }
+        } catch { case e : Exception => /* e.printStackTrace */ }
+        None
+  }
   
   private object ValueOfStringByte extends ValueOfString { def apply(s:String) = java.lang.Byte.valueOf(s) }
   private object ValueOfStringShort extends ValueOfString { def apply(s:String) = java.lang.Short.valueOf(s) }

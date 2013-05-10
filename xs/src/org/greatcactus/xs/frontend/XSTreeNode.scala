@@ -44,13 +44,13 @@ class XSTreeNode(
     val fieldInParent : XSFieldInfo,
     /** The object at this level */
     private[this] var obj : AnyRef,
-    val xsedit:XSEdit
+    val xsedit:XSEdit,
+    /** Correct at the time of creation, but not afterwards. Can't just use indexOfFieldInParent as parent's children will be be initialized yet.  */
+    indexInParentFieldAtTimeOfCreation:Int
     ) {
-
-  //private var obj : AnyRef=null
   /** Unique amongst all nodes for a given edit structure */
   val uid : Long = xsedit.uidsForTreeNodes.newID()
-  def injectionNodesFromParent : Set[AnyRef] = if (parent==null) xsedit.globalDependencyInjections else parent.dependencyInjection.dependenciesToPropagateToChildren(info.dependencyInjectionInfo.fromParentDependencyInfo)
+  def injectionNodesFromParent : Set[AnyRef] = if (parent==null) xsedit.globalDependencyInjections else parent.dependencyInjection.dependenciesToPropagateToChildren(info.dependencyInjectionInfo.fromParentDependencyInfo,indexInParentFieldAtTimeOfCreation)
   private[xs] val dependencyInjection = new DependencyInjectionCurrentStatus(info.dependencyInjectionInfo,this)
   dependencyInjection.changedObject(null,obj)
   private[this] var disposed=false
@@ -133,7 +133,7 @@ class XSTreeNode(
         for (i<-failed2indices) unusedOldChildren match {
           case node::t => imperfectMatch(i,node); unusedOldChildren=t
           case Nil => // run out of options. Make a new one.
-            XSTreeNode.apply(rawContents(i),this,blockField,xsedit) match {
+            XSTreeNode.apply(rawContents(i),this,blockField,xsedit,i) match {
               case Some(node) => foundChildren(i)=node; addedChildren+=node
               case None => // can't edit this
             }
@@ -144,6 +144,8 @@ class XSTreeNode(
     }
     new TreeNodeChange(this,allChildren.toIndexedSeq,deletedChildren.toList,addedChildren.toList,subTreeNodeChanges.toList)
   }
+
+  
   
   /** If this is the nth element of a given field in the parent, return n (0 based). */
   private[frontend] def indexOfFieldInParent : Int = numberOfElementsBeforeThisOneOfGivenType(fieldInParent)
@@ -152,6 +154,7 @@ class XSTreeNode(
   private[frontend] def numberOfElementsBeforeThisOneOfGivenType(field:XSFieldInfo) : Int = {
     if (parent==null) 0
     else {
+      // can't just loop over field.getAllFieldElements(parent.getObject) as there may be multiple equal (pointer equality too) fields in a collection.
       var res = 0
       for (n<-if (field.isTableEditable) parent.tableChildren(field) else parent.treeChildren) {
         if (n eq this) return res
@@ -327,12 +330,12 @@ class TreeNodeChange(val parent:XSTreeNode,val children:IndexedSeq[XSTreeNode],v
 object XSTreeNode {
   /** Get an XSTree for the given object, which should be @XS */
   def apply(obj:AnyRef,xsedit:XSEdit) : XSTreeNode = {
-     apply(obj,null,null,xsedit).getOrElse(throw new IllegalArgumentException("Object class "+obj.getClass+" is not serializable by XS"))
+     apply(obj,null,null,xsedit,0).getOrElse(throw new IllegalArgumentException("Object class "+obj.getClass+" is not serializable by XS"))
   }
   
-  private def apply(obj:AnyRef,parent:XSTreeNode,fieldInParent:XSFieldInfo,xsedit:XSEdit) : Option[XSTreeNode] = {
+  private def apply(obj:AnyRef,parent:XSTreeNode,fieldInParent:XSFieldInfo,xsedit:XSEdit,indexInParentField:Int) : Option[XSTreeNode] = {
     for (info<-SerializableTypeInfo.get(obj.getClass)) yield {
-      val res = new XSTreeNode(parent,info,fieldInParent,obj,xsedit)
+      val res = new XSTreeNode(parent,info,fieldInParent,obj,xsedit,indexInParentField)
       //res.treeChildren = for (blockField<-info.fieldsAsBlocks;elem<-blockField.getAllFieldElements(obj);subtree<-apply(elem.asInstanceOf[AnyRef],res,blockField)) yield subtree
       res
     }

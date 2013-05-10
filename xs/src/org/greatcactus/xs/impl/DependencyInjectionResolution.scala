@@ -15,11 +15,25 @@ import org.greatcactus.xs.frontend.DetailsPaneFields
 import org.greatcactus.xs.api.errors.Severity
 import org.greatcactus.xs.api.dependency.ExternallyChangingDependency
 import org.greatcactus.xs.api.dependency.OnObsoleteCallback
+import org.greatcactus.xs.api.command.ProgressMonitor
+import java.io.PrintWriter
+import java.io.ByteArrayOutputStream
+import java.io.StringWriter
+import org.greatcactus.xs.api.command.CancelledThrowable
+import org.greatcactus.xs.api.display.RichLabel
+import org.greatcactus.xs.api.command.CommandResult
+import java.lang.reflect.InvocationTargetException
+import org.greatcactus.xs.api.dependency.IndexInParentField
+import org.greatcactus.xs.frontend.ProgressMonitorInfo
+import org.greatcactus.xs.frontend.ActionBusy
 
 
 
 
 class ExtraDisplayFieldInfo(val function:DependencyInjectionFunction,val name:String,val displayOptions:FieldDisplayOptions) {
+  
+}
+class CommandMethod(val function:DependencyInjectionFunction,val name:String,val displayOptions:FieldDisplayOptions) {
   
 }
 class CustomFieldInfo(val function:DependencyInjectionFunction,val name:String,val displayOptions:FieldDisplayOptions,val customComponentName:String) {
@@ -41,9 +55,11 @@ class DependencyInjectionInformation(
   val visibilityControllers : Seq[FunctionForField],
   val errorChecks : Seq[FunctionForField],
   val kidFilter : CanPassToChildren,
-  val simpleErrorChecks:SimpleErrorChecks
+  val simpleErrorChecks:SimpleErrorChecks,
+  val commands:List[CommandMethod]
   ) {
-  val allFunctions : Seq[DependencyInjectionFunction] = providers++(iconProviders.map{_.function})++(labelProviders.map{_.function})++(extraText.map{_.function})++(customFields.map{_.function})++(enabledControllers.map{_.function})++(visibilityControllers.map{_.function})++(errorChecks.map{_.function})
+  val allDIFunctions : Seq[DependencyInjectionFunction] = providers++(iconProviders.map{_.function})++(labelProviders.map{_.function})++(extraText.map{_.function})++(customFields.map{_.function})++(enabledControllers.map{_.function})++(visibilityControllers.map{_.function})++(errorChecks.map{_.function})
+  val allFunctions = allDIFunctions++(commands.map{_.function})
   val classLabelProvider : Option[DependencyInjectionFunction] = labelProviders.find{_.field==None}.map{_.function}
   val classIconProvider : Option[DependencyInjectionFunction] = iconProviders.find{_.field==None}.map{_.function}
   val fieldIconProvider : Map[String,DependencyInjectionFunction] = Map.empty++(for (ip<-iconProviders;f<-ip.field) yield f->ip.function)
@@ -52,8 +68,9 @@ class DependencyInjectionInformation(
   val fieldVisibilityController : Map[String,DependencyInjectionFunction] = Map.empty++(for (ip<-visibilityControllers;f<-ip.field) yield f->ip.function)
   val fromParentDependencyInfo = {
       /** True iff the "Parent" object class is ever used by a DependencyInjectionFunction */
-     val couldEverUseParentObject : Boolean = allFunctions.exists{_.usesParentObject} 
-     new FromParentDependencyInfo(couldEverUseParentObject)
+     val couldEverUseParentObject : Boolean = allFunctions.exists{_.usesParentObject}
+     val couldEverUseIndexInParentField : Boolean = allFunctions.exists{_.usesIndexInParentField}
+     new FromParentDependencyInfo(couldEverUseParentObject,couldEverUseIndexInParentField)
   }
   val errorFunctionsByField : Map[String,Seq[DependencyInjectionFunction]] = Map.empty++(for ((field,fn)<-errorChecks.groupBy(_.fieldOrElseWhole)) yield field->(fn.map{_.function}))
   val fieldsThatCouldHaveErrors : Set[String] = errorFunctionsByField.keys.toSet++simpleErrorChecks.checks.keys
@@ -102,13 +119,14 @@ class CanPassToChildren(classesToBlockForChildren:Seq[Class[_]]) extends Functio
   }
 }
 
-class FromParentDependencyInfo(val couldEverUseParentObject:Boolean)
+class FromParentDependencyInfo(val couldEverUseParentObject:Boolean,val couldEverUseIndexInParentField:Boolean)
 
 class ToChildDependencies(val base:Set[AnyRef],val parent:Parent[_]) {
   private lazy val withParent = if (parent==null) base else base+parent
-  def get(ci:FromParentDependencyInfo) = {
-    if (ci.couldEverUseParentObject) withParent
-    else base
+  def get(ci:FromParentDependencyInfo,indexInParent:Int) = {
+    val res1 = if (ci.couldEverUseParentObject) withParent else base
+    val res2 = if (ci.couldEverUseIndexInParentField) res1+(new IndexInParentField(indexInParent)) else res1 
+    res2
   }
 }
 
@@ -134,7 +152,7 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
   private var worstErrorCache : Option[Int] = None // gets reset whenever lastGoodResolved is changed.
   private var simpleErrorCheckResults : Option[SimpleErrorCheckResults] = None // gets reset whenever invalid.
   
-  def dependenciesToPropagateToChildren(ci:FromParentDependencyInfo) = sendToChildren.get(ci)
+  def dependenciesToPropagateToChildren(ci:FromParentDependencyInfo,indexInParent:Int) = sendToChildren.get(ci,indexInParent)
   
   def getIconSpec : Option[AnyRef] = for (f<-info.classIconProvider;fr<-lastGoodResolved.get(f); res <-fr.res) yield res
   def getIconSpecForField(fieldname:String) : Option[AnyRef] = for (f<-info.fieldIconProvider.get(fieldname);fr<-lastGoodResolved.get(f); res <-fr.res) yield res
@@ -145,15 +163,15 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
   def isEnabled(fieldname:String) : Boolean = (for (f<-info.fieldEnabledController.get(fieldname);fr<-lastGoodResolved.get(f); res <-fr.res if res==false) yield false).getOrElse(true)
   def isVisible(fieldname:String) : Boolean = (for (f<-info.fieldVisibilityController.get(fieldname);fr<-lastGoodResolved.get(f); res <-fr.res if res==false) yield false).getOrElse(true)
   
-  def processErrorResults(result:AnyRef,found: XSError=>Unit) { result match {
+  def processErrorResults(result:AnyRef,found: XSError=>Unit,function:DependencyInjectionFunction) { result match {
           case null =>
           case None =>
-          case Some(a:AnyRef) => processErrorResults(a,found)
+          case Some(a:AnyRef) => processErrorResults(a,found,function)
           case e:XSError => found(e)
-          case c:GenTraversable[_] => for (e<-c) processErrorResults(e.asInstanceOf[AnyRef],found)
-          case a:Array[_] => for (e<-a) processErrorResults(e.asInstanceOf[AnyRef],found)
+          case c:GenTraversable[_] => for (e<-c) processErrorResults(e.asInstanceOf[AnyRef],found,function)
+          case a:Array[_] => for (e<-a) processErrorResults(e.asInstanceOf[AnyRef],found,function)
           // should have a LocalizableErrorDetails class
-          case _ => throw new IllegalArgumentException("Error check code produced "+result)
+          case _ => throw new IllegalArgumentException("Error check function "+function.name+"(...) produced "+result)
         }}
   
   private def getSimpleErrors(fieldname:String) : List[XSError] = synchronized {
@@ -167,8 +185,8 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
       errorListCache.getOrElseUpdate(fieldname,{
         var res = new ListBuffer[XSError]
         res++= getSimpleErrors(fieldname)
-        def proc(result:AnyRef) { processErrorResults(result,res+= _) }
-        for (functions<-info.errorFunctionsByField.get(fieldname);f<-functions; fr<-lastGoodResolved.get(f); frres<-fr.res) proc(frres)
+        def proc(result:AnyRef,function:DependencyInjectionFunction) { processErrorResults(result,res+= _,function) }
+        for (functions<-info.errorFunctionsByField.get(fieldname);f<-functions; fr<-lastGoodResolved.get(f); frres<-fr.res) proc(frres,f)
         res.toList
       })
     }
@@ -177,8 +195,8 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
   def worstErrorLevel : Int = synchronized {
     if (worstErrorCache.isEmpty) {
       var worst = 1000
-      def proc(result:AnyRef) { processErrorResults(result,e=>worst=worst min e.severity.level()) }
-      for (functionForField<-info.errorChecks;fr<-lastGoodResolved.get(functionForField.function); frres<-fr.res) proc(frres)
+      def proc(result:AnyRef,function:DependencyInjectionFunction) { processErrorResults(result,e=>worst=worst min e.severity.level(),function) }
+      for (functionForField<-info.errorChecks;fr<-lastGoodResolved.get(functionForField.function); frres<-fr.res) proc(frres,functionForField.function)
       for (name<-info.simpleErrorChecks.checks.keys;e<-getSimpleErrors(name)) worst=worst min e.severity.level() 
       worstErrorCache = Some(worst)
     }
@@ -211,7 +229,7 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
       if (dirty && parentMirror!=null) {
         var resInjections = injectedFromParent
         var resResolved : Map[DependencyInjectionFunction,FunctionEvaluationStatus] = Map.empty
-        var mustDo = info.allFunctions
+        var mustDo = info.allDIFunctions
         def addResolved(resolution:FunctionEvaluationStatus) {
           resolution.res match {
             case Some(result) if resolution.function.isLocallyInjected && result!=null => resInjections+=result
@@ -243,7 +261,15 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
         errorListCache.clear()
         worstErrorCache = None
         sendToChildren = new ToChildDependencies(injectedFromParent.filter(info.kidFilter).filter{! _.isInstanceOf[Parent[_]]}++existingResolved.values.filter{_.shouldInjectToKids}.map{_.res.get},new Parent(parentObject))
-        for (c<-associatedNode.allChildren) c.dependencyInjection.changedParentInjections(sendToChildren.get(c.info.dependencyInjectionInfo.fromParentDependencyInfo))
+        val _ = {
+          var fieldInParent : XSFieldInfo = null
+          var indexInParentField = 0
+          for (c<-associatedNode.allChildren) {
+            if (c.fieldInParent eq fieldInParent) indexInParentField+=1 else { fieldInParent=c.fieldInParent; indexInParentField=0 } 
+           // println("fieldInParent="+fieldInParent+" c.fieldInParent="+c.fieldInParent+" indexInParent="+indexInParentField)
+            c.dependencyInjection.changedParentInjections(sendToChildren.get(c.info.dependencyInjectionInfo.fromParentDependencyInfo,indexInParentField))
+          }
+        }
         dirty=false
         if (DependencyInjectionCurrentStatus.debugDependencyInjections && !(lastGoodResolved.values.isEmpty && mustDo.isEmpty)) {
           println("Dependency Injection for "+parentObject)
@@ -262,6 +288,50 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
       else false
     }
   }
+  
+  def executeCommandInSeparateThread(function:DependencyInjectionFunction,getMonitor : ProgressMonitorInfo) { synchronized {
+    clean()
+    val monitor = try { getMonitor.getMonitor() } catch { case _:ActionBusy => return}
+    val possibleArgs = monitor::lastGoodResolved.toList
+    function.getArgs(possibleArgs) match {
+      case Some(args) =>
+        //println("Got args")
+        import concurrent.ExecutionContext.Implicits.global
+        val mirror = parentMirror
+        concurrent.future{
+          def err(e:Throwable) = e match {
+            case _:CancelledThrowable => monitor.failed(Some(RichLabel("Cancelled")))
+            case _ =>
+              e.printStackTrace()
+              val os = new StringWriter
+              val pw = new java.io.PrintWriter(os)
+              e.printStackTrace(pw)
+              pw.flush
+              val text = os.toString
+              monitor.failed(Some(RichLabel(text, <pre>{text}</pre>)))            
+          }
+          try {
+            //println("in future")
+            function.apply(mirror, args) match {
+              case res:CommandResult => 
+                if (res.success) monitor.succeeded(res.info)
+                else monitor.failed(res.info)
+              case _ => monitor.succeeded(None)
+            }           
+          } catch {
+            case _:CancelledThrowable => monitor.failed(Some(RichLabel("Cancelled")))
+            case e:InvocationTargetException => err(e.getTargetException())
+            case e:Exception => err(e)
+          }
+          getMonitor.releaseMonitor()
+        }
+      case None => 
+        //println("executeCommandInSeparateThread could not get args")
+        monitor.failed(Some(RichLabel("Could not run command")))
+        getMonitor.releaseMonitor()
+    }
+    
+  }}
   
   def changedObject(oldObject:AnyRef,newObject:AnyRef) {
     synchronized {
@@ -328,4 +398,5 @@ class DependencyInjectionFunction(
   }
   val name:String = method.name.decoded
   def usesParentObject = argTypes.contains(classOf[Parent[_]])
+  def usesIndexInParentField = argTypes.contains(classOf[IndexInParentField])
 }

@@ -91,7 +91,7 @@ val deserialized : Complex = XMLDeserialize.deserialize[Complex](serializedData)
      <tr><td><code>@Multiline</code></td><td><code>@StringEditable</code></td><td>Allow newlines in the field</td></tr>
      <tr><td><code>@OrderingPriority</code></td><td><code>@StringEditable</code></td><td>Changes the order that fields are displayed (see also <code>@EditSection</code>)</td></tr>
      <tr><td><code>@ReadOnly</code></td><td></td><td>Make this field display only (disable editing).</td></tr>
-     <tr><td><code>@RequiredOptions</code></td><td><code>@StringEditable</code></td><td>A list of the possible options a field could be.</td></tr>
+     <tr><td><code>@RequiredOptions</code></td><td><code>@StringEditable</code></td><td>A list of the possible options a field could be. Not needed for enumerations or objects that extend FiniteObjectList</td></tr>
      <tr><td><code>@ResolveNetworkReferences</code></td><td><code>@ImageEditable</code></td><td>Convert a net URL to a data: url. Limited implementation status.</td></tr>
      <tr><td><code>@SuggestedOptions</code></td><td><code>@StringEditable</code></td><td>Hints for a field. Limited implementation status.</td></tr>
      <tr><td><code>@WholeLine</code></td><td></td><td>Display a field on a line by itself with the label above it rather than beside it.</td></tr>
@@ -179,7 +179,9 @@ val deserialized : Complex = XMLDeserialize.deserialize[Complex](serializedData)
    </pre>
    
    
-   <p>XS will provide the <code>Parent</code> wrapper around the actual parent. You can also create your own classes that will be provided by having a method annotated
+   <p>XS will provide the <code>Parent</code> wrapper around the actual parent. (It will also supply, if requested, a <code>IndexInParentField</code> object - see
+   <code>SystemProvidedDependencies.scala</code> for details).
+   You can also create your own classes that will be provided by having a method annotated
    with <code>@DependencyProvider</code>. The result (if any) of this will can then be used in other methods of the same object, or children if it is annotated
    with <code>@PropagateToChildren</code> (or both if annotated with both).</p>
    
@@ -219,5 +221,25 @@ val deserialized : Complex = XMLDeserialize.deserialize[Complex](serializedData)
    This will make a new field with the name of the function (which can be localized and controlled as normal).</p>
    <p>On the server, you should make a custom controller (with the standard HTML client, it should implement org.greatcactus.xs.frontend.HTMLCustomComponent with the name 
    given as the argument to @CustomEditable. Register it with org.greatcactus.xs.frontend.HTML5DetailsPane.addCustom). See Javadocs for details.</p>
+   
+   <h3>Commands</h3>
+   <p>If you annotate a method with <code>@XSCommand</code> then it becomes an action button that will be executed (server side, of course) when the user clicks on it.
+   The method can take arguments from the dependency injection list, as well as a <code>ProgressMonitor</code>, which can give progress information back to the user.
+   The method should return a <code>CommandResult</code> object. XS will then display a progress monitor and success status. The user can cancel if your (long running)
+   server side process regularly checks the isCancelled method on the progress monitor. If your method throws a <code>CancelledThrowable</code> exception then
+   the status shown on the client will be cancelled. If some other exception is thrown, a stack trace will be shown on the client (so catch them yourself and give a
+   pretty status using <code>CommandResult</code>. 
+   
+   <h2>Other ways of using it</h2>
+   There are a variety of components in XS that are of use in their own right outside of XS
+   <h3>HTML Tree Browser</h3>
+   The tree component can be used by itself by making an appropriate model. ( TODO make demo ).
+   <h3>HTML details pane</h3>
+   The details pane can also be used by itself. This could be useful if you have some complex form which can be represented by a Scala XS annotated data structure with a command on it. (TODO make demo)
+   <h3>Pseudo text field</h3>
+   Text fields in XS use content-editable divs rather than "input". This enables error syntax highlighting, but also enables auto-expanding multi-line which can be useful in other contexts. 
+   If you want to use these outside of XS you will need to extract the xsPTF.js file and some of the css.  
+   <h3>Tree browser</h3>
+   <h3>Details pane</h3>
 </body>
 </html>

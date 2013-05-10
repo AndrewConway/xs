@@ -73,7 +73,7 @@ class LocalizableFromSources(val sources:List[TextLocalizationSource],val locali
 
 object RichLabel {
 
-  private val nullLabel = new RichLabel("",scala.xml.Text(""),Nil)
+  val nullLabel = new RichLabel("",scala.xml.Text(""),Nil)
   def apply(text:String,html:NodeSeq,postCreationJavascript:List[String]) = new RichLabel(text,html,postCreationJavascript)
   def apply(text:String,html:NodeSeq) = new RichLabel(text,html,Nil)
   def apply(text:String,html:String) = new RichLabel(text,XML.loadString("<span>"+html+"</span>"),Nil)
