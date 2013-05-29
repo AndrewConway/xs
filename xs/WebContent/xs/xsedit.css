@@ -43,9 +43,18 @@ table.xsForm > tbody > tr > td {
 }
 
 /* Override the jquery-ui fonts */
-.ui-widget, .ui-widget select {
+.ui-widget, .ui-widget select, .ui-dialog-titlebar {
     font-family: inherit;
     font-size: 1em;
+}
+
+.ui-dialog {
+    font-family: inherit;
+	font-size: 80%;
+}
+
+.xsPopupButton {
+	float:right;
 }
 
 .xsTableHolder .sfx-grid { height:auto; }
@@ -79,6 +88,13 @@ border:0;
 	resize:horizontal;
 	min-width:5%;
 	max-width:90%;
+}
+
+.xsEditTreeFullWidth {
+	width:100%;
+	min-height:10em;
+	max-width:100%;
+	resize:none;
 }
 
 .xsEditTree ul {

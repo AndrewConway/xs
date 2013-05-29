@@ -261,6 +261,10 @@ object ClientMessage {
   
   def acknowledge(justReceived:Long,expectedNext:Long,biggestEverReceived:Long) = new SimpleClientMessage("ACK",Array(justReceived.toString,expectedNext.toString,biggestEverReceived.toString))
   
+  def showCustomPopup(id:String,okJSFunction:String,resultJSFunction:String) = new SimpleClientMessage("ShowCustomPopup",Array(id,okJSFunction,resultJSFunction))
+  def disposeCustomPopup(id:String) = new SimpleClientMessage("DisposeCustomPopup",Array(id))
+  
+  
   /** Paste data is converted into a 1D array, starting at index 4, with each row prepended by the length of the row */
   def unmungePasteGrid(args:Array[String]) : Array[Array[String]] = {
     val res = new ArrayBuffer[Array[String]]

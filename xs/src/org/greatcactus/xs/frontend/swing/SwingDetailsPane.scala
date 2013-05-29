@@ -87,6 +87,7 @@ class SwingDetailsPane(_locale:Locale,_xsedit:XSEdit) extends XSDetailsPane[Comp
   override def changeUIWholeTable(gui:Component,shouldBe:IndexedSeq[IndexedSeq[String]]) {} // TODO
   override def changeUISingleLineTable(gui:Component,index:Int,shouldBe:IndexedSeq[String]) {} // TODO
   override def setUITableEntriesIllegalContents(gui:Component,illegalEntries:Map[Int,List[Int]]) {} // TODO
+  override def initiatePopup(field:UIFieldText,popupName:String,node:XSTreeNode) {} // TODO
   
   def getCustom(f:DetailsPaneFieldCustom) : Option[CustomComponent[_,Component]] = SwingDetailsPane.getCustom(f)
 

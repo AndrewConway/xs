@@ -39,6 +39,9 @@ abstract class CustomComponentWork[S] {
 /** A helper for registering custom components. Subclassed by the actual stores. */
 class CustomComponentStore[T] {
   private var customs : List[CustomComponent[_,T]] = Nil
+  private var customPopups : List[CustomPopupComponent] = Nil
   def addCustom(custom:CustomComponent[_,T]) { customs=custom::customs}
+  def addCustom(custom:CustomPopupComponent) { customPopups=custom::customPopups}
   def getCustom(f:DetailsPaneFieldCustom) : Option[CustomComponent[_,T]] = customs.find(_.name==f.customComponentName)  
+  def getPopup(name:String) : Option[CustomPopupComponent] = customPopups.find(_.name==name)
 }

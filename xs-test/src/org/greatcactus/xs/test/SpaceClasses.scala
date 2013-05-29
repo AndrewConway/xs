@@ -107,7 +107,7 @@ class CoreComposition(@StringEditable val element:String,@StringEditable val per
 @XS
 @XSIcon("Comet")
 class Comet(
-    @EditSection("nomenclature") @StringEditable @DefaultValue("New comet")  val name:String,
+    @CustomPopup("DemoPopup") @EditSection("nomenclature") @StringEditable @DefaultValue("New comet")  val name:String,
     @StringEditable val period:Double
  ) extends HeavenlyBody {
   override def toString = name

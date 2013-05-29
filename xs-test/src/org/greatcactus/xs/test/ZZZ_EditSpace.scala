@@ -143,6 +143,8 @@ class TestXSDetailsPane(_locale:Locale,_xsedit:XSEdit) extends XSDetailsPane[Str
   def dispose(guis:UIFields) {}
   def setBlankScreen() {}
   def flushClientCommands() {}
+  def initiatePopup(field:UIFieldText,popupName:String,node:XSTreeNode) {}
+
   /** Create a new object for generating the GUI elements for a new screen */  
   def newCreator() = new TestGUICreator
   /** XS sending a command to the GUI to change what it is showing. */ 

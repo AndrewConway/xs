@@ -27,8 +27,18 @@ class HTML5DetailsPane(val client:HTML5Client) extends XSDetailsPane[String](cli
   
   val detailsPaneID = "xsDP_"+client.session.jsSessionID // the ID of the main div holding all the details pane.
   
-  var customControllerProcessMessages : List[PartialFunction[SimpleClientMessage,Unit]] = Nil
+  private var fullCustomControllerProcessMessages : List[PartialFunction[SimpleClientMessage,Unit]] = Nil
+  def addCustomControllerProcessMessages(p:PartialFunction[SimpleClientMessage,Unit]) {
+    synchronized {
+      fullCustomControllerProcessMessages=p::fullCustomControllerProcessMessages
+    }
+  }
   
+  def customControllerProcessMessages : List[PartialFunction[SimpleClientMessage,Unit]] = {
+    var res = fullCustomControllerProcessMessages
+    for (popup<-currentlyShowingPopup;m<-popup.processMessages) res=m::res
+    return res
+  }
   /** Send a javascript command to set the inner html of the stated id to the given html. */
   def jsSetHTML(id:String,html:NodeSeq) {
     client.queueMessage(ClientMessage.setHTMLID(id,html))
@@ -46,7 +56,7 @@ class HTML5DetailsPane(val client:HTML5Client) extends XSDetailsPane[String](cli
   override def dispose() {
     synchronized {
       super.dispose()
-      customControllerProcessMessages=Nil
+      fullCustomControllerProcessMessages=Nil
     }
   }
 
@@ -56,6 +66,16 @@ class HTML5DetailsPane(val client:HTML5Client) extends XSDetailsPane[String](cli
       case table:UIFieldTable => message(ClientMessage.stopGrid(table.gui))
       case custom:UIFieldCustom[_] => custom.work.dispose()
       case _ =>
+    }
+    synchronized {
+      currentlyShowingPopup match {
+        case Some(p) => 
+          for (f<-p.closedByServer) f()
+          message(ClientMessage.disposeCustomPopup(p.id))
+        case _ =>
+      }
+      currentlyShowingPopup=None
+      fullCustomControllerProcessMessages=Nil
     }
   } 
 
@@ -92,6 +112,47 @@ class HTML5DetailsPane(val client:HTML5Client) extends XSDetailsPane[String](cli
     }
   }*/
 
+  private var currentlyShowingPopup : Option[HTMLCustomPopupComponentInfo] = None
+  
+  def popupMungeOutput(s:String) = currentlyShowingPopup match {
+    case Some(popup) => popup.serverSideProcessResultFunction match {
+      case Some(f) => 
+        //println("In "+s+" out "+f(s))
+        f(s)
+      case None => s
+    }
+    case None => s
+  }
+  
+  override def initiatePopup(field:UIFieldText,popupName:String,node:XSTreeNode) {
+    if (currentlyShowingPopup.isDefined) {
+      println("Already showing popup")
+    } else HTML5DetailsPane.getPopup(popupName) match {
+      case Some(p:HTMLCustomPopupComponent) =>
+        val id = field.gui
+        val info = p.createHTML(id,field.field,field.field.get(node),this,node.blockingGetDependencyInjectionInformation _)
+        currentlyShowingPopup=Some(info)
+        message(ClientMessage.setHTMLID(id+"_popup",info.html))
+        message(ClientMessage.setAttributeID(id+"_popup","title",field.field.label))
+        for (m<-info.postCreationJS) message(m)
+        message(ClientMessage.showCustomPopup(field.gui,info.okJSFunction,info.resultJSFunction))
+        flushClientCommands()
+      case Some(_) => println("Bad type of popup "+popupName+" for field "+field.field)
+      case None => println("No such popup "+popupName+" for field "+field.field)
+    }
+  }
+  
+  
+  def uiClosedPopup(id:String) {
+    synchronized {
+      currentlyShowingPopup match {
+        case Some(p) => 
+          for (f<-p.closedByClient) f()
+          currentlyShowingPopup=None
+        case _ =>
+      }
+    }  
+  }
 
   def baseHTML = <div class="XSDetailsPane" id={detailsPaneID}>Contacting server...</div>
   
@@ -352,9 +413,20 @@ class GUICreatorHTML5(pane:HTML5DetailsPane) extends GUICreator[String] {
   def errorIcon(id:String,canContainErrorIcon:Boolean) : NodeSeq = if (canContainErrorIcon) errorIcon(id) else NodeSeq.Empty
 
   def addLabeledField(input:xml.Elem,id:String,field:DetailsPaneFieldLabeled,currently:CurrentFieldState) {
+    val customPopup : Option[HTMLCustomPopupComponent] = field match {
+      case t:DetailsPaneFieldText =>
+        //println(t.field.customPopup)
+        for (popupName<-t.field.customPopup;p<-HTML5DetailsPane.getPopup(popupName)) yield p.asInstanceOf[HTMLCustomPopupComponent]
+      case _ => None
+    }
+    //println(customPopup)
+    val customPopupHTML = customPopup match {
+      case None => NodeSeq.Empty
+      case Some(popup) => <button class="xsPopupButton" onclick={sessionprefix+"initiatePopup('"+id+"')"}>…</button><div id={id+"_popup"}></div> 
+    }
     val withenabled = addEnabled(input,currently.enabled)      
     val inrow = {
-      def mainTD(colspan:Int) : xml.Elem = <td colspan={colspan.toString} class={"xsErrorLabeled xsColMainWidth"+colspan}>{errorIcon(id,field.couldContainErrorIcon)}{withenabled}</td>
+      def mainTD(colspan:Int) : xml.Elem = <td colspan={colspan.toString} class={"xsErrorLabeled xsColMainWidth"+colspan}>{errorIcon(id,field.couldContainErrorIcon)}{withenabled}{customPopupHTML}</td>
       if (field.hideName) <tr id={id+"_all"}>{mainTD(2)}</tr>
       else {
         val label = addTitle(<label for={id+"_ui"}>{iconlabel(field.icon,currently,id)}{textlabel(field.label,currently,id)}</label>,field.tooltip)

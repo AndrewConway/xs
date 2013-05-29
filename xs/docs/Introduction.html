@@ -73,7 +73,9 @@ val deserialized : Complex = XMLDeserialize.deserialize[Complex](serializedData)
    not displayed, or annotated with <code>@TableEditable</code> which means they will be displayed as a grid (think Excel).</p>
    
    <p>Fields that are serialized to strings are generally edited as fields on the right hand side. They can be edited
-   as checkboxes via <code>@BooleanEditable</code>, as strings via <code>@StringEditable</code> (this includes numbers, and also enumerations with the help of <code>@RequiredOptions</code>), and as image URLs via @ImageEditable.</p>
+   as checkboxes via <code>@BooleanEditable</code>, as strings via <code>@StringEditable</code> (this includes numbers, 
+   and also enumerations [Java, <code>FiniteOptionList</code> implementors or explicitly listed with the help of <code>@RequiredOptions</code>]), 
+   and as image URLs via <code>@ImageEditable</code>.</p>
    <table>
     <caption>There are a host of extra annotatations that modify how the editing is done.</caption>
     <thead>
@@ -217,10 +219,19 @@ val deserialized : Complex = XMLDeserialize.deserialize[Complex](serializedData)
       
    <h3>Custom editors</h3>
    <p>Sometimes you want something special, and the XS editors are not sufficient. You can embed your own.</p>
-   <p>On the data structure, make a dummy function (it may as well return Unit). Annotate this with @CustomEditable with the argument the name of your custom widget.
+   <p>On the data structure, make a dummy function (it may as well return Unit). Annotate this with <code>@CustomEditable</code> with the argument the name of your custom widget.
    This will make a new field with the name of the function (which can be localized and controlled as normal).</p>
    <p>On the server, you should make a custom controller (with the standard HTML client, it should implement org.greatcactus.xs.frontend.HTMLCustomComponent with the name 
-   given as the argument to @CustomEditable. Register it with org.greatcactus.xs.frontend.HTML5DetailsPane.addCustom). See Javadocs for details.</p>
+   given as the argument to <code>@CustomEditable</code>. Register it with <code>org.greatcactus.xs.frontend.HTML5DetailsPane.addCustom</code>). See Javadocs for details.</p>
+   
+   <h4>Custom popup editors</h4>
+   <p>Sometimes you want a custom editor, but of a fairly prescribed form, and don't want to make a completely
+   custom editor. You can make popup editors for a <code>@StringEditable</code> field which are represented as a little button
+   at the end of the text field. When the user clicks on the button, a modal dialog comes up (with custom content) which you deal with. When ok is
+   pressed on the modal dialog, the dialog disappears and the field changes appropriately. To do this, annotate the <code>@StringEditable</code> field 
+   with <code>@CustomPopup("name")</code> where <code>name</code> is the name of the custom element (of type <code>org.greatcactus.xs.frontend.CustomPopupComponent</code>). 
+   As with the fully custom component, when using the standard HTML5 client, it should actually implement <code>org.greatcactus.xs.frontend.html.HTMLCustomPopupComponent</code>,
+   and should be registered with <code>org.greatcactus.xs.frontend.HTML5DetailsPane.addCustom</code>. See Javadocs for details.</p>
    
    <h3>Commands</h3>
    <p>If you annotate a method with <code>@XSCommand</code> then it becomes an action button that will be executed (server side, of course) when the user clicks on it.

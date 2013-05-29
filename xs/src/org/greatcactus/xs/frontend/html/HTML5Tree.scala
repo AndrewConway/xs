@@ -22,13 +22,19 @@ import org.greatcactus.xs.api.display.RichLabel
  *   5) Include appropriate Javascript and CSS files (TODO enumerate)
  *   6) When a node changes in any way (open/closed, label, icon, children), call the refresh() function with that node.
  */
-class HTML5Tree[T <: AnyRef](val locale:Locale,val transport:HTMLTransport,val model:TreeModel[T],val root:T,val sessionprefix:String,val sessionID:String) {
+class HTML5Tree[T <: AnyRef](val locale:Locale,val transport:HTMLTransport,val model:TreeModel[T],val root:T,val sessionprefix:String,val treeID:String,val allowMultipleSelection:Boolean,val allowDragging:Boolean) {
 
-  val treePrefix = "xsTreeNode"+sessionID+"_"  // session ID added to make unique in page.
+  val treeDivID = "xsTree"+treeID
+  val treePrefix = "xsTreeNode"+treeID+"_"  // tree ID added to make unique in page. This is often the session ID.
   def sessionprefixNoTrailingPeriod = sessionprefix.substring(0,sessionprefix.length-1)
     
   var currentlySelected : Option[T] = Some(root)
+  var alsoSelected : List[T] = Nil
 
+  def getAllSelected : List[T] = currentlySelected match {
+    case Some(n) => n::alsoSelected
+    case None => alsoSelected
+  }
     
   var clientNodes : Map[String,OnClientTreeNode] = Map.empty
   
@@ -54,28 +60,49 @@ class HTML5Tree[T <: AnyRef](val locale:Locale,val transport:HTMLTransport,val m
     val subs = XSHTMLUtil.possiblySetNoDisplay(subsVisUnchecked, isOpen)
     val errorlevel = model.errorLevel(node)
     val erroricon = <span id={id+"_erroricon"} class={"xsErrorIcon xsErrorIcon"+errorlevel}></span>
-    val selectableNoSelection = <span id={id+"_selectable"} class="xsTreeSelectable" onclick={sessionprefix+"treeSelect('"+id+"'); return false"} oncontextmenu={sessionprefix+"treeSelect('"+id+"'); return true"}>{erroricon}{icon}{label}</span>
-    val isCurrentlySelected = Some(node)==currentlySelected
+    val selectableNoSelection = <span id={id+"_selectable"} class="xsTreeSelectable" onclick={sessionprefix+"treeSelect(event,'"+id+"'); return false"} oncontextmenu={sessionprefix+"treeSelect(event,'"+id+"'); return true"}>{erroricon}{icon}{label}</span>
+    val isCurrentlySelected = getAllSelected.contains(node)
     val selectable = if (isCurrentlySelected) selectableNoSelection%Attribute(None,"class",Text("xsTreeSelectable xsSelected"),scala.xml.Null)  else selectableNoSelection
-    val html = <div id={id+"_all"} draggable="true">{opener}{selectable}{subs}</div>
+    val html = <div id={id+"_all"} draggable={allowDragging.toString}>{opener}{selectable}{subs}</div>
     val localnode = new OnClientTreeNode(iconURL,labelS,isOpenString,kidsLocal,clicksAwayFromVisible,!isOpen,isCurrentlySelected,errorlevel,node,id)
     clientNodes+=id->localnode
     (html,localnode)
   }
   
   /** This should only be called once */
-  def baseHTML() : NodeSeq = {
+  def baseHTML(divClasses:String="") : NodeSeq = {
     if (clientNodes.isEmpty) {
       val postCreationJavascript=new ListBuffer[String]
-      val res= <div class="xsEditTree" id={"xsTree"+sessionID} data-oninputobj={sessionprefixNoTrailingPeriod} ondragstart={sessionprefix+"dragStart(event);"} ondragend={sessionprefix+"dragEnd(event);"} ondragover={sessionprefix+"dragOver(event)"} ondragenter={sessionprefix+"dragEnter(event)"} ondragleave={sessionprefix+"dragLeave(event)"} ondrop={sessionprefix+"drop(event)"}>{newHTML(root,0,postCreationJavascript)._1}</div>
-      for (cmd<-postCreationJavascript) transport.sendMessage(ClientMessage.run(cmd))
+      val res= <div class={"xsEditTree "+divClasses} id={treeDivID} data-multiselect={allowMultipleSelection.toString} data-oninputobj={sessionprefixNoTrailingPeriod} ondragstart={sessionprefix+"dragStart(event);"} ondragend={sessionprefix+"dragEnd(event);"} ondragover={sessionprefix+"dragOver(event)"} ondragenter={sessionprefix+"dragEnter(event)"} ondragleave={sessionprefix+"dragLeave(event)"} ondrop={sessionprefix+"drop(event)"}>{newHTML(root,0,postCreationJavascript)._1}</div>
+      for (cmd<-postCreationJavascript) transport.sendMessage(ClientMessage.run(cmd)) // FIXME - this doesn't look like post-creation.
       res
     }
     else throw new IllegalArgumentException("Called baseHTML more than once.")
   }
   
+  object ID { // used in processMessages for extracting the node given a string id
+    def unapply(id:String) : Option[OnClientTreeNode] = clientNodes.get(id)
+  }
+  object Bool {
+    def unapply(arg:String) : Option[Boolean] = Some(arg.toBoolean)
+  }
+  
+  val processMessages : PartialFunction[SimpleClientMessage,Unit] = {
+    case SimpleClientMessage("TreeOpen",Array(ID(n),Bool(shouldNowBeOpen))) =>
+      model.userToggledStatus(n.node,shouldNowBeOpen)
+    case SimpleClientMessage("TreeSelect",Array(ID(n),Bool(added))) =>
+      setSelected(Some(n.node),added)
+      model.userSelected(n.node) 
+    case SimpleClientMessage("TreeContextMenu",Array(this.treeDivID,command,commaSeparatedSelected)) =>
+      val nodes = commaSeparatedSelected.split(',').flatMap{clientNodes.get(_)}.map{_.node}
+      model.userContextMenu(command,nodes)
+    case SimpleClientMessage("TreeDragLocal",Array(ID(source),ID(dest),Bool(isAbove))) =>
+      model.dragLocal(source.node,dest.node,isAbove)
+  }
+
   
   /** Called by the client when the opener is clicked on for a given id */
+  /*
   def clickedOnOpener(id:String,shouldBeNowOpen:Option[Boolean]) {
     //println("Clicked on opener for "+id)
     for (n<-clientNodes.get(id)) {
@@ -83,28 +110,31 @@ class HTML5Tree[T <: AnyRef](val locale:Locale,val transport:HTMLTransport,val m
       //println("Changing status to "+ open)
       model.userToggledStatus(n.node,open)
     } 
-  }
+  }*/
 
     /** Called by the client when the node proper is clicked on for a given id */
+  /*
   def clickedOnNode(id:String) {
     //println("Clicked on node for "+id)
     for (n<-clientNodes.get(id)) {
         model.userSelected(n.node)
     } 
-  }
+  }*/
   
   /** Called by the gui client when a context menu is chosen */
+  /*
   def contextMenu(command:String,nodeids:Seq[String]) {
     var nodes = nodeids.flatMap{clientNodes.get(_)}.map{_.node}
     model.userContextMenu(command,nodes)
   }
-  
+  */
   /** Called by the client when one node is dragged onto another. isAbove is true if wants to be above the given node instead of on it. */
+  /*
   def dragLocal(idSource:String,idDest:String,isAbove:Boolean) {
     for (source<-clientNodes.get(idSource);dest<-clientNodes.get(idDest)) {
       model.dragLocal(source.node,dest.node,isAbove)
     }
-  }
+  }*/
 
   /** Called when something changes on the given node (eg open/closed/kids/title/icon) */
   def refresh(node:T) {
@@ -120,10 +150,19 @@ class HTML5Tree[T <: AnyRef](val locale:Locale,val transport:HTMLTransport,val m
   }
 
   
-  def setSelected(newSelected:Option[T]) {
+  def setSelected(newSelected:Option[T],addTo:Boolean) {
+    //println("Set selected "+newSelected+" addTo="+addTo)    
     synchronized {
       if (newSelected!=currentlySelected) {
-        val oldSelected=currentlySelected
+        val oldSelected=getAllSelected
+        alsoSelected=if (addTo) {
+          val longer = if (currentlySelected.isDefined) currentlySelected.get::alsoSelected else alsoSelected
+          newSelected match {
+            case Some(e) => longer.filter{_ != e}
+            case None => longer
+          }
+        } else Nil
+        //println("Set selected "+newSelected+" addTo="+addTo+"  alsoSelected="+alsoSelected)    
         currentlySelected=newSelected
         for (n<-newSelected) refresh(n) 
         for (n<-oldSelected) refresh(n) 
@@ -160,7 +199,7 @@ class HTML5Tree[T <: AnyRef](val locale:Locale,val transport:HTMLTransport,val m
       }
     }
     def setIsSelected() {
-      val shouldBeSelected = Some(node)==currentlySelected
+      val shouldBeSelected = getAllSelected.contains(node)
       if (shouldBeSelected!=isCurrentlySelected) {
         isCurrentlySelected=shouldBeSelected
         transport.sendMessage(ClientMessage.addClass("#"+id+"_all > span:nth-child(2)","xsSelected",shouldBeSelected))

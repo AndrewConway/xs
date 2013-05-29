@@ -26,7 +26,7 @@ abstract class HTMLCustomComponent[S] extends CustomComponent[S,String] {
   override def getWork(pane:XSDetailsPane[String],id:String,initial:S) : CustomComponentWork[S] = pane match {
     case htmlpane:HTML5DetailsPane => 
       val res = getHTMLWork(htmlpane,id,initial)
-      htmlpane.customControllerProcessMessages=res.processMessages::htmlpane.customControllerProcessMessages
+      htmlpane.addCustomControllerProcessMessages(res.processMessages)
       res
     case _ => throw new IllegalArgumentException(pane.toString)
   }

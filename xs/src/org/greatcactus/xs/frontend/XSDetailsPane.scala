@@ -157,6 +157,18 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit) {
       case g => node => println("Cancel else "+g)
     })        
   }
+  def uiInitiatePopup(uiElement:T) {
+    uiAction(uiElement,{
+      case f:UIFieldText => node => for (popupName<-f.field.field.customPopup) initiatePopup(f,popupName,node)
+      case g => node => ()
+    })        
+  }
+  def uiPopupSetField(uiElement:T,newvalue:String) {
+    uiAction(uiElement,{
+      case f:UIFieldText => node => f.field.set(node,newvalue,None); f.refresh(node); flushClientCommands()
+      case g => node => ()
+    })        
+  }
   /** perform the given action on the uiElement */
   private def uiAction(uiElement:T,action:PartialFunction[UIField,XSTreeNode=>Unit]) {
     synchronized {
@@ -172,7 +184,8 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit) {
   //
   // Commands XS sends to the client
   //
-  
+  /** Client code to set up a custom popup */
+  def initiatePopup(field:UIFieldText,popupName:String,node:XSTreeNode)
   /** Client code to dispose of the GUI elements created previously */
   def dispose(guis:UIFields) : Unit
   /** Called when the screen should be set to blank */

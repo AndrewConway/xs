@@ -221,6 +221,9 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
     }
   }
 
+  /** Result of the last call to clean(). You usually do NOT want to use this. */
+  var lastInjections : Set[AnyRef] = Set.empty // the result of the last call to clean()
+  
   /**
    * Compute all dependencies, and send modified kids dependencies to children. Return true if anything may have changed.
    */
@@ -279,6 +282,7 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
             println("  Available types :"+resInjections.toSeq.map{_.getClass.getSimpleName}.mkString(","))
           }
         }
+        lastInjections=resInjections
         dirtySimpleErrorChecks=false
         true
       } else if (dirtySimpleErrorChecks) {

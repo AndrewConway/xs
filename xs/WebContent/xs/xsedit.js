@@ -190,6 +190,42 @@ function xsProcessClientMessageFromServer(json,session) {
 				statusel.innerHTML="Failed : "+json.args[2]; 
 				statusel.className="xsStatusError";
 			}
+		} else if (json.cmd=="ShowCustomPopup") {
+			var id = json.args[0];
+			var okfunction = eval("["+json.args[1]+"][0]"); // needs [...][0] otherwise treats function() {...} as error
+			var goodfunction = eval("["+json.args[2]+"][0]");
+			$("#"+id+"_popup").dialog({
+				autoOpen : true,
+			    modal : true,
+			    buttons : {
+			    	"OK" : function() {
+			    		try {
+				    		var message = okfunction();
+				    		if (message) alert(message);
+				    		else {
+				    			var result = goodfunction();
+				    			session.popupSetField(id,result);
+					        	$(this).dialog("close");			    			
+				    		};			    			
+			    		} catch(err) {
+			    			console.log("There was an error trying to execute popup functions "+err.message);
+			    			console.log(err);
+			    		}
+			    	},
+			        Cancel: function() {
+			        	$(this).dialog("close");
+			        }
+			    },
+			    close : function() {
+			    	session.closedPopup(id);
+			    }
+			});
+			// $("#"+id+"_popup").dialog("open"); 
+		} else if (json.cmd=="DisposeCustomPopup") {
+			var id = json.args[0];
+			var okfunction = eval(json.args[1]);
+			var goodfunction = eval(json.args[2]);
+			$("#"+id+"_popup").dialog("close");
 		} else alert("Unknown client message "+json.cmd);
 	};
   };
@@ -360,11 +396,17 @@ var xs = {
 		  // end unnecessary code
 		  this.sendToServer({cmd:"TreeOpen",args:[id,""+isNowOpen]});		  
       }; 
+      /** Get the id of a tree given the id of an element inside it. Removes xsTreeNode from start and _xxxx from end */
+      this.treeID = function(id) {
+    	  return id.slice(10,id.indexOf("_"));
+      };
 	  /** Called by a client clicking on the main part of a tree node */
-	  this.treeSelect = function(id) {
-		  $("div#xsTree"+this.id+" .xsSelected").removeClass("xsSelected"); // redundant, but anticipate server command for faster response.
+	  this.treeSelect = function(event,id) {
+		  var treeID = "xsTree"+this.treeID(id);
+		  var added = document.getElementById(treeID).getAttribute("data-multiselect")=="true" && (event.shiftKey||event.ctrlKey);
+		  if (!added) $("div#"+this.treeID(id)+" .xsSelected").removeClass("xsSelected"); // redundant, but anticipate server command for faster response.
 		  $("#"+id+"_all > span:nth-child(2)").addClass("xsSelected"); // redundant, but anticipate server command for faster response.
-		  this.sendToServer({cmd:"TreeSelect",args:[id]});
+		  this.sendToServer({cmd:"TreeSelect",args:[id,""+added]});
 	  }; 
 	  /** Called when a text field changes */
 	  this.change = function(id) { 
@@ -415,6 +457,15 @@ var xs = {
 		  this.sendToServer({cmd:"CancelJob",args:[id,this.currentlyEditing]});
 	  };
 	  
+	  this.initiatePopup = function(id) {
+		  this.sendToServer({cmd:"InitiatePopup",args:[id,this.currentlyEditing]});
+	  };
+	  this.closedPopup = function(id) {
+		  this.sendToServer({cmd:"ClosedPopup",args:[id,this.currentlyEditing]});
+	  };
+	  this.popupSetField = function(id,value) {
+		  this.sendToServer({cmd:"PopupSetField",args:[id,this.currentlyEditing,value]});
+	  };
 	  //
 	  // stuff for the tree - should be documented better.
 	  //
@@ -489,7 +540,7 @@ var xs = {
 		  ev.preventDefault();
 		  ev.stopPropagation();
 		  if (this.current_dragging_div!=null) {
-		    this.sendToServer({cmd:"DragLocal",args:[this.current_dragging_div.id.slice(0,-4),div.id.slice(0,-4),this.dragOverAtTop]});			    	
+		    this.sendToServer({cmd:"TreeDragLocal",args:[this.current_dragging_div.id.slice(0,-4),div.id.slice(0,-4),this.dragOverAtTop]});			    	
 		  } else {
 			  // TODO non local drag
 		  }
@@ -498,17 +549,18 @@ var xs = {
 	  };
 
 	  /** Get the currently selected nodes as an array of ids. Note that multiple selection is not currently implemented so this will perforce be a single element array */
-	  this.getSelectedTreeNodes = function() {
+	  this.getSelectedTreeNodes = function(baseID) {
 		  var res = [];
-		  $("div#xsTree"+xsthis.id+" .xsSelected").each(function() {
+		  $("div#"+baseID+" .xsSelected").each(function() {
 			  var idfull = this.id; // need to remove _selectable from the end (11 chars)
 			  res.push(idfull.substring(0,idfull.length-11)); 
 		  });
 		  return res;
 	  };
 	  
-	  this.treeContextMenu = function(subtype) {
-		  xsthis.sendToServer({cmd:"TreeContextMenu",args:[subtype,xsthis.getSelectedTreeNodes().toString()]});
+	  this.treeContextMenu = function(subtype,treeID) {
+		  console.log(treeID);
+		  xsthis.sendToServer({cmd:"TreeContextMenu",args:[treeID,subtype,xsthis.getSelectedTreeNodes(treeID).toString()]});
 	  };
 	  
 	  this.gridContextMenu = function(subtype,tableid,selectedrows) {
@@ -613,7 +665,7 @@ $(function() {
 		callback: function(key,options) {
 			var objdesc = this[0].getAttribute("data-oninputobj");
 			var obj = eval(objdesc);
-			obj.treeContextMenu(key);
+			obj.treeContextMenu(key,this[0].id);
 		},
 		items: {
 			cut : { name:"Cut", icon:"cut" },

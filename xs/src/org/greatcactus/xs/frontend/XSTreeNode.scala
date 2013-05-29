@@ -199,6 +199,12 @@ class XSTreeNode(
     dependencyInjection.dispose()
   }
   
+  /** Note - this may be slow. Gets the current dependency injection information for this node */
+  def blockingGetDependencyInjectionInformation() : Set[AnyRef] = {
+    if (parent!=null) parent.blockingGetDependencyInjectionInformation()
+    cleanDependencies()
+    dependencyInjection.lastInjections 
+  }
   def cleanDependencies() {
     if (disposed) return
     uniquenessCheckResolution.clean()

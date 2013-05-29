@@ -412,6 +412,7 @@ object SerializableTypeInfo {
   private[impl] val typeIndividuallyEditable = universe.typeOf[IndividuallyEditable]
   private[impl] val typeTableEditable = universe.typeOf[TableEditable]
   private[impl] val typeCustomEditable = universe.typeOf[CustomEditable]
+  private[impl] val typeCustomPopup = universe.typeOf[CustomPopup]
   private[impl] val typeEditSection = universe.typeOf[EditSection]
   private[impl] val typeOrderingPriority = universe.typeOf[OrderingPriority]
   private[impl] val typeMaxLength = universe.typeOf[MaxLength]

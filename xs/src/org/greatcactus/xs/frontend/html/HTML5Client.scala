@@ -26,6 +26,19 @@ class HTML5Client(val xsedit:XSEdit,val toolbar:Option[XSToolBar],val locale:Loc
 
   private[this] val cmdBuffer = new ClientMessageBuffer
   
+  private var processMessages : List[PartialFunction[SimpleClientMessage,Unit]] = Nil
+  def addMessageProcessor(p:PartialFunction[SimpleClientMessage,Unit]) = {
+    synchronized {
+      processMessages=p::processMessages
+    }
+  }
+  def removeMessageProcessor(p:PartialFunction[SimpleClientMessage,Unit]) = {
+    synchronized {
+      processMessages=processMessages.filter{_ ne p}
+    }
+  }
+  
+
   val session = new HTTPSession(new HTTPSessionWorker{
     override def receivedMessage(message:SimpleClientMessage) { process(message) }
   })
@@ -56,7 +69,8 @@ class HTML5Client(val xsedit:XSEdit,val toolbar:Option[XSToolBar],val locale:Loc
         }
       }
   }
-  val treePane = new HTML5Tree(locale,transport,treeModel,xsedit.treeRoot,session.sessionPrefix,session.id) 
+  val treePane = new HTML5Tree(locale,transport,treeModel,xsedit.treeRoot,session.sessionPrefix,session.id,false,true) 
+  addMessageProcessor(treePane.processMessages)
   xsedit.addTreeListener(new XSEditListener() {
       def apply(changes:TreeChange) { 
         //println("Got tree changes")
@@ -68,7 +82,7 @@ class HTML5Client(val xsedit:XSEdit,val toolbar:Option[XSToolBar],val locale:Loc
         flushMessages()
       }
       def setCurrentlyEditing(node:Option[XSTreeNode]) { 
-        treePane.setSelected(node)
+        treePane.setSelected(node,false)
         flushMessages()
       }
   })
@@ -115,9 +129,17 @@ class HTML5Client(val xsedit:XSEdit,val toolbar:Option[XSToolBar],val locale:Loc
       val args = message.args
       // first see if a custom controller can deal with the message
       for (c<-detailsPane.customControllerProcessMessages) {
-        println("Got message "+message)
+        //println("Got message "+message)
         if (c.isDefinedAt(message)) {
-          println("Sent to custom")
+          //println("Sent to custom")
+          c(message)
+          return
+        }
+      }
+      for (c<-processMessages) {
+        //println("Got message "+message)
+        if (c.isDefinedAt(message)) {
+          //println("Sent to custom")
           c(message)
           return
         }
@@ -146,20 +168,10 @@ class HTML5Client(val xsedit:XSEdit,val toolbar:Option[XSToolBar],val locale:Loc
           if (detailsPane.nodeIDCurrentlyBeingEdited==args(3)) {
             detailsPane.uiDragGridRows(args(0),args(1).split(',').map{_.toInt},args(2).toInt)
           }
-        case "TreeOpen" if args.length==2 =>
-          //println("Got tree open command "+args(0))
-          treePane.clickedOnOpener(args(0),Some(args(1).toBoolean)); 
-        case "TreeSelect" if args.length==1 =>
-          //println("Got tree select "+args(0))
-          treePane.clickedOnNode(args(0)); 
-        case "TreeContextMenu" if args.length==2 =>
-          treePane.contextMenu(args(0),args(1).split(','))
         case "TableContextMenu" if args.length==4 =>
           if (detailsPane.nodeIDCurrentlyBeingEdited==args(3)) {
             detailsPane.uiTableContextMenu(args(0),args(1),args(2).split(',').map{_.toInt})          
           }
-        case "DragLocal" if args.length==3 =>
-          treePane.dragLocal(args(0),args(1),args(2).toBoolean)
         case "Edited" if args.length==2 => detailsPane.uiChangedTextField(args(0),args(1),true)
         case "PartialEdit" if args.length==2 => detailsPane.uiChangedTextField(args(0),args(1),false)
         case "NewRowOnGrid" if args.length==4 => 
@@ -180,6 +192,12 @@ class HTML5Client(val xsedit:XSEdit,val toolbar:Option[XSToolBar],val locale:Loc
           }
         case "CancelJob" if args.length==2 =>
           if (detailsPane.nodeIDCurrentlyBeingEdited==args(1)) detailsPane.uiCancelJob(args(0))
+        case "InitiatePopup" if args.length==2 =>
+          if (detailsPane.nodeIDCurrentlyBeingEdited==args(1)) detailsPane.uiInitiatePopup(args(0))
+        case "ClosedPopup" if args.length==2 =>
+          if (detailsPane.nodeIDCurrentlyBeingEdited==args(1)) detailsPane.uiClosedPopup(args(0))
+        case "PopupSetField" if args.length==3 =>
+          if (detailsPane.nodeIDCurrentlyBeingEdited==args(1)) detailsPane.uiPopupSetField(args(0),detailsPane.popupMungeOutput(args(2)))
         case _ => println("Received unanticipated command "+message.command+"("+args.mkString(",")+")")
       }
     } catch { 
@@ -227,7 +245,7 @@ class HTML5Client(val xsedit:XSEdit,val toolbar:Option[XSToolBar],val locale:Loc
 
   def mainPanelHTML = 
     <div class="xsEdit">
-       {treePane.baseHTML}
+       {treePane.baseHTML()}
        { detailsPane.baseHTML }
        { session.createSessionHTML }
     </div>

@@ -309,6 +309,7 @@ class XSFieldInfo(val fieldSymbol:reflect.runtime.universe.Symbol,val index:Int,
     val isBooleanEditable : Boolean = hasAnnotation(typeBooleanEditable)
     val isImageEditable : Boolean = hasAnnotation(typeImageEditable)
     val isTableEditable : Boolean = hasAnnotation(typeTableEditable)
+    val customPopup : Option[String] = annotationValueString(typeCustomPopup)
     
     val resolveNetworkReferences : Boolean = hasAnnotation(typeResolveNetworkReferences)
 
