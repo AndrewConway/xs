@@ -49,6 +49,7 @@ class DependencyInjectionInformation(
   val providers : Seq[DependencyInjectionFunction],
   val iconProviders : Seq[FunctionForField],
   val labelProviders : Seq[FunctionForField],
+  val tooltipProviders : Seq[FunctionForField],
   val extraText : Seq[ExtraDisplayFieldInfo],
   val customFields : Seq[CustomFieldInfo],
   val enabledControllers : Seq[FunctionForField],
@@ -58,12 +59,14 @@ class DependencyInjectionInformation(
   val simpleErrorChecks:SimpleErrorChecks,
   val commands:List[CommandMethod]
   ) {
-  val allDIFunctions : Seq[DependencyInjectionFunction] = providers++(iconProviders.map{_.function})++(labelProviders.map{_.function})++(extraText.map{_.function})++(customFields.map{_.function})++(enabledControllers.map{_.function})++(visibilityControllers.map{_.function})++(errorChecks.map{_.function})
+  val allDIFunctions : Seq[DependencyInjectionFunction] = providers++(iconProviders.map{_.function})++(labelProviders.map{_.function})++(tooltipProviders.map{_.function})++(extraText.map{_.function})++(customFields.map{_.function})++(enabledControllers.map{_.function})++(visibilityControllers.map{_.function})++(errorChecks.map{_.function})
   val allFunctions = allDIFunctions++(commands.map{_.function})
   val classLabelProvider : Option[DependencyInjectionFunction] = labelProviders.find{_.field==None}.map{_.function}
+  val classTooltipProvider : Option[DependencyInjectionFunction] = tooltipProviders.find{_.field==None}.map{_.function}
   val classIconProvider : Option[DependencyInjectionFunction] = iconProviders.find{_.field==None}.map{_.function}
   val fieldIconProvider : Map[String,DependencyInjectionFunction] = Map.empty++(for (ip<-iconProviders;f<-ip.field) yield f->ip.function)
   val fieldLabelProvider : Map[String,DependencyInjectionFunction] = Map.empty++(for (ip<-labelProviders;f<-ip.field) yield f->ip.function)
+  val fieldTooltipProvider : Map[String,DependencyInjectionFunction] = Map.empty++(for (ip<-tooltipProviders;f<-ip.field) yield f->ip.function)
   val fieldEnabledController : Map[String,DependencyInjectionFunction] = Map.empty++(for (ip<-enabledControllers;f<-ip.field) yield f->ip.function)
   val fieldVisibilityController : Map[String,DependencyInjectionFunction] = Map.empty++(for (ip<-visibilityControllers;f<-ip.field) yield f->ip.function)
   val fromParentDependencyInfo = {
@@ -159,6 +162,8 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
   
   def getLabel : Option[AnyRef] = for (f<-info.classLabelProvider;fr<-lastGoodResolved.get(f); res <- fr.res ) yield res
   def getLabelForField(fieldname:String) : Option[AnyRef] = for (f<-info.fieldLabelProvider.get(fieldname);fr<-lastGoodResolved.get(f); res <- fr.res ) yield res
+  def getTooltip : Option[AnyRef] = for (f<-info.classTooltipProvider;fr<-lastGoodResolved.get(f); res <- fr.res ) yield res
+  def getTooltipForField(fieldname:String) : Option[AnyRef] = for (f<-info.fieldTooltipProvider.get(fieldname);fr<-lastGoodResolved.get(f); res <- fr.res ) yield res
   
   def isEnabled(fieldname:String) : Boolean = (for (f<-info.fieldEnabledController.get(fieldname);fr<-lastGoodResolved.get(f); res <-fr.res if res==false) yield false).getOrElse(true)
   def isVisible(fieldname:String) : Boolean = (for (f<-info.fieldVisibilityController.get(fieldname);fr<-lastGoodResolved.get(f); res <-fr.res if res==false) yield false).getOrElse(true)

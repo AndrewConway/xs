@@ -71,6 +71,13 @@ class LocalizableFromSources(val sources:List[TextLocalizationSource],val locali
   
 }
 
+class LazyLabel(code: =>AnyRef) {
+  lazy val value = code
+}
+object LazyLabel {
+  def apply(code: => AnyRef) = new LazyLabel(code)
+}
+
 object RichLabel {
 
   val nullLabel = new RichLabel("",scala.xml.Text(""),Nil)
@@ -93,6 +100,7 @@ object RichLabel {
       case s:RichLabel => Some(s)
       case html:NodeSeq => Some(RichLabel(html.text,html))
       case localizable:Localizable => apply(localizable.localize(locale),locale)
+      case lazylabel:LazyLabel => apply(lazylabel.value,locale)
       case unknown => throw new IllegalArgumentException("Unknown label type "+unknown.getClass()+" value "+unknown.toString)
   }
   def apply(fromInjection:Option[AnyRef],fromToString: =>String,locale:Locale) : RichLabel = {

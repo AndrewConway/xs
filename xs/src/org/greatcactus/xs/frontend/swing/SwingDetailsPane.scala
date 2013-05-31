@@ -88,7 +88,9 @@ class SwingDetailsPane(_locale:Locale,_xsedit:XSEdit) extends XSDetailsPane[Comp
   override def changeUISingleLineTable(gui:Component,index:Int,shouldBe:IndexedSeq[String]) {} // TODO
   override def setUITableEntriesIllegalContents(gui:Component,illegalEntries:Map[Int,List[Int]]) {} // TODO
   override def initiatePopup(field:UIFieldText,popupName:String,node:XSTreeNode) {} // TODO
-  
+  override def changeGridTooltip(gui:Component,row:Int,col:Int,colfield:GeneralizedField,tooltip:Option[RichLabel]) {}
+  override def changeUITooltip(gui:Component,tooltip:Option[RichLabel]) {}
+
   def getCustom(f:DetailsPaneFieldCustom) : Option[CustomComponent[_,Component]] = SwingDetailsPane.getCustom(f)
 
 }

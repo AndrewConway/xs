@@ -163,6 +163,7 @@ class SerializableTypeInfo[T <: AnyRef] private (val clazz : java.lang.Class[T])
     val providers = new ListBuffer[DependencyInjectionFunction]
     val iconProviders = new ListBuffer[FunctionForField]
     val labelProviders = new ListBuffer[FunctionForField]
+    val tooltipProviders = new ListBuffer[FunctionForField]
     val visibilityControllers = new ListBuffer[FunctionForField]
     val enabledControllers = new ListBuffer[FunctionForField]
     val errorChecks = new ListBuffer[FunctionForField]
@@ -178,6 +179,7 @@ class SerializableTypeInfo[T <: AnyRef] private (val clazz : java.lang.Class[T])
       val dp = hasAnnotation(method,typeDependencyProvider)
       val ip = getOptionalValue(method,typeIconProvider)
       val lp = getOptionalValue(method,typeLabelProvider)
+      val ttp = getOptionalValue(method,typeTooltipProvider)
       val ptc = hasAnnotation(method,typePropagateToChildren)
       val ec = getOptionalValue(method,typeErrorCheck)
       val edf = hasAnnotation(method,typeExtraDisplayField)
@@ -185,7 +187,7 @@ class SerializableTypeInfo[T <: AnyRef] private (val clazz : java.lang.Class[T])
       val cdf = getOptionalValue(method,typeCustomEditable)
       val visC = getOptionalValue(method,typeVisibilityController)
       val enC = getOptionalValue(method,typeEnabledController)
-      val numSpecial = (if (ip.isDefined) 1 else 0)+(if (lp.isDefined) 1 else 0)+(if (ec.isDefined) 1 else 0)+(if (edf) 1 else 0)+(if (cmd) 1 else 0)+(if (cdf.isDefined) 1 else 0)+(if (visC.isDefined) 1 else 0)+(if (enC.isDefined) 1 else 0)
+      val numSpecial = (if (ip.isDefined) 1 else 0)+(if (lp.isDefined) 1 else 0)+(if (ttp.isDefined) 1 else 0)+(if (ec.isDefined) 1 else 0)+(if (edf) 1 else 0)+(if (cmd) 1 else 0)+(if (cdf.isDefined) 1 else 0)+(if (visC.isDefined) 1 else 0)+(if (enC.isDefined) 1 else 0)
         if (numSpecial>1) error("Conflicting annotations on method "+method.name)
         if (dp||ptc||numSpecial>0) {
           if (visC.isDefined || enC.isDefined) { // check returns boolean
@@ -198,6 +200,7 @@ class SerializableTypeInfo[T <: AnyRef] private (val clazz : java.lang.Class[T])
           def fff(name:Option[String]) : FunctionForField = new FunctionForField(function,if (name.get==null || name.get.isEmpty) None else name)
           if (ip.isDefined) iconProviders+=fff(ip)
           else if (lp.isDefined) labelProviders+=fff(lp)
+          else if (ttp.isDefined) tooltipProviders+=fff(ttp)
           else if (ec.isDefined) errorChecks+=fff(ec)
           else if (visC.isDefined) visibilityControllers+=fff(visC)  
           else if (enC.isDefined) enabledControllers+=fff(enC) 
@@ -217,6 +220,7 @@ class SerializableTypeInfo[T <: AnyRef] private (val clazz : java.lang.Class[T])
     }
     check(iconProviders.toList,"@IconProvider",true,false,true)
     check(labelProviders.toList,"@LabelProvider",true,false,true)
+    check(tooltipProviders.toList,"@TooltipProvider",true,false,true)
     check(visibilityControllers.toList,"@VisibilityController",false,false,true)
     check(enabledControllers.toList,"@EnabledController",false,false,true)
     check(errorChecks.toList,"@ErrorCheck",true,true,true)
@@ -235,7 +239,7 @@ class SerializableTypeInfo[T <: AnyRef] private (val clazz : java.lang.Class[T])
       }
       buffer.get
     }
-    new DependencyInjectionInformation(providers.toList,iconProviders.toList,labelProviders.toList,extraText.toList,customFields.toList,enabledControllers.toList,visibilityControllers.toList,errorChecks.toList,new CanPassToChildren(classesToBlockForChildren),simpleErrorChecks,commands.toList)
+    new DependencyInjectionInformation(providers.toList,iconProviders.toList,labelProviders.toList,tooltipProviders.toList,extraText.toList,customFields.toList,enabledControllers.toList,visibilityControllers.toList,errorChecks.toList,new CanPassToChildren(classesToBlockForChildren),simpleErrorChecks,commands.toList)
   }
   
   
@@ -431,6 +435,7 @@ object SerializableTypeInfo {
   private[impl] val typeDependencyProvider = universe.typeOf[DependencyProvider]
   private[impl] val typeIconProvider = universe.typeOf[IconProvider]
   private[impl] val typeLabelProvider = universe.typeOf[LabelProvider]
+  private[impl] val typeTooltipProvider = universe.typeOf[TooltipProvider]
   private[impl] val typePropagateToChildren = universe.typeOf[PropagateToChildren]
   private[impl] val typeErrorCheck = universe.typeOf[ErrorCheck]
   private[impl] val typeExtraDisplayField = universe.typeOf[ExtraDisplayField]

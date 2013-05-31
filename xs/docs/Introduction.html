@@ -126,6 +126,10 @@ val deserialized : Complex = XMLDeserialize.deserialize[Complex](serializedData)
    overridden in a very similar manner to the  <code>@LabelProvider</code> except with this time <code>@IconProvider</code>.
    See the Javadocs and <a href="Icons.html">icon document</a> for details.</p>
    
+   <h4>Tooltips</h4>
+   <p>Tooltips can be provided via the <code>@TooltipProvider</code> which is very similar to the <code>@LabelProvider</code>.
+   These are tooltips for the actual gui element; tooltips for the label come from the localization text resources.</p>
+   
    <h4>Visibility</h4>
    
    <p>Fields can have their visibility be controlled programmatically by methods with the <code>@VisibilityController</code> annotation.

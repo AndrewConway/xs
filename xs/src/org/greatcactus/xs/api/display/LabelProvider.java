@@ -18,6 +18,7 @@ import java.lang.annotation.Target;
  *   <li>A string, in which case said string is used.</li>
  *   <li>A Localizable value, in which case it is called with the current locale and the result is used.</li>
  *   <li>An scala.xml.NodeSeq value, in which case it is assumed to be HTML. An HTML capable client will use the HTML, otherwise it will be converted to a string (ignoring all tags)</li>
+ *   <li>A LazyLabel, which will not be evaluated if it is not currently displayed.</li>
  *   <li>A RichLabel structure, in which case the HTML field will be used if possible, otherwise the text field.</li>
  * </ul>
  * 

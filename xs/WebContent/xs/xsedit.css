@@ -55,6 +55,11 @@ table.xsForm > tbody > tr > td {
 
 .xsPopupButton {
 	float:right;
+	position:relative;
+	font-size:70%;
+	z-index: 50;
+    padding-right:1px;
+    padding-left:1px;
 }
 
 .xsTableHolder .sfx-grid { height:auto; }
@@ -221,9 +226,9 @@ img.xsIcon {
     display : none;     
 }
 
-.xsSpanErrorTooltip, .xsTableTooltip, .xsErrorIcon > div { /** This is the tooltip */
+.xsSpanErrorTooltip, .xsTableTooltip, .xsErrorIcon > div, .xsTooltip { /** This is the tooltip */
 	display : none;
-    background: #FFFFAA;
+    background: #FFFFBB;
     border: 1px solid #2BB0D7;
     border-radius: 2px 2px;
 	box-shadow: 5px 5px 5px rgba(0, 0, 0, 0.1);
@@ -238,16 +243,39 @@ img.xsIcon {
     white-space: nowrap;
 }
 
+.xsTableTooltipNormal, .xsTooltip {
+	opacity:0.8;
+	top:1.6em;
+}
+
 .xsErrorDescription0 { /** This is the text of an error description */
-    background: #FCA;
+    /* background: #FCA; */
+    background-image:url("ErrorIcon.svg");
+    background-size: 0.5em 0.5em;
+	background-repeat: no-repeat;
+	background-position: left middle;
+    padding-left: 0.6em;
+    min-height : 0.8em;
 }
 
-.xsErrorDescription0 { /** This is the text of an warning description */
-    background: #FFA;
+.xsErrorDescription1 { /** This is the text of an warning description */
+    /* background: #FFA; */
+    background-image:url("WarningIcon.svg");
+    background-size: 0.5em 0.5em;
+	background-repeat: no-repeat;
+	background-position: left middle;
+    padding-left: 0.6em;
+    min-height : 0.8em;
 }
 
-.xsErrorDescription0 { /** This is the text of an info description */
-    background: #9DE;
+.xsErrorDescription2 { /** This is the text of an info description */
+    /* background: #9DE; */
+    background-image:url("InfoIcon.svg");
+    background-size: 0.5em 0.5em;
+	background-repeat: no-repeat;
+	background-position: left middle;
+    padding-left: 0.6em;
+    min-height : 0.8em;
 }
 
 
@@ -346,10 +374,17 @@ img.xsImageField {
     background-position:left bottom;
 }
 
-
+.xsTooltipHolder {
+	position:relative;
+}
 .xsSpanError:hover > .xsSpanErrorTooltip {
 	display:block;
 }
+
+.xsTooltipHolder:hover  > .xsTooltip:not(:empty) {
+	display:block;
+}
+
 
 .xsSpanErrorGridTooltip {
 	display:none;

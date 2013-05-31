@@ -214,10 +214,14 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit) {
   def changeUIShowText(gui:T,shouldBe:RichLabel)
   /** XS sending a command to the GUI to change what text a label is */
   def changeUILabelText(gui:T,shouldBe:RichLabel)
+  /** XS sending a command to the GUI to change what goes in a tooltip */
+  def changeUITooltip(gui:T,tooltip:Option[RichLabel])
   /** XS sending a command to the GUI to change what icon a label has */
   def changeUILabelIcon(gui:T,icon:Option[Icon])
   /** XS sending a command to the GUI to change the errors shown for a field */
   def changeErrors(gui:T,errors:List[ResolvedXSError])
+  /** XS sending a command to the GUI to change the errors shown for a field in a table. */
+  def changeGridTooltip(gui:T,row:Int,col:Int,colfield:GeneralizedField,tooltip:Option[RichLabel])
   /** XS sending a command to the GUI to change the errors shown for a field in a table. */
   def changeGridErrors(gui:T,row:Int,col:Int,colfield:GeneralizedField,errors:List[ResolvedXSError])
   /** XS sending a command to the GUI to change the fact that the contents are illegal - eg a blank string box when a number is needed. This should do something like set a red background. */
@@ -252,8 +256,10 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit) {
         val icon = tree.specialIconForField(field.name)
         val canHaveSpecialIcon = tree.info.dependencyInjectionInfo.fieldIconProvider.contains(field.name)
         val label = tree.specialLabelForField(field.name,locale)
+        val tooltip = tree.tooltipForField(field.name,locale)
         val canHaveSpecialLabel = tree.info.dependencyInjectionInfo.fieldLabelProvider.contains(field.name)
-        new CurrentFieldState(enabled,visible,icon,label,canHaveSpecialIcon,canHaveSpecialLabel)              
+        val canHaveTooltip = tree.info.dependencyInjectionInfo.fieldTooltipProvider.contains(field.name)
+        new CurrentFieldState(enabled,visible,icon,label,tooltip,canHaveSpecialIcon,canHaveSpecialLabel,canHaveTooltip)              
     }
     val headingState = getState(pane.field)
     val headingGUI = creator.startForm(pane.field,headingState)
@@ -395,6 +401,13 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit) {
         if (specialLabel!=currently.specialLabel) {
           currently.specialLabel=specialLabel
           changeUILabelText(gui,specialLabel.getOrElse(RichLabel(field.label)))
+        }
+      }
+      if (currently.canHaveTooltip) {
+        val tooltip = node.tooltipForField(field.name,locale)
+        if (tooltip!=currently.tooltip) {
+          currently.tooltip=tooltip
+          changeUITooltip(gui,tooltip)
         }
       }
       if (field.couldContainErrorIcon) {
@@ -623,6 +636,7 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit) {
     var humanEdits : Map[XSTreeNode,List[TableNoncanonicalEntry]] = Map.empty
     var currentlyShowingIllegalEntries : Map[Int,List[Int]] = Map.empty
     var currentlyShowingCellErrors : Map[(Int,Int),List[ResolvedXSError]] = Map.empty // first index is row, second is col
+    var currentlyShowingTooltips : Map[(Int,Int),RichLabel] = Map.empty // first index is row, second is col
     
     def applyNonCanonicalEditingToLine(row:XSTreeNode,canonical:IndexedSeq[String]) : (IndexedSeq[String],Option[(XSTreeNode,List[TableNoncanonicalEntry])])= {
           var line = canonical
@@ -654,6 +668,18 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit) {
              if (errors.isEmpty) currentlyShowingCellErrors-=key
              else currentlyShowingCellErrors+=key->errors
              changeGridErrors(gui,linenumber,colnumber,colfield,errors)
+           }
+        }
+        val couldContainTooltip = field.field.xsinfo.get.dependencyInjectionInfo.fieldTooltipProvider.contains(colfield.name)
+        if (couldContainTooltip) {
+           val tooltip : Option[RichLabel] = line.tooltipForField(colfield.name,locale)
+           val key = (linenumber,colnumber)
+           val oldTooltip = currentlyShowingTooltips.get(key)
+           if (tooltip!=oldTooltip) {
+             //println("Found new errors "+errors.mkString(";")+" != old errors "+oldErrors.mkString(";"))
+             if (tooltip.isEmpty) currentlyShowingTooltips-=key
+             else currentlyShowingTooltips+=key->tooltip.get
+             changeGridTooltip(gui,linenumber,colnumber,colfield,tooltip)
            }
         }
       }
@@ -855,7 +881,7 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit) {
   
 }
 
-class CurrentFieldState(var enabled:Boolean,var visible:Boolean,var specialIcon:Option[Icon],var specialLabel:Option[RichLabel],val canHaveSpecialIcon:Boolean,val canHaveSpecialLabel:Boolean)
+class CurrentFieldState(var enabled:Boolean,var visible:Boolean,var specialIcon:Option[Icon],var specialLabel:Option[RichLabel],var tooltip:Option[RichLabel],val canHaveSpecialIcon:Boolean,val canHaveSpecialLabel:Boolean,val canHaveTooltip:Boolean)
 
 
 

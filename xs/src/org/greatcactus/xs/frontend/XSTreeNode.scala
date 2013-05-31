@@ -248,6 +248,7 @@ class XSTreeNode(
   }
   
   def label(locale:Locale):RichLabel = RichLabel(dependencyInjection.getLabel,obj.toString,locale)
+  def tooltip(locale:Locale):Option[RichLabel] = dependencyInjection.getTooltip.flatMap{RichLabel(_,locale)}
   
   private val iconFromDependencies : AnyRef=>Option[Icon] = {
     case s:String => info.iconSource.iconOfLogicalName(s)
@@ -263,6 +264,8 @@ class XSTreeNode(
   
   /** Get the label for the field from dependency injection */
   def specialLabelForField(fieldname:String,locale:Locale):Option[RichLabel] = dependencyInjection.getLabelForField(fieldname).flatMap{RichLabel(_,locale)}
+  def tooltipForField(fieldname:String,locale:Locale): Option[RichLabel] = dependencyInjection.getTooltipForField(fieldname).flatMap{RichLabel(_,locale)}
+  
   def errors(fieldname:String,locale:Locale,humanEdited:Array[Option[TrimInfo]]) : List[ResolvedXSError] = {
     lazy val collectionLengths = for (field<-info.fields.find(_.name==fieldname);col<-field.getFieldAsStringCollectionLengthInfo(obj,humanEdited)) yield col 
     dependencyInjection.getErrors(fieldname).map{_.resolve(locale, collectionLengths)}
@@ -294,7 +297,7 @@ class XSTreeNode(
 
   def openChar : String = if (treeChildren.isEmpty) "." else if (isOpen) "-" else "+"
   def toFullTreeString(indent:Int,locale:Locale):String = {
-    val self = " "*indent+openChar+" "+label(locale).text
+    val self = " "*indent+openChar+" "+label(locale).text  // TODO include tooltip(locale)
     val kids = treeChildren.map{_.toFullTreeString(indent+1,locale)}
     (self::kids.toList).mkString("\n")
   } 

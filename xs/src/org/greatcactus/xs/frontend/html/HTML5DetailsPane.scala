@@ -104,6 +104,10 @@ class HTML5DetailsPane(val client:HTML5Client) extends XSDetailsPane[String](cli
   def changeUIWholeTable(gui:String,shouldBe:IndexedSeq[IndexedSeq[String]]) { for (columns<-getColumnExtractor(gui)) message(new SetRows(gui,shouldBe,columns.names))} 
   def changeUISingleLineTable(gui:String,index:Int,shouldBe:IndexedSeq[String]) { for (columns<-getColumnExtractor(gui)) message(new SetRow(gui,index,shouldBe,columns.names))} 
   override def setUITableEntriesIllegalContents(gui:String,illegalEntries:Map[Int,List[Int]]) { for (columns<-getColumnExtractor(gui)) message(new GridSetCellCssStyles(gui,illegalEntries,columns.names,"xsTotallyIllegal"))} 
+  
+  override def changeGridTooltip(gui:String,row:Int,col:Int,colfield:GeneralizedField,tooltip:Option[RichLabel]) { message(ClientMessage.setGridTooltip(gui+"_grid_R"+row+"C"+colfield.name,tooltip.getOrElse(RichLabel.nullLabel).html,gui+"_ui"))} // FIXME also should put them there in the first place maybe
+  override def changeUITooltip(id:String,tooltip:Option[RichLabel]) { jsSetHTML(id+"_labeltext",tooltip.getOrElse(RichLabel.nullLabel)) } 
+
   /*override def changeUIShowCustom[S](gui:String,custom:CustomComponent[S,String],shouldBe:S,old:S) { 
     custom match {
       case drawer:HTMLCustomComponent[S] => 
@@ -334,7 +338,7 @@ class GUICreatorHTML5(pane:HTML5DetailsPane) extends GUICreator[String] {
   }
   def createTableField(field:DetailsPaneFieldTable,currently:CurrentFieldState,initialValue:IndexedSeq[IndexedSeq[String]]) = {
     val id = newid()
-    val holder = <div id={id+"_ui"} class="xsTableHolder"><div id={id+"_grid"} class="xsTableGrid"></div><div class="xsTableTooltip"></div></div>
+    val holder = <div id={id+"_ui"} class="xsTableHolder"><div id={id+"_grid"} class="xsTableGrid"></div><div class="xsTableTooltip xsTableTooltipError"></div><div class="xsTableTooltip xsTableTooltipNormal"></div></div>
     //val baseVarID = "document.getElementById('"+id+"_ui').dataxs"
     //val varid = baseVarID+"_sg"
     val useDummyHeader = false; // put a set of row headers on the table, useful (but not necessary) for drag and drop. If used, need to alter the selection function to allow selection of non-focussable elements 
@@ -424,9 +428,12 @@ class GUICreatorHTML5(pane:HTML5DetailsPane) extends GUICreator[String] {
       case None => NodeSeq.Empty
       case Some(popup) => <button class="xsPopupButton" onclick={sessionprefix+"initiatePopup('"+id+"')"}>…</button><div id={id+"_popup"}></div> 
     }
-    val withenabled = addEnabled(input,currently.enabled)      
+    val withenabled = addEnabled(input,currently.enabled) 
+    val withTooltip = if (currently.canHaveTooltip) {
+         <div class="xsTooltipHolder"><div class="xsTooltip" id={id+"_tooltip"}>{currently.tooltip match { case Some(t) => t.html; case None => NodeSeq.Empty}}</div>{withenabled}</div>
+      } else withenabled
     val inrow = {
-      def mainTD(colspan:Int) : xml.Elem = <td colspan={colspan.toString} class={"xsErrorLabeled xsColMainWidth"+colspan}>{errorIcon(id,field.couldContainErrorIcon)}{withenabled}{customPopupHTML}</td>
+      def mainTD(colspan:Int) : xml.Elem = <td colspan={colspan.toString} class={"xsErrorLabeled xsColMainWidth"+colspan}>{errorIcon(id,field.couldContainErrorIcon)}{customPopupHTML}{withTooltip}</td>
       if (field.hideName) <tr id={id+"_all"}>{mainTD(2)}</tr>
       else {
         val label = addTitle(<label for={id+"_ui"}>{iconlabel(field.icon,currently,id)}{textlabel(field.label,currently,id)}</label>,field.tooltip)

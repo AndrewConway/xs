@@ -242,6 +242,7 @@ object ClientMessage {
   
   def addClass(selector:String,className:String,add:Boolean) = new SimpleClientMessage(if (add) "AddClass" else "RemoveClass",Array(selector,className))
   def setFieldIllegalContentsID(id:String,isIllegal:Boolean) = addClass("#"+id,"xsTotallyIllegal",isIllegal)
+  def setGridTooltip(id:String,html:NodeSeq,gridID:String) = new SimpleClientMessage("SetGridTooltip",Array(id,html.toString,gridID))
   def lostSession = new SimpleClientMessage("LostSession",Array())
   def ackMessage(ackid:String) = new SimpleClientMessage("ACK",Array(ackid))
   def run(command:String) = new SimpleClientMessage("Run",Array(command))
