@@ -66,8 +66,16 @@ function xsProcessClientMessageFromServer(json,session) {
             if (elem) elem.innerHTML=html;
             var gridelem = document.getElementById(json.args[2]);
             if (gridelem) {
-				  if (!elem.xsTooltips) elem.xsTooltips={};
-				  elem.xsTooltips[id]=html;
+				  if (!gridelem.xsTooltips) gridelem.xsTooltips={};
+				  gridelem.xsTooltips[id]=html;
+				  // see if tooltip is currently being displayed.
+				  if (gridelem.childNodes && gridelem.childNodes[1]) {
+					  var tooltip = gridelem.childNodes[1];
+					  var currentID = tooltip.getAttribute("data-tooltipsource");
+					  if (currentID==id) {
+						  tooltip.innerHTML=html;
+					  }
+				  }
             }
 		} else if (json.cmd=="Errors") {
 			xsPTF.setErrorList(json.id,json.errors);
@@ -76,6 +84,7 @@ function xsProcessClientMessageFromServer(json,session) {
 			  if (elem) {
 				  if (!elem.xsCellErrorLists) elem.xsCellErrorLists={};
 				  elem.xsCellErrorLists[json.id]=json.errors;
+				  // Should really check to see if the error is currently being displayed...
 			  }
 			}
 		} else if (json.cmd=="SetRows") {

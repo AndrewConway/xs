@@ -50,12 +50,16 @@ xs.grid = {
         while (grid && ! /(^| )xsTableHolder( |$)/.test(grid.className)) grid=grid.parentNode;
         return grid;    	
     },
+
+    //
+    // Tooltips (for errors and normal tooltips)
+    // These are complicated by the fact that the cells and tables have overflow:hidden, which means the tooltips get trimmed.
+    // To get around this we make the tooltips absolutely positioned outside the table.
+    //
     
-    SlickGridCellMouseOver : function(event,tooltipType) {
-       //console.log("Mouse over for "+event.target);	
-       // find the grid
-    	console.log(event);
-       var elem = event.target;
+    /** tooltipType=1 for normal tooltip and 2 for error  */
+    insertSlickGridTooltip : function(elem,tooltipType) {
+       //console.log("insertSlickGridTooltip Tooltip type "+tooltipType);
        var grid = xs.grid.getGridFromAncestor(elem);
        if (!grid) return;
        var o1 = $(elem).offset();
@@ -63,27 +67,29 @@ xs.grid = {
        var offx = o1.left-o2.left+8;
        var offy = o1.top-o2.top+14;
        //console.log("offx = "+offx+" offy="+offy);
-       console.log(tooltipType);
-       console.log(elem);
+       //console.log(elem);
        if (elem.childNodes && elem.childNodes[0] && grid.childNodes && grid.childNodes[tooltipType]) {
     	   var html = elem.childNodes[0].innerHTML;
     	   var dest = grid.childNodes[tooltipType];
     	   dest.innerHTML=html;
-    	   dest.setAttribute("data-tooltipsource",elem.id);
+    	   dest.setAttribute("data-tooltipsource",elem.getAttribute("data-tooltipFor"));
     	   var newStyle = (html=="")? "":("display:block; left:"+offx+"px; top:"+offy+"px;");  
     	   dest.setAttribute("style",newStyle);
        }
     },
 
-    /** tooltipType=1 for error and 2 for normal tooltip */
-    removeSlickGridTooltip : function(element,requireID,tooltipType) {
-    	console.log("Remove slick Grid tooltip "+element+" type="+tooltipType);
+    /** tooltipType=1 for normal tooltip and 2 for error */
+    removeSlickGridTooltip : function(element,tooltipType) {
+    	var requireID = element.getAttribute("data-tooltipFor");
+    	//console.log("Remove slick Grid tooltip "+element+" type="+tooltipType);
         var grid = xs.grid.getGridFromAncestor(element);
-        console.log(grid);
+        //console.log(grid);
         if (grid && grid.childNodes && grid.childNodes[tooltipType]) {
      	   var dest = grid.childNodes[tooltipType];
-     	   console.log("expectedid="+dest.getAttribute("data-tooltipsource")+"   actual="+requireID);
-     	   if ((!requireID) || dest.getAttribute("data-tooltipsource")==requireID) {
+     	   //console.log("expectedid="+dest.getAttribute("data-tooltipsource")+"   actual="+requireID);
+     	   //console.log(requireID);
+     	   if ((!requireID) || (requireID=="") || dest.getAttribute("data-tooltipsource")==requireID) {
+     		   //console.log("Removing");
          	   dest.removeAttribute("data-tooltipsource");
          	   dest.innerHTML="";
          	   dest.setAttribute("style","");     		   
@@ -91,13 +97,72 @@ xs.grid = {
         }    	
     },
     
+    /** Get, if it exists, the most recent ancestor of elem that is of class xsGridTooltipHolder  */
+    getGridTooltipHolderFromAncestor : function(elem) {
+        var grid = elem;
+        while (grid && ! /(^| )xsGridTooltipHolder( |$)/.test(grid.className)) grid=grid.parentNode;
+        return grid;    	
+    },
+
+    SlickGridCellMouseOverPlainTooltip : function(event) {
+    	var elem = xs.grid.getGridTooltipHolderFromAncestor(event.target);
+    	//console.log("Over");
+    	//console.log(event.target);
+    	//console.log("Parent");
+    	//console.log(elem);
+    	if (!elem) return
+        xs.grid.insertSlickGridTooltip(elem,1);
+    },
     
-    SlickGridCellMouseOut : function(event,tooltipType) {
-        console.log("Mouse out for "+event.target);	
-        console.log(event.target);
+    SlickGridCellMouseOutPlainTooltip : function(event) {
+    	var elem = xs.grid.getGridTooltipHolderFromAncestor(event.target);
+    	//console.log("Out");
+    	//console.log(event.target);
+    	//console.log("Parent");
+    	//console.log(elem);
+    	if (!elem) return
+        xs.grid.removeSlickGridTooltip(elem,1);
+    },
+    
+    SlickGridCellMouseOutError : function(event) {
+        //console.log("Mouse out for "+event.target);	
+        //console.log(event.target);
         var elem = event.target;
-        xs.grid.removeSlickGridTooltip(elem,elem.id,tooltipType);
+        xs.grid.removeSlickGridTooltip(elem,2);
      },
+
+     SlickGridCellMouseOverError : function(event) {
+         var elem = event.target;
+         xs.grid.insertSlickGridTooltip(elem,2);
+      },
+      
+      startEditingCell : function(gridID,cellID) {
+     	 //console.log("startEditingCell("+gridID+","+cellID+")");
+     	 var gridelem = document.getElementById(gridID+"_ui");
+     	 if (gridelem && gridelem.childNodes) {
+     		 var tooltip = gridelem.childNodes[1];
+     		 if (tooltip) {
+     			var currentlyShowing = tooltip.getAttribute("data-tooltipsource");
+//     			console.log("currently showing "+currentlyShowing);
+     			if (currentlyShowing==cellID) { // suppress current tooltip
+     				tooltip.setAttribute("style","");
+     			}
+     		 }
+     		 var tooltiperror = gridelem.childNodes[2];
+     		 if (tooltiperror) {
+     			var currentlyShowing = tooltiperror.getAttribute("data-tooltipsource");
+//     			console.log("currently showing error "+currentlyShowing);
+     			if (currentlyShowing==cellID) { // suppress current tooltip
+     				tooltiperror.setAttribute("style","");
+     			}
+     		 }
+     	 }
+      },
+      endEditingCell : function(gridID,cellID) {
+//     	 console.log("endEditingCell("+gridID+","+cellID+")");
+      },
+      
+
     
      surroundWithErrorCheck : function(id,base,mainTableElem) {
  		if (mainTableElem && mainTableElem.xsCellErrorLists && mainTableElem.xsCellErrorLists[id]) {
@@ -105,10 +170,12 @@ xs.grid = {
  		}
     	var tooltipContents = "";
     	if (mainTableElem && mainTableElem.xsTooltips && mainTableElem.xsTooltips[id]) tooltipContents=mainTableElem.xsTooltips[id];
-    	var withTooltip = "<div class='xsGridTooltipHolder' onmouseenter='xs.grid.SlickGridCellMouseOver(event,2)' onmouseleave='xs.grid.SlickGridCellTooltipMouseOut(event,2)'><div id='"+id+"_tooltip' class='xsTooltip'>"+tooltipContents+"</div>"+base+"</div>"; 
-    	var errorHolder = "<div class='xsErrorIconHolder'><div id='"+id+"_erroricon' class='xsErrorIcon xsErrorIcon1000' onmouseover='xs.grid.SlickGridCellMouseOver(event,1)' onmouseout='xs.grid.SlickGridCellMouseOut(event,1)'><div id='"+id+"_errortooltip' style='display:none;'></div></div></div>";
+    	// onmouseenter='xs.grid.SlickGridCellMouseOver(event,2)' onmouseout='xs.grid.SlickGridCellMouseOutPlainTooltip(event,1)'
+    	var withTooltip = "<div class='xsGridTooltipHolder' data-tooltipFor='"+id+"'><div id='"+id+"_tooltip' class='xsTooltip'>"+tooltipContents+"</div>"+base+"</div>"; 
+    	var errorHolder = "<div class='xsErrorIconHolder'><div data-tooltipFor='"+id+"' id='"+id+"_erroricon' class='xsErrorIcon xsErrorIcon1000' onmouseover='xs.grid.SlickGridCellMouseOverError(event)' onmouseout='xs.grid.SlickGridCellMouseOutError(event)'><div id='"+id+"_errortooltip' style='display:none;'></div></div></div>";
      	return "<div class='xsErrorLabeled'>"+errorHolder+withTooltip+"</div>";    	 
      },
+     
     
     SlickGridPTFFormatter : function(row, cell, value, columnDef, dataContext) {
     	//console.log(columnDef);
@@ -118,26 +185,24 @@ xs.grid = {
     	//console.log("Slick formatter for "+text);
 	    var elem = document.getElementById(columnDef.mainID+"_ui");
 		setTimeout(function() {xs.grid.checkForOverflow(id);},1); // needs to be done after creation.
-		var base="<div id='"+id+"' class='xsPseudoTextField'>"+xsPTF.PTFinnerHTMLOfText(text,errorlist,true)+"</div>";
+		var base="<div id='"+id+"' class='xsPseudoTextField' onmouseover='xs.grid.SlickGridCellMouseOverPlainTooltip(event)' onmouseout='xs.grid.SlickGridCellMouseOutPlainTooltip(event)'>"+xsPTF.PTFinnerHTMLOfText(text,errorlist,true,id)+"</div>";
 		return xs.grid.surroundWithErrorCheck(id,base,elem);
       },
     
       
     SlickGridPTFEditor : function(args) {
+        var gridpos = args.grid.getActiveCell();
         var $input;
         var defaultValue;
         var scope = this;
-    	var id;
+    	var id= args.column.mainID+"_grid_R"+gridpos.row+"C"+args.column.id;;
     	var target;
 
         var $wrapper;
 
         this.init = function () {
-          var gridpos = args.grid.getActiveCell();
           //console.log(gridpos);
           //console.log(gridpos.row);
-      	  id = args.column.mainID+"_grid_R"+gridpos.row+"C"+args.column.id;
-          // id = args.grid.xsPTFid+"_R"+gridpos.row+"C"+gridpos.cell+"_grid_ui";
           //console.log(id);
           var $container = $("body");
           //console.log("Container width ="+$(args.container).css("width"));
@@ -145,7 +210,7 @@ xs.grid = {
           $wrapper = $("<div class='xsErrorLabeled xsEditorAbsolutelyPositioned'><div class='xsErrorIconHolder'><div class='xsErrorIcon xsErrorIcon1000' id='"+id+"_erroricon'><div id='"+id+"_errortooltip'></div></div></div></div>")
               .appendTo($container);
 
-          $input = $("<div id='"+id+"' class='xsPseudoTextField' data-ontablepasteobj='"+args.grid.xsPTFonInputObj+"' data-xsSuppressNL='"+ (!args.column.multiline)+"' data-text='' xs-data-gridRow='"+gridpos.row+"' xs-data-gridCol='"+args.column.id+"' data-onInputObj='"+args.grid.xsPTFonInputObj+"' contenteditable='true' spellcheck='false' oninput='xsPTF.input(event)' onkeyup='xsPTF.inputSurrogate(event)' onblur='xsPTF.inputSurrogate(event)' onpaste='xsPTF.inputSurrogate(event)' oncut='xsPTF.inputSurrogate(event)' ></div>")
+          $input = $("<div id='"+id+"' class='xsPseudoTextField' data-ontablepasteobj='"+args.grid.xsPTFonInputObj+"' data-xsSuppressNL='"+ (!args.column.multiline)+"' data-text='' xs-data-gridRow='"+gridpos.row+"' xs-data-gridCol='"+args.column.id+"' data-onInputObj='"+args.grid.xsPTFonInputObj+"' contenteditable='true' spellcheck='false' oninput='xsPTF.input(event)' onkeyup='xsPTF.inputSurrogate(event)' onblur='xsPTF.inputSurrogate(event)' onpaste='xsPTF.inputSurrogate(event)' oncut='xsPTF.inputSurrogate(event)'  onmouseover='xs.grid.SlickGridCellMouseOverPlainTooltip(event)' onmouseout='xs.grid.SlickGridCellMouseOutPlainTooltip(event)'></div>")
               .appendTo($wrapper);
           target = document.getElementById(id);
           var elem = document.getElementById(args.column.mainID+"_ui");
@@ -172,6 +237,7 @@ xs.grid = {
         		  if (cellclassescell) $(target).addClass("xsTotallyIllegal");
         	  }
           }
+          xs.grid.startEditingCell(args.column.mainID,id);
         };
         
         this.getTarget = function () { return target; };
@@ -194,6 +260,7 @@ xs.grid = {
         this.destroy = function () {
         	//console.log("Destroy "+id);
           $wrapper.remove();
+          xs.grid.endEditingCell(args.column.mainID,id); 
         };
 
         this.focus = function () {
@@ -293,8 +360,8 @@ xs.grid = {
         elem.setAttribute("class","xsGridCheckbox"+isChecked);
         var gridholder = xs.grid.getGridFromAncestor(elem);
         var slickgrid = gridholder.dataxs_sg;
-        var rows = slickgrid.getData();
-        if (rows.length>row) rows[row][colfield]=text;
+        var rows = slickgrid.getData().getItem(row);
+        if (rows) rows[colfield]=text;
     	slickgrid.xsChangeGrid(row,colfield,text);
     	
     },
@@ -303,7 +370,7 @@ xs.grid = {
       	var id = columnDef.mainID+"_grid_R"+row+"C"+columnDef.id;
       	var isChecked = xs.grid.isTrueString(value);
       	//console.log("isChecked = "+isChecked);
-      	var base = "<span id='"+id+"_ui' class='xsGridCheckbox"+isChecked+"' onclick='xs.grid.clickSlickGridBoolean(event.target)' data-gridRow='"+row+"' data-gridColField='"+columnDef.field+"' tabindex='0' role='button'>"+(isChecked?"✓":"✗")+"</span>";
+      	var base = "<span id='"+id+"_ui' class='xsGridCheckbox"+isChecked+"' onclick='xs.grid.clickSlickGridBoolean(event.target)' data-gridRow='"+row+"' data-gridColField='"+columnDef.field+"' tabindex='0' role='button' onmouseover='xs.grid.SlickGridCellMouseOverPlainTooltip(event)' onmouseout='xs.grid.SlickGridCellMouseOutPlainTooltip(event)'>"+(isChecked?"✓":"✗")+"</span>";
     	//console.log("Slick formatter for "+text);
 	    var elem = document.getElementById(columnDef.mainID+"_ui");
 		return xs.grid.surroundWithErrorCheck(id,base,elem);
@@ -311,7 +378,7 @@ xs.grid = {
      
      SlickGridBooleanEditor : function(args) {
          var gridpos = args.grid.getActiveCell();
-         var datarow = args.grid.getData()[gridpos.row];
+         var datarow = args.grid.getData().getItem(gridpos.row);
        	 var id = args.column.mainID+"_grid_R"+gridpos.row+"C"+args.column.id;
        	 var getElem = function() { return document.getElementById(id+"_ui"); };
        	 var defaultValue = (datarow&&(xs.grid.isTrueString(datarow[args.column.field])))?"true":"false";
@@ -333,13 +400,13 @@ xs.grid = {
               xs.grid.removeSlickGridTooltip(args.container);
              $(getElem()).focus();
              //$input.focus().select();
-             
+             xs.grid.startEditingCell(args.column.mainID,id);
          };
 
          this.save = function () {  args.commitChanges();  };
          this.cancel = function () {  args.cancelChanges();  };
 
-         this.destroy = function () {  $input.remove(); };
+         this.destroy = function () {  $input.remove(); xs.grid.endEditingCell(args.column.mainID,id); };
          this.focus = function () { $input.focus(); };
 
          this.loadValue = function (item) {
@@ -376,6 +443,7 @@ xs.grid = {
        		var c = choices[i];
        		if (c.original==value) base=xsPTF.escapeText(c.localized); 
        	}
+      	base = "<span onmouseover='xs.grid.SlickGridCellMouseOverPlainTooltip(event)' onmouseout='xs.grid.SlickGridCellMouseOutPlainTooltip(event)'>"+base+"</span>";
      	//console.log("Slick formatter for "+text);
  	    var elem = document.getElementById(columnDef.mainID+"_ui");
  		return xs.grid.surroundWithErrorCheck(id,base,elem);
@@ -392,8 +460,8 @@ xs.grid = {
         	var text = options[ind].value;
             var gridholder = xs.grid.getGridFromAncestor(elem);
             var slickgrid = gridholder.dataxs_sg;
-            var rows = slickgrid.getData();
-            if (rows.length>row) rows[row][colfield]=text;
+            var rows = slickgrid.getData().getItem(row);
+            if (rows) rows[colfield]=text;
         	slickgrid.xsChangeGrid(row,colfield,text);
     	}
 
@@ -401,11 +469,15 @@ xs.grid = {
      
      SlickGridChoiceEditor : function(args) {
          var gridpos = args.grid.getActiveCell();
-         var datarow = args.grid.getData()[gridpos.row];
+         //console.log(args.grid.getData());
+         var datarow = args.grid.getData().getItem(gridpos.row);
        	 var id = args.column.mainID+"_grid_R"+gridpos.row+"C"+args.column.id;
        	 var getElem = function() { return document.getElementById(id+"_ui"); };
        	 var choices = args.column.choices;
+       	 //console.log(datarow);
+       	 //console.log(args.column.field);
        	 var defaultValue = datarow&&(datarow[args.column.field]);
+       	 //console.log("choice defaultValue = "+defaultValue);
        	 var inputBase = "<select id='"+id+"_ui' data-gridRow='"+gridpos.row+"' data-gridColField='"+args.column.field+"' onchange='xs.grid.choiceEditorChange(event.target)'>";
        	 for (var i=0;i<choices.length;i++) {
        		 var c=choices[i];
@@ -439,11 +511,11 @@ xs.grid = {
 
              $input.focus();
              //$input.focus().select();
-             
+             xs.grid.startEditingCell(args.column.mainID,id);
          };
 
 
-         this.destroy = function () {  $input.remove(); };
+         this.destroy = function () {  $input.remove(); xs.grid.endEditingCell(args.column.mainID,id); };
          this.focus = function () { $input.focus(); };
 
          this.loadValue = function (item) {

@@ -102,6 +102,10 @@ class CoreComposition(@StringEditable val element:String,@StringEditable val per
   @ErrorCheck("element") private def checkName = ErrorChecks.checkValidCharacters(element)
   @ErrorCheck("magnetic") private def checkMagnetic = if (magnetic != element.equalsIgnoreCase("fe")) XSError.warning("Are you sure?") else null
   @ErrorCheck("evidence") private def checkEvidence = if (evidence == Evidence.DirectMeasurement) XSError.error("You have got to be kidding!") else null
+  @TooltipProvider("element") private def tooltipElement = "Tooltip for "+element
+  @TooltipProvider("magnetic") private def tooltipMagnetic = "Tooltip for "+magnetic
+  @TooltipProvider("evidence") private def tooltipEvidence = "Tooltip for "+evidence
+  @TooltipProvider("comments") private def tooltipComments = "Tooltip for "+comments
 }
 
 @XS

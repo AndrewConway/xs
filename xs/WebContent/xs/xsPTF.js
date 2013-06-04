@@ -191,7 +191,7 @@ var xsPTF = {
        // finished step (2), start step (3)
        var errorList = this.getErrorList(target);
        // finished step (3), start step (4)
-       var resHTML = this.PTFinnerHTMLOfText(contents.text,errorList,xs && xs.grid && xs.grid.getGridFromAncestor(target));
+       var resHTML = this.PTFinnerHTMLOfText(contents.text,errorList,xs && xs.grid && xs.grid.getGridFromAncestor(target),target.id);
        target.innerHTML = resHTML;
        // finished step (4), start step (5)
        if (window.getSelection && document.createRange && contents.startSelection != -1 && contents.endSelection!= -1) {
@@ -316,7 +316,7 @@ var xsPTF = {
     	
     },
     
-    PTFinnerHTMLOfText : function(resText,errorList,isInGrid) {
+    PTFinnerHTMLOfText : function(resText,errorList,isInGrid,id) {
         // now we need to convert the text into HTML that can be displayed. 
         //  1. We need to break up spans that have errors
         //  2. to make a final newline display on IE, we need to replace newlines by <br/> tags.
@@ -351,7 +351,7 @@ var xsPTF = {
               //console.log("Errors "+splitErrors+" length "+splitErrors.length);
               if (splitErrors.length!=0) {
             	  var errorOpenDiv = isInGrid?"<div class='xsSpanErrorGridTooltip'>":"<div class='xsSpanErrorTooltip'>"; 
-            	  var mouseCommands = isInGrid?" onmouseover='xs.grid.SlickGridCellMouseOver(event)' onmouseout='xs.grid.SlickGridCellMouseOut(event)'":"";	  
+            	  var mouseCommands = isInGrid?" data-tooltipFor='"+id+"' onmouseover='xs.grid.SlickGridCellMouseOverError(event)' onmouseout='xs.grid.SlickGridCellMouseOutError(event)'":"";	  
             	  splitText="<span class='xsSpanError xsSpanError"+this.worstSeverity(splitErrors)+"'"+mouseCommands+">"+errorOpenDiv+this.errorListAsHTML(splitErrors)+"</div>"+splitText+"</span>";
               }
               if (this.isFirefox) resHTML+=splitText;

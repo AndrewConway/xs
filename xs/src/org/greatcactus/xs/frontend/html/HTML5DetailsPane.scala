@@ -338,7 +338,7 @@ class GUICreatorHTML5(pane:HTML5DetailsPane) extends GUICreator[String] {
   }
   def createTableField(field:DetailsPaneFieldTable,currently:CurrentFieldState,initialValue:IndexedSeq[IndexedSeq[String]]) = {
     val id = newid()
-    val holder = <div id={id+"_ui"} class="xsTableHolder"><div id={id+"_grid"} class="xsTableGrid"></div><div class="xsTableTooltip xsTableTooltipError"></div><div class="xsTableTooltip xsTableTooltipNormal"></div></div>
+    val holder = <div id={id+"_ui"} class="xsTableHolder"><div id={id+"_grid"} class="xsTableGrid"></div><div class="xsTableTooltip xsTableTooltipNormal"></div><div class="xsTableTooltip xsTableTooltipError"></div></div>
     //val baseVarID = "document.getElementById('"+id+"_ui').dataxs"
     //val varid = baseVarID+"_sg"
     val useDummyHeader = false; // put a set of row headers on the table, useful (but not necessary) for drag and drop. If used, need to alter the selection function to allow selection of non-focussable elements 

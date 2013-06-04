@@ -163,6 +163,8 @@ class TestXSDetailsPane(_locale:Locale,_xsedit:XSEdit) extends XSDetailsPane[Str
   def changeUISingleLineTable(gui:String,index:Int,shouldBe:IndexedSeq[String]) {} 
   def setUITableEntriesIllegalContents(gui:String,illegalEntries:Map[Int,List[Int]]) {}
   def getCustom(f:DetailsPaneFieldCustom) : Option[CustomComponent[_,String]] = None
+  def changeUITooltip(gui:String,tooltip:Option[RichLabel]) {}
+  def changeGridTooltip(gui:String,row:Int,col:Int,colfield:GeneralizedField,tooltip:Option[RichLabel]) {}
 
 }
 
