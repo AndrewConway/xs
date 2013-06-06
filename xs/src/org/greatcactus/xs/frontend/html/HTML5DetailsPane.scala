@@ -106,7 +106,7 @@ class HTML5DetailsPane(val client:HTML5Client) extends XSDetailsPane[String](cli
   override def setUITableEntriesIllegalContents(gui:String,illegalEntries:Map[Int,List[Int]]) { for (columns<-getColumnExtractor(gui)) message(new GridSetCellCssStyles(gui,illegalEntries,columns.names,"xsTotallyIllegal"))} 
   
   override def changeGridTooltip(gui:String,row:Int,col:Int,colfield:GeneralizedField,tooltip:Option[RichLabel]) { message(ClientMessage.setGridTooltip(gui+"_grid_R"+row+"C"+colfield.name,tooltip.getOrElse(RichLabel.nullLabel).html,gui+"_ui"))} // FIXME also should put them there in the first place maybe
-  override def changeUITooltip(id:String,tooltip:Option[RichLabel]) { jsSetHTML(id+"_labeltext",tooltip.getOrElse(RichLabel.nullLabel)) } 
+  override def changeUITooltip(id:String,tooltip:Option[RichLabel]) {  jsSetHTML(id+"_tooltip",tooltip.getOrElse(RichLabel.nullLabel)) } 
 
   /*override def changeUIShowCustom[S](gui:String,custom:CustomComponent[S,String],shouldBe:S,old:S) { 
     custom match {
