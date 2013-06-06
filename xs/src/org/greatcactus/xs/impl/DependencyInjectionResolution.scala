@@ -346,6 +346,8 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
   def changedObject(oldObject:AnyRef,newObject:AnyRef) {
     synchronized {
       existingResolved = existingResolved.filter{_._2.function.survivesChange(oldObject,newObject)}
+      if (DependencyInjectionCurrentStatus.debugDependencyInjections) println("Changed object "+oldObject+" to "+newObject+" saved "+existingResolved.size)
+      //(new IllegalArgumentException).printStackTrace()
       makeDirty()
       parentMirror = if (newObject==null) null else scala.reflect.runtime.currentMirror.reflect(newObject)
       parentObject = newObject
@@ -354,12 +356,14 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
   }
   
   private def makeDirty() {
+    println("Set to dirty")
     if (!dirty) {
       dirty=true
       associatedNode.xsedit.dependencyInjectionCleaningQueue.add(associatedNode)
     }
   }
   def changedParentInjections(newInjectionsFromParent : Set[AnyRef]) {
+    if (DependencyInjectionCurrentStatus.debugDependencyInjections) println("Changed injections from parent for "+parentObject+" added "+(newInjectionsFromParent--injectedFromParent)+" removed "+(injectedFromParent--newInjectionsFromParent))
     synchronized {
       if (newInjectionsFromParent != injectedFromParent) {
         injectedFromParent=newInjectionsFromParent;
@@ -372,6 +376,7 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
     synchronized {
       if (existingResolved.get(obsoleted.function)==Some(obsoleted)) {
         existingResolved-=obsoleted.function
+        if (DependencyInjectionCurrentStatus.debugDependencyInjections) println("Changed external resource for "+parentObject)
         makeDirty()
         associatedNode.xsedit.dependencyInjectionCleaningQueue.cleanReturningInstantlyIfSomeOtherThreadIsAlreadyCleaning()
       }

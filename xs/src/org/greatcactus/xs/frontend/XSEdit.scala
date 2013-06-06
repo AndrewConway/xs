@@ -90,7 +90,7 @@ class XSEdit(original:AnyRef,val externalDependencyResolver:Option[ExternalDepen
     synchronized {
       if (node.isOpen!=open) {
         node.isOpen=open
-        processChangesToKids(List(new TreeNodeChange(node,node.treeChildren,Nil,Nil,Nil)),null,null)
+        broadcast(new TreeChange(List(new TreeNodeChange(node,node.treeChildren,Nil,Nil,Nil))))
       }
     }
   }
