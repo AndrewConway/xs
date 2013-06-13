@@ -52,7 +52,7 @@ object DetailsPaneFields {
     val text = t.textResources(locale)
     val fields = new ListBuffer[EditPaneElem]
     for (f<-t.fields) { 
-      if (f.isIndividuallyEditable) { // put in all the "adds"
+      if (f.isIndividuallyEditable || f.isInlineEditable) { // put in all the "adds"
         for (sub<-f.xsinfo.get.transitiveSubclasses) {
           val subt = sub.textResources(locale)
           val title = text.get(f.name+".Add_"+sub.name).orElse(text.get(f.name+".Add")).orElse(subt.get("Add")).getOrElse("Add "+f.name)
@@ -88,6 +88,9 @@ object DetailsPaneFields {
         val columns: List[DetailsPaneField] = f.xsinfo.get.getPane(locale,false).justFields
         for (c<-columns) if (!c.validInTable) throw new IllegalArgumentException("Invalid column "+c.name+" in table")
         val field = new DetailsPaneFieldTable(f,text(f.name),text.get(f.name+".tooltip"),f.displayOptions.icon,columns,locale,t.dependencyInjectionInfo.fieldsThatCouldHaveErrors)
+        fields+=new EditPaneElem(field,f.displayOptions.editSection,f.displayOptions.orderingPriority)                
+      } else if (f.isInlineEditable) {
+        val field = new DetailsPaneFieldInline(f,text(f.name),text.get(f.name+".tooltip"),f.displayOptions.icon,locale,t.dependencyInjectionInfo.fieldsThatCouldHaveErrors)
         fields+=new EditPaneElem(field,f.displayOptions.editSection,f.displayOptions.orderingPriority)                
       }
     }
@@ -291,9 +294,9 @@ class DetailsPaneFieldImage(val field:XSFieldInfo,val label:String,val tooltip:O
 
 class DetailsPaneFieldTable(val field:XSFieldInfo,val label:String,val tooltip:Option[String],val icon:Option[Icon],val columns: List[DetailsPaneField],val locale:Locale,fieldsThatCouldHaveErrors:Set[String]) extends DetailsPaneFieldLabeled with DetailsPaneFieldBasedOnSimpleField {
   def resolveNetworkReferences = field.resolveNetworkReferences
-  def getNodes(parent:XSTreeNode) : IndexedSeq[XSTreeNode] = parent.tableChildren(field)
+  def getNodes(parent:XSTreeNode) : IndexedSeq[XSTreeNode] = parent.tableAndInlineChildren(field)
   def get(parent:XSTreeNode) : (IndexedSeq[XSTreeNode],IndexedSeq[IndexedSeq[String]]) = {
-    val rows = parent.tableChildren(field)
+    val rows = parent.tableAndInlineChildren(field)
     val data = rows.map{_.getTableFields(columnExtractors)}
     (rows,data)
   }
@@ -306,6 +309,21 @@ class DetailsPaneFieldTable(val field:XSFieldInfo,val label:String,val tooltip:O
   override def wholeLine = field.displayOptions.wholeLine
   override def columnExtractor = None
 }
+
+// TODO think if all the things here make sense.
+class DetailsPaneFieldInline(val field:XSFieldInfo,val label:String,val tooltip:Option[String],val icon:Option[Icon],val locale:Locale,fieldsThatCouldHaveErrors:Set[String]) extends DetailsPaneFieldLabeled with DetailsPaneFieldBasedOnSimpleField {
+  def resolveNetworkReferences = field.resolveNetworkReferences
+  def getNodes(parent:XSTreeNode) : IndexedSeq[XSTreeNode] = parent.tableAndInlineChildren(field)
+  def get(parent:XSTreeNode) : GenTraversable[Any] = field.getAllFieldElements(parent)
+  
+  override def toString = label
+  val couldContainErrorIcon : Boolean = fieldsThatCouldHaveErrors.contains(name)
+  override def multiline = true
+  override def hideName = field.displayOptions.hideName
+  override def wholeLine = field.displayOptions.wholeLine
+  override def columnExtractor = None
+}
+
 
 class ColumnExtractors(val fields:IndexedSeq[GeneralizedField],val locale:Locale) {
   def extract(parent:XSTreeNode) : IndexedSeq[String] = for (f<-fields) yield f match {

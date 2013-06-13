@@ -11,6 +11,7 @@ import org.greatcactus.xs.api.display._
 import scala.collection.mutable.ListBuffer
 import org.greatcactus.xs.api.errors._
 import org.greatcactus.xs.api.icon.Icon
+import org.greatcactus.xs.api.XSName
 
 /**
  * Contains all the classes used in the space test framework.
@@ -109,10 +110,19 @@ class CoreComposition(@StringEditable val element:String,@StringEditable val per
 }
 
 @XS
+class Discoverer(
+    @StringEditable val surname:String,
+    @StringEditable val firstname:String,
+    @StringEditable val date:String
+    )
+
+@XS
 @XSIcon("Comet")
 class Comet(
     @CustomPopup("DemoPopup") @EditSection("nomenclature") @StringEditable @DefaultValue("New comet")  val name:String,
-    @StringEditable val period:Double
+    @StringEditable val period:Double,
+    @InlineEditable val firstDiscoverer:Option[Discoverer],
+    @XSName("OtherDiscoverer") @InlineEditable val discoverers:List[Discoverer]
  ) extends HeavenlyBody {
   override def toString = name
 }

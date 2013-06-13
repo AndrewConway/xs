@@ -70,7 +70,9 @@ val deserialized : Complex = XMLDeserialize.deserialize[Complex](serializedData)
    is represented as a tree (typically on the left hand side of the edit window), with individual nodes having fields that can be edited
    (on the right hand side). Fields that hold <code>@XS</code> annotated objects are usually annotated with <code>@IndividuallyEditable</code>
    which means they should be represented by new nodes in the tree. They can also be left unannotated, in which case they will be preserved but
-   not displayed, or annotated with <code>@TableEditable</code> which means they will be displayed as a grid (think Excel).</p>
+   not displayed, or annotated with <code>@TableEditable</code> which means they will be displayed as a grid (think Excel). They
+   can also be annotated with <code>@InlineEditable</code> which means they will be displayed as multiple blocks inside the current
+   view.</p>
    
    <p>Fields that are serialized to strings are generally edited as fields on the right hand side. They can be edited
    as checkboxes via <code>@BooleanEditable</code>, as strings via <code>@StringEditable</code> (this includes numbers, 

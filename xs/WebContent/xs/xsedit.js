@@ -31,6 +31,8 @@ function xsProcessClientMessageFromServer(json,session) {
 			$(json.args[0]).after(json.args[1]);
 		} else if (json.cmd=="AddAtStart") {
 			$(json.args[0]).prepend(json.args[1]);
+		} else if (json.cmd=="AddAtEnd") {
+			$(json.args[0]).append(json.args[1]);
 		} else if (json.cmd=="AddClass") {
 			$(json.args[0]).addClass(json.args[1]);
 		} else if (json.cmd=="RemoveClass") {

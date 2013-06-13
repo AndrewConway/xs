@@ -130,7 +130,7 @@ class XSEdit(original:AnyRef,val externalDependencyResolver:Option[ExternalDepen
       }
       //val newobj : AnyRef = parent.info.deleteField(parent.obj,node.fieldInParent,node.obj) 
       val changes = parent.changeObject(newobj)
-      assert (changes.removedChildren.length==children.filter{!_.fieldInParent.isTableEditable}.length)
+      assert (changes.removedChildren.length==children.filter{!_.fieldInParent.isTableOrInlineEditable}.length)
       assert (changes.addedChildren.isEmpty)
       assert (changes.sub.isEmpty)
       changes
@@ -203,7 +203,7 @@ class XSEdit(original:AnyRef,val externalDependencyResolver:Option[ExternalDepen
     // println("New object in add field "+newobj)
     val changes = parent.changeObject(newobj)
     assert (changes.removedChildren.isEmpty)
-    assert (field.isTableEditable || !changes.addedChildren.isEmpty) 
+    assert (field.isTableEditable || field.isInlineEditable || !changes.addedChildren.isEmpty) 
     assert (changes.sub.isEmpty)
     for (f<-executeAfterModificationBeforeRefreshing) f()
     processChangesToKids(List(changes),null,undoDesc)

@@ -22,7 +22,10 @@ table.xsPasteTable tr:nth-child(odd) {
 	white-space: nowrap;
 }
 
-
+.xsInlineField .xsFormWrapper {
+	border:1px solid #999;
+    border-radius:0.3em;
+}
 
 .xsTableHolder {
 	width: 100%;
@@ -79,6 +82,9 @@ border:0;
 }
 
 .xsEdit > div {
+    height:100%;
+}
+.xsEdit > div > div {
     height:100%;
 }
 .xsEditTree, .XSDetailsPane {
@@ -172,7 +178,7 @@ img.xsIcon {
   padding:0px 0px 0px 0px;
   margin:0px 0px 0px 0px;
 }
-.XSDetailsPane > p {
+.XSDetailsPane > p, .XSDetailsPane > div > p{
   font-size:0.7em;
 }
 

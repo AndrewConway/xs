@@ -203,6 +203,7 @@ object ClientMessage {
   def removeID(id:String) = new SimpleClientMessage("Remove",Array("#"+id))
   def addAfterID(id:String,html:NodeSeq) = new SimpleClientMessage("AddAfter",Array("#"+id,html.toString))
   def addAtStartID(id:String,html:NodeSeq) = new SimpleClientMessage("AddAtStart",Array("#"+id,html.toString))
+  def addAtEndID(id:String,html:NodeSeq) = new SimpleClientMessage("AddAtEnd",Array("#"+id,html.toString))
   def setVisibleID(id:String,visible:Boolean) = new SimpleClientMessage(if (visible) "Show" else "Hide",Array("#"+id))
   //def setEnabledID(id:String,enabled:Boolean) = new SimpleClientMessage(if (enabled) "Enable" else "Disable",Array("#"+id))
   def setValueID(id:String,value:String) = { new SimpleClientMessage("SetValue",Array(id,value)) }

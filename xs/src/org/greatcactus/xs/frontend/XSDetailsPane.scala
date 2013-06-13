@@ -22,6 +22,7 @@ import scala.collection.mutable.ArrayBuffer
 import org.greatcactus.xs.impl.GeneralizedField
 import org.greatcactus.xs.api.command.ProgressMonitor
 import org.greatcactus.xs.api.command.ProgressMonitorUI
+import org.greatcactus.xs.impl.SerializableTypeInfo
 
 /**
  * A GUI client should extend this controller to manage the "details" pane of the item currently being edited.
@@ -31,7 +32,7 @@ import org.greatcactus.xs.api.command.ProgressMonitorUI
  * There will be one copy of this per client
  *
  */
-abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit) {
+abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit) { basePane =>
 
   private var currentlyShowing : Option[XSTreeNode] = None
   private var currentPane : Option[DetailsPaneFields] = None
@@ -174,8 +175,8 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit) {
     synchronized {
      try {
       for (node<-currentlyShowing) {
-        for (elem<-uiField(uiElement)) 
-          if (action.isDefinedAt(elem)) action(elem)(node)
+        for (elem<-uiField(uiElement); realnode<-elem.submap.map(node)) 
+          if (action.isDefinedAt(elem.field)) action(elem.field)(realnode)
       }
      } catch { case e:Exception => e.printStackTrace() } // make sure that XS doesn't crash the front end code.
     }
@@ -188,6 +189,8 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit) {
   def initiatePopup(field:UIFieldText,popupName:String,node:XSTreeNode)
   /** Client code to dispose of the GUI elements created previously */
   def dispose(guis:UIFields) : Unit
+  /** Client code to remove a GUI element. Used for inline edit blocks. Elements should be disposed before calling this. */
+  def remove(gui:T) : Unit
   /** Called when the screen should be set to blank */
   def setBlankScreen() : Unit
   /** Possibly overridden method that says make sure everything is sent to the client. Useful for clients (like HTML) that may bunch multiple commands up into one packet. */
@@ -248,7 +251,11 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit) {
   // Utility functions
   //
   private def makeNewGUI(tree:XSTreeNode,pane:DetailsPaneFields) : UIFields = {
-    val creator = newCreator()
+    val creator = newCreator()    
+    makeNewGUI(tree,pane,creator,NoMap)
+  }
+  
+  private def makeNewGUI(tree:XSTreeNode,pane:DetailsPaneFields,creator:GUICreator[T],submap:SubNodeMap) : UIFields = {
     val buffer = new ListBuffer[UIField]
     def getState(field:DetailsPaneField) = {
         val enabled = field.shouldBeEnabled(tree)
@@ -302,13 +309,17 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit) {
             val initialValue = f.get(tree)._2
             val gui = creator.createTableField(f,state, initialValue)
             buffer+=new UIFieldTable(f,gui,state, initialValue)             
+          case f:DetailsPaneFieldInline =>
+            //val initialValue = f.get(tree) // doesn't create the subfields - they will return later.
+            val (gui,newCreator) = creator.createInlineField(f,state)
+            buffer+=new UIFieldInline(f,gui,state,newCreator,IndexedSeq.empty,Nil,submap)             
           case f:DetailsPaneFieldSection => throw new IllegalArgumentException
         }  
       }
       creator.endSection(section.field,sectionGUI,sectionState)
     }
-    creator.endForm()
-    new UIFields(buffer.toList)
+    val wholegui = creator.endForm()
+    new UIFields(buffer.toList,submap,wholegui)
   }
   
   def refresh() {
@@ -317,18 +328,20 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit) {
       flushClientCommands()
     }
   }
+
+  private def containsInlineElements = currentUIElements.map{_.containsInlineElements}.getOrElse(false)
   
   def refresh(changes:TreeChange) {
     val cs = currentlyShowing.getOrElse(null)
     //println("XSDetailsPane.refresh "+cs)
-    if (changes.contains(cs)) refresh()
+    if (changes.contains(cs) || (cs!=null && containsInlineElements && changes.elementsIncludingRecursive.exists{_.parent.isDescendentOf(cs)})) refresh() // It would be possible to optimize the second case.
     else if (cs!=null) for (c<-changes.elementsIncludingRecursive) if (c.parent.parent==cs) c.parent.getTableLine match {
       case None =>
         //println("Found a child of the thing being displayed that is not a table line")
       case Some((field,linenumber)) => // We have a change for that particular line number for that particular field.
         //println("Found a child that is a table line")
         for (uifields<-currentUIElements;uifield<-uifields.elems) uifield match {
-          case t:UIFieldTable if t.field.field==field => 
+          case t:UIFieldTable if t.field.field==field && c.parent.parent==cs => 
            // println("Found table "+t.field.name)
             t.refresh(c.parent,linenumber)
             flushClientCommands()
@@ -344,14 +357,44 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit) {
     }    
   }
   /** The fields currently being shown */
-  class UIFields(val elems:List[UIField]) {
-    def map : Map[T,UIField] = Map.empty++(for (e<-elems) yield e.gui->e)
+  class UIFields(val elems:List[UIField],submap:SubNodeMap,val wholegui:T) {
+    lazy val simplemap : Map[T,UIField] = Map.empty++(for (e<-elems) yield e.gui->e)
+    lazy val inlines : List[UIFieldInline] = elems.collect{case f:UIFieldInline => f}
+    lazy val containsInlineElements : Boolean = elems.exists(_.isInstanceOf[UIFieldInline])
     override def toString : String = elems.filter{_.currently.visible}.mkString("\n")
+    def get(gui:T) : Option[UIFieldAndSubNodeMap] = {
+      simplemap.get(gui) match {
+        case Some(n) => Some(new UIFieldAndSubNodeMap(n,submap))
+        case None => inlines.flatMap{_.getField(gui)}.headOption
+      }
+    }
+    def updateSubmap(newsubmap:SubNodeMap) : UIFields = {
+      if (submap==newsubmap) this
+      else new UIFields(elems,newsubmap,wholegui)
+    }
   }
 
-  def uiField(gui:T) : Option[UIField] = currentUIElements.flatMap{_.map.get(gui)}
+  def uiField(gui:T) : Option[UIFieldAndSubNodeMap] = currentUIElements.flatMap{_.get(gui)}
   
 
+  sealed abstract class SubNodeMap {
+    def map(node:XSTreeNode) : Option[XSTreeNode]
+  }
+  object NoMap extends SubNodeMap {
+    override def map(node:XSTreeNode) = Some(node)
+  }
+  /** Get the count'th element of field of the base */
+  final class SimpleSubmap(val base:SubNodeMap,val field:XSFieldInfo,val count:Int) extends SubNodeMap {
+    override def map(node:XSTreeNode) = base.map(node).flatMap{n=>
+      val children = n.tableAndInlineChildren(field)
+      if (children.length>count) Some(children(count)) else None
+    }
+    override def equals(o:Any) = o match {
+      case other:SimpleSubmap => other.base==base && other.field==field && other.count==count
+      case _ => false
+    }
+  }
+  class UIFieldAndSubNodeMap(val field:UIField,val submap:SubNodeMap)
   
   sealed abstract class UIField  {
     def field:DetailsPaneField
@@ -463,6 +506,66 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit) {
     
   }
   
+  class InlineBlock(val btype:SerializableTypeInfo[_],val fields:UIFields) {
+    def destroy() { 
+      dispose(fields)
+      remove(fields.wholegui)
+    }
+    private var lastRefreshedNode:XSTreeNode=null
+    def removeNonCanonicalsIfNotLatest(node:XSTreeNode) {
+      if (lastRefreshedNode!=node) {
+        for (f<-fields.elems) f.userHasAbandonedNoncanonicalEdits()
+      }
+    }
+    def refresh(node:XSTreeNode) {
+      lastRefreshedNode=node
+      for (f<-fields.elems) f.refresh(node)
+    }
+  }
+  
+  class UIFieldInline(val field:DetailsPaneFieldInline,val gui:T,var currently:CurrentFieldState,val creator:GUICreator[T],var currentTypes:IndexedSeq[SerializableTypeInfo[_]],var currentBlocks:List[InlineBlock],baseSubmap:SubNodeMap) extends UIField { 
+    def humanEditedTrimInfo:Array[Option[TrimInfo]] = TrimInfo.empty
+    def refresh(node:XSTreeNode) { synchronized { 
+      val subfields : IndexedSeq[XSTreeNode] = node.tableAndInlineChildren(field.field)
+      val shouldBeTypes : IndexedSeq[SerializableTypeInfo[_]] = subfields.map{_.info}
+      if (currentTypes!=shouldBeTypes) {
+        var left = currentBlocks
+        var newBlocks = new ListBuffer[InlineBlock]
+        var count=0
+        for (sf<-subfields) {
+          val t = sf.info
+          val submap:SubNodeMap = new SimpleSubmap(baseSubmap,field.field,count)
+          while (left.nonEmpty && left.head.btype!=t) { left.head.destroy(); left=left.tail }
+          if (left.nonEmpty) {
+            val old = left.head
+            old.removeNonCanonicalsIfNotLatest(sf)
+            newBlocks+=new InlineBlock(t,old.fields.updateSubmap(submap)) 
+            left=left.tail
+          } else {
+            val pane:DetailsPaneFields = t.getPane(locale,sf.mayDelete)
+            val fields = makeNewGUI(sf,pane,creator,submap:SubNodeMap) 
+            newBlocks+=new InlineBlock(t,fields)
+          }
+          count+=1
+        }
+        for (old<-left) old.destroy()
+        currentTypes=shouldBeTypes
+        currentBlocks = newBlocks.toList
+      }
+      for ((b,n)<-currentBlocks.zip(subfields)) b.refresh(n)
+      refreshCurrently(node) 
+    }}
+    def dispose() {
+      synchronized {
+        for (b<-currentBlocks) basePane.dispose(b.fields)
+      }
+    }
+    override def toString = field.toString
+    def getField(gui:T) : Option[UIFieldAndSubNodeMap] = currentBlocks.flatMap{_.fields.get(gui)}.headOption
+  }
+  
+
+  
   class UIFieldText(val field:DetailsPaneFieldText,val gui:T,var currently:CurrentFieldState,var currentlyShowing:String,val choices:Option[LocalizedTextChoices]) extends UIFieldIsStringOrCollectionOfStrings {
     /** 
      * Sometimes the user may set a field to some value that is slightly different to the canonical one - for instance, leading zeros on an integer. 
@@ -483,11 +586,12 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit) {
       //println("Refreshing node "+node.uid)
       synchronized {
         val shouldBe = field.get(node)
-        //println("refresh shouldBe="+shouldBe+" showing="+currentlyShowing+" currentStringSetByUser="+currentStringSetByUser)
+        //println("refresh shouldBe="+shouldBe+" showing="+currentlyShowing+" currentStringSetByUserCanonicalRepresentation="+currentStringSetByUserCanonicalRepresentation)
         if (shouldBe!=currentlyShowing && (currentStringSetByUserCanonicalRepresentation.isEmpty || currentStringSetByUserCanonicalRepresentation.get!=shouldBe)) { 
           currentlyShowing=shouldBe
           currentStringSetByUserCanonicalRepresentation=None
           currentlyIsIllegalValue = false
+          println("** Change field "+gui+" to "+shouldBe)
           changeUITextField(gui,shouldBe)
         }  
         refreshIllegal()
@@ -530,7 +634,7 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit) {
       val noncanonfn : Option[AnyRef => (() => Unit)] = {
           val canonical = colfield.getFieldAsString(newobj)
           if (isError || canonical!=newText) Some({finalobj:AnyRef => {() => {
-            for (row<-node.tableChildren(field.field).find{_.getObject eq finalobj}) 
+            for (row<-node.tableAndInlineChildren(field.field).find{_.getObject eq finalobj}) 
               addNoncanonicalEntry(new TableNoncanonicalEntry(row,colno,newText,canonical,isError))
           }}}) else None
       }
@@ -558,7 +662,7 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit) {
     def changedElement(node:XSTreeNode,rowNumber:Int,columnName:String,newValue:String) {
       val (colfield,colno) = field.columnExtractors.xsFieldNamed(columnName)
       synchronized {
-        val rows = node.tableChildren(field.field)
+        val rows = node.tableAndInlineChildren(field.field)
         if (rowNumber==currentlyShowing.length && rowNumber==rows.length) { // adding a new row
           // TODO fix lack of syntax checking on starting to add a new row in a grid.
           // the line below would make the XS backend be aware of a new row being added. However, this mixes very badly with the SlickGrid row
@@ -597,7 +701,7 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit) {
        val (_,colno) = field.columnExtractors.xsFieldNamed(columnName)
        //println("Paste table ("+rowNumber+","+colno+")\n"+table.map{_.mkString("\t")}.mkString("\n"))
        synchronized {
-        val rows = node.tableChildren(field.field)
+        val rows = node.tableAndInlineChildren(field.field)
         if (rowNumber<currentlyShowing.length && rowNumber<rows.length) {
           currentlyShowing=currentlyShowing.updated(rowNumber,currentlyShowing(rowNumber).updated(colno,""))
           val noncanonfns = new ListBuffer[()=>Unit]
@@ -903,8 +1007,10 @@ abstract class GUICreator[T] {
   def createBooleanField(field:DetailsPaneFieldBoolean,currently:CurrentFieldState,initialValue:Boolean) : T
   /** Called to create an image field (inside a section) */
   def createImageField(field:DetailsPaneFieldImage,currently:CurrentFieldState,initialValue:String) : T
-  /** Called to create an image field (inside a section) */
+  /** Called to create a table field (inside a section) */
   def createTableField(field:DetailsPaneFieldTable,currently:CurrentFieldState,initialValue:IndexedSeq[IndexedSeq[String]]) : T
+  /** Called to create a table field (inside a section). Current values not included. */
+  def createInlineField(field:DetailsPaneFieldInline,currently:CurrentFieldState) : (T,GUICreator[T])
   /** Called to create a just-display text field (inside a section) */
   def createShowTextField(field:DetailsPaneFieldShowText,currently:CurrentFieldState,initialValue:RichLabel) : T
   /** Called to create a custom field (inside a section) */
@@ -912,5 +1018,5 @@ abstract class GUICreator[T] {
   /** Called at the end of each section, with the id created in startSection */
   def endSection(section:DetailsPaneFieldSection,id:T,currently:CurrentFieldState)
   /** Last thing called when the form is finished */
-  def endForm()
+  def endForm() : T
 }

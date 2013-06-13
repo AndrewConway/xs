@@ -38,7 +38,8 @@ class SwingDetailsPane(_locale:Locale,_xsedit:XSEdit) extends XSDetailsPane[Comp
     extraSetVisibility=Map.empty
     panel.contents.clear()
   } // Do I have to dispose anything?????
-
+  override def remove(gui:Component) {}
+  
   override def setBlankScreen() { } // setNewPanel(new BoxPanel(Orientation.Vertical))}
   
   def flushClientCommands() {}
@@ -128,9 +129,10 @@ class GUICreatorSwing(pane:SwingDetailsPane) extends GUICreator[Component] {
   def endSection(section:DetailsPaneFieldSection,id:Component,currently:CurrentFieldState) { }
   
   
-  def endForm() {
+  override def endForm() = {
     panel.contents+=Swing.VGlue
     pane.setNewPanel(panel)
+    panel
   }
   def createAction(field:DetailsPaneFieldAction,currently:CurrentFieldState) : Button = {
     val link = new Button;
@@ -159,7 +161,8 @@ class GUICreatorSwing(pane:SwingDetailsPane) extends GUICreator[Component] {
     panel.contents+=cb
     cb
   }
-  
+  def createInlineField(field:DetailsPaneFieldInline,currently:CurrentFieldState) : (scala.swing.Component,GUICreator[scala.swing.Component]) = ???
+
   
   def createTextField(field:DetailsPaneFieldText,currently:CurrentFieldState,initialValue:String) : scala.swing.Component = {
     val gui = field.choices match {

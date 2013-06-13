@@ -141,6 +141,7 @@ class TestXSDetailsPane(_locale:Locale,_xsedit:XSEdit) extends XSDetailsPane[Str
   
   // things it has to implement
   def dispose(guis:UIFields) {}
+  def remove(gui:String) {}
   def setBlankScreen() {}
   def flushClientCommands() {}
   def initiatePopup(field:UIFieldText,popupName:String,node:XSTreeNode) {}
@@ -173,7 +174,7 @@ class TestGUICreator extends GUICreator[String] {
   override def startForm(title:DetailsPaneFieldSection,currently:CurrentFieldState) : String =  title.name
   def startSection(section:DetailsPaneFieldSection,currently:CurrentFieldState) = section.name
   def endSection(section:DetailsPaneFieldSection,id:String,currently:CurrentFieldState) {}
-  def endForm() {}
+  def endForm() = ""
   def createAction(field:DetailsPaneFieldAction,currently:CurrentFieldState) = field.label
   def createTextField(field:DetailsPaneFieldText,currently:CurrentFieldState,initialValue:String) = field.name
   def createImageField(field:DetailsPaneFieldImage,currently:CurrentFieldState,initialValue:String) = field.name
@@ -181,4 +182,5 @@ class TestGUICreator extends GUICreator[String] {
   def createBooleanField(field:DetailsPaneFieldBoolean,currently:CurrentFieldState,initialValue:Boolean) = field.name
   def createTableField(field:DetailsPaneFieldTable,currently:CurrentFieldState,initialValue:IndexedSeq[IndexedSeq[String]]) = field.name
   def createCustom[S](field:DetailsPaneFieldCustom,custom:CustomComponent[S,String],currently:CurrentFieldState,initialValue:S) = field.name
+  def createInlineField(field:DetailsPaneFieldInline,currently:CurrentFieldState) = (field.name,this)
 }

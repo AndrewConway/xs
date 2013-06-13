@@ -27,15 +27,43 @@ class HTML5DetailsPane(val client:HTML5Client) extends XSDetailsPane[String](cli
   
   val detailsPaneID = "xsDP_"+client.session.jsSessionID // the ID of the main div holding all the details pane.
   
-  private var fullCustomControllerProcessMessages : List[PartialFunction[SimpleClientMessage,Unit]] = Nil
-  def addCustomControllerProcessMessages(p:PartialFunction[SimpleClientMessage,Unit]) {
-    synchronized {
-      fullCustomControllerProcessMessages=p::fullCustomControllerProcessMessages
+  
+  private object CustomControllerProcessMessageBuffer {
+    private var fullList : List[PartialFunction[SimpleClientMessage,Unit]] = Nil
+    private var fullListValid = false
+    def list : List[PartialFunction[SimpleClientMessage,Unit]] = synchronized {
+      if (!fullListValid) {
+        fullList = bySource.values.toList.flatten
+        fullListValid=true
+      }
+      fullList
     }
+    // the first argument is the gui field of the UIFieldCustom[_] object.
+    private var bySource : Map[String,List[PartialFunction[SimpleClientMessage,Unit]]] = Map.empty
+    // the first argument is the gui field of the UIFieldCustom[_] object.
+    def add(gui:String,p:PartialFunction[SimpleClientMessage,Unit]) : Unit = synchronized {
+      val oldlist = bySource.get(gui).getOrElse(Nil)
+      bySource=bySource+(gui -> (p::oldlist))
+      fullListValid=false
+    }
+    def dispose() { synchronized {
+      fullListValid=false;
+      fullList=Nil
+      bySource=Map.empty
+    }}
+    def dispose(gui:String) { synchronized {
+      fullListValid=false;
+      fullList=Nil
+      bySource-=gui
+    }}
+  }
+  
+  def addCustomControllerProcessMessages(gui:String,p:PartialFunction[SimpleClientMessage,Unit]) {
+    CustomControllerProcessMessageBuffer.add(gui,p)
   }
   
   def customControllerProcessMessages : List[PartialFunction[SimpleClientMessage,Unit]] = {
-    var res = fullCustomControllerProcessMessages
+    var res = CustomControllerProcessMessageBuffer.list
     for (popup<-currentlyShowingPopup;m<-popup.processMessages) res=m::res
     return res
   }
@@ -49,14 +77,16 @@ class HTML5DetailsPane(val client:HTML5Client) extends XSDetailsPane[String](cli
   } 
   /** Send a javascript command to set the attribute to a given value (or remove the attribute if value is null) */
   def jsSetAttribute(id:String,att:String,value:String) {
-    client.queueMessage(if (att=="value") ClientMessage.setValueID(id,value) else ClientMessage.setAttributeID(id,att,value))
+    val msg = if (att=="value") ClientMessage.setValueID(id,value) else ClientMessage.setAttributeID(id,att,value)
+    //if (att=="value") println("jsSetAttribute "+id+" = "+value)
+    message(msg)
   }
   def message(message:ClientMessage) { client.queueMessage(message) }
   
   override def dispose() {
     synchronized {
       super.dispose()
-      fullCustomControllerProcessMessages=Nil
+      CustomControllerProcessMessageBuffer.dispose()
     }
   }
 
@@ -64,7 +94,11 @@ class HTML5DetailsPane(val client:HTML5Client) extends XSDetailsPane[String](cli
     // disposal is automatic, except for tables which need to be explicitly deallocated.
     for (uifield<-guis.elems) uifield match {
       case table:UIFieldTable => message(ClientMessage.stopGrid(table.gui))
-      case custom:UIFieldCustom[_] => custom.work.dispose()
+      case custom:UIFieldCustom[_] => 
+        custom.work.dispose()
+        CustomControllerProcessMessageBuffer.dispose(custom.gui)
+      case inline:UIFieldInline =>
+        inline.dispose()
       case _ =>
     }
     synchronized {
@@ -75,10 +109,10 @@ class HTML5DetailsPane(val client:HTML5Client) extends XSDetailsPane[String](cli
         case _ =>
       }
       currentlyShowingPopup=None
-      fullCustomControllerProcessMessages=Nil
+      // fullCustomControllerProcessMessages=Nil // may not be nil in the presence of inline elements.
     }
   } 
-
+  override def remove(gui:String) : Unit = { message(ClientMessage.removeID(gui))}
   override def getClipboard(param:XSClipboardRequest) : Future[XSClipBoard] = client.session.getClipboard(param)
   override def setClipboard(data:XSClipBoard) { client.session.setClipboard(data)}
     
@@ -86,7 +120,7 @@ class HTML5DetailsPane(val client:HTML5Client) extends XSDetailsPane[String](cli
   
   override def flushClientCommands() { client.flushMessages() }
     
-  def newCreator() = new GUICreatorHTML5(this)
+  def newCreator() = new GUICreatorHTML5(this,None)
 
   def changeUITextField(id:String,shouldBe:String) { jsSetAttribute(id+"_ui","value",shouldBe) }
   def changeUIImageField(id:String,shouldBe:String) { jsSetAttribute(id+"_image","src",shouldBe) }
@@ -161,7 +195,7 @@ class HTML5DetailsPane(val client:HTML5Client) extends XSDetailsPane[String](cli
   def baseHTML = <div class="XSDetailsPane" id={detailsPaneID}>Contacting server...</div>
   
   private def getColumnExtractor(uiElement:String) : Option[ColumnExtractors] = { 
-    for (field<-uiField(uiElement) if field.isInstanceOf[UIFieldTable]) yield field.asInstanceOf[UIFieldTable].field.columnExtractors
+    for (field<-uiField(uiElement) if field.field.isInstanceOf[UIFieldTable]) yield field.asInstanceOf[UIFieldTable].field.columnExtractors
   }
   
   
@@ -206,10 +240,10 @@ object GUICreatorHTML5 {
  * A GUI creator for HTML5, where the definer of an object is its id field - a string. 
  * It is laid out in a table. We want the second column to get extra space - the first is set to a small width. <td style="width: 1px;">
  * */
-class GUICreatorHTML5(pane:HTML5DetailsPane) extends GUICreator[String] {
+class GUICreatorHTML5(pane:HTML5DetailsPane,inlineParentDivId:Option[String]) extends GUICreator[String] {
   import GUICreatorHTML5._
   private[this] var idIndex = 0 
-  private[this] val idBase = "XS_Form"+pane.client.session.jsSessionID+"_" 
+  private[this] val idBase = inlineParentDivId.map{_+"inline_"}.getOrElse("XS_Form"+pane.client.session.jsSessionID+"_") 
   private[this] def newid() = { idIndex+=1; idBase+idIndex }
   private[this] val rowBuffer = new ListBuffer[xml.Elem]
   private[this] val sectionBuffer = new ListBuffer[xml.Elem]
@@ -274,13 +308,27 @@ class GUICreatorHTML5(pane:HTML5DetailsPane) extends GUICreator[String] {
   def sessionprefix : String = pane.client.session.sessionPrefix
   def sessionPrefixNoTrailingPeriod = pane.client.session.sessionPrefixNoTrailingPeriod
   
-  def endForm() {
-    val res : NodeSeq = sectionBuffer.toList
+  override def endForm() = {
+    val id = newid()
+    val res : NodeSeq = <div id={id} class="xsFormWrapper">{sectionBuffer.toList}</div>
     //println(res)
     sectionBuffer.clear()
-    pane.jsSetHTML(pane.detailsPaneID,res)
+    inlineParentDivId match {
+      case Some(divid) => pane.message(ClientMessage.addAtEndID(divid,res))
+      case None => pane.jsSetHTML(pane.detailsPaneID,res) 
+    }
     for (m<-postCreationJavascript) pane.message(m)
+    postCreationJavascript.clear()
+    id
   }
+  override def createInlineField(field:DetailsPaneFieldInline,currently:CurrentFieldState) : (String,GUICreator[String]) = {
+    val id = newid()
+    val divid = id+"_ui"
+    val input = <div class="xsInlineField" id={divid}></div>
+    addLabeledField(input,id,field,currently)
+    (id,new GUICreatorHTML5(pane,Some(divid)))
+  }
+
   def createAction(field:DetailsPaneFieldAction,currently:CurrentFieldState) : String = {
     val id = newid()
     val link = addTitle(<a id={id+"_ui"} href="javascript:void(0)" onclick={sessionprefix+"action('"+id+"');false"}>{iconlabel(field.icon,currently,id)}{textlabel(field.label,currently,id)}</a>,field.tooltip)
@@ -315,6 +363,7 @@ class GUICreatorHTML5(pane:HTML5DetailsPane) extends GUICreator[String] {
         }</select>
       case _ => // TODO use info like placeholder, etc. */
         val ptf = <div id={id+"_ui"} contenteditable="true" class="xsPseudoTextField" spellcheck="false" oninput="xsPTF.input(event)" onkeyup="xsPTF.inputSurrogate(event)" onblur="xsPTF.inputSurrogate(event)" onpaste="xsPTF.inputSurrogate(event)" oncut="xsPTF.inputSurrogate(event)" data-onInputObj={sessionPrefixNoTrailingPeriod} data-xsSuppressNL={(!field.multiline).toString}></div>
+        //println("Post creation set "+id+" to "+initialValue)
         postCreationJavascript+=ClientMessage.setValueID(id+"_ui",initialValue)
         ptf
         /*

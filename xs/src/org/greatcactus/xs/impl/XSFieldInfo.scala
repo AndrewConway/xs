@@ -309,17 +309,20 @@ class XSFieldInfo(val fieldSymbol:reflect.runtime.universe.Symbol,val index:Int,
     val isBooleanEditable : Boolean = hasAnnotation(typeBooleanEditable)
     val isImageEditable : Boolean = hasAnnotation(typeImageEditable)
     val isTableEditable : Boolean = hasAnnotation(typeTableEditable)
+    val isInlineEditable : Boolean = hasAnnotation(typeInlineEditable)
+    def isTableOrInlineEditable : Boolean = isTableEditable || isInlineEditable
     val customPopup : Option[String] = annotationValueString(typeCustomPopup)
     
     val resolveNetworkReferences : Boolean = hasAnnotation(typeResolveNetworkReferences)
 
     if (isBooleanEditable && (isCollectionOrArray || baseClass!=java.lang.Boolean.TYPE)) error("Boolean editable field should be boolean")
-    if (isIndividuallyEditable && !xsinfo.isDefined) error("Individually editable field should be of an @XSEditable class")
+    if (isIndividuallyEditable && !xsinfo.isDefined) error("Individually editable field should be of an @XSE class")
     if (isTableEditable) xsinfo match {
-      case None => error("Table editable field should be of an @XSEditable class")
-      case Some(xsi) if !xsi.subclasses.isEmpty => error("Table editable field should be of an @XSEditable class without subclasses.")
+      case None => error("Table editable field should be of an @XS class")
+      case Some(xsi) if !xsi.subclasses.isEmpty => error("Table editable field should be of an @XS class without subclasses.")
       case _ =>
     }
+    if (isInlineEditable && xsinfo.isEmpty) error("InlineEditable field should be of an @XS class")  
     val displayOptions = new FieldDisplayOptions(fieldSymbol,iconSource)
     //
     // Information on errors

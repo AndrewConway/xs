@@ -356,7 +356,7 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
   }
   
   private def makeDirty() {
-    println("Set to dirty")
+    //println("Set to dirty")
     if (!dirty) {
       dirty=true
       associatedNode.xsedit.dependencyInjectionCleaningQueue.add(associatedNode)

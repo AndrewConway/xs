@@ -270,7 +270,8 @@ class SerializableTypeInfo[T <: AnyRef] private (val clazz : java.lang.Class[T])
   }
   
   lazy val treeNodeFields = fieldsAsBlocks.filter{_.isIndividuallyEditable}
-  lazy val tableNodeFields = fieldsAsBlocks.filter{_.isTableEditable}
+  //lazy val tableNodeFields = fieldsAsBlocks.filter{_.isTableEditable}
+  lazy val tableAndInlineNodeFields = fieldsAsBlocks.filter{n=>n.isTableEditable || n.isInlineEditable}
   
   lazy val uniquenessCheckLocal : FieldsToCheckForUniqueness = getUniquenessCheck(typeErrorIfNotUniqueInObject)
   lazy val uniquenessCheckParent : FieldsToCheckForUniqueness = getUniquenessCheck(typeErrorIfNotUniqueInParent)
@@ -415,6 +416,7 @@ object SerializableTypeInfo {
   private[impl] val typeBooleanEditable = universe.typeOf[BooleanEditable]
   private[impl] val typeIndividuallyEditable = universe.typeOf[IndividuallyEditable]
   private[impl] val typeTableEditable = universe.typeOf[TableEditable]
+  private[impl] val typeInlineEditable = universe.typeOf[InlineEditable]
   private[impl] val typeCustomEditable = universe.typeOf[CustomEditable]
   private[impl] val typeCustomPopup = universe.typeOf[CustomPopup]
   private[impl] val typeEditSection = universe.typeOf[EditSection]

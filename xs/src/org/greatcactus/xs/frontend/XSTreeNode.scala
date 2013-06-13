@@ -61,15 +61,16 @@ class XSTreeNode(
   def isRoot = parent==null
   val depth:Int = if (parent==null) 0 else 1+parent.depth
   private[this] var treeChildrenV : IndexedSeq[XSTreeNode] = getTreeChildren(Nil).children
-  private[this] var tableChildrenV : Map[XSFieldInfo,IndexedSeq[XSTreeNode]] = getTableChildren(Map.empty++(info.tableNodeFields.map{_ -> IndexedSeq.empty}))
+  private[this] var tableChildrenV : Map[XSFieldInfo,IndexedSeq[XSTreeNode]] = getTableChildren(Map.empty++(info.tableAndInlineNodeFields.map{_ -> IndexedSeq.empty}))
   def treeChildren : IndexedSeq[XSTreeNode] = treeChildrenV
-  def tableChildren : Map[XSFieldInfo,IndexedSeq[XSTreeNode]] = tableChildrenV
-  def allChildren : IndexedSeq[XSTreeNode] = treeChildrenV++tableChildren.values.flatten
+  def tableAndInlineChildren : Map[XSFieldInfo,IndexedSeq[XSTreeNode]] = tableChildrenV
+  def allChildren : IndexedSeq[XSTreeNode] = treeChildrenV++tableAndInlineChildren.values.flatten
   def root : XSTreeNode = if (parent==null) this else parent.root
   /** If this is a table line, rather than a tree line */
   private var tableLine : Option[(XSFieldInfo,Int)] = None
   def isTableLine : Boolean = tableLine.isDefined
   def getTableLine : Option[(XSFieldInfo,Int)] = tableLine
+  def isDescendentOf(node:XSTreeNode) : Boolean = if (parent==node) true else if (parent==null) false else parent.isDescendentOf(node)
   
   def getTreeChildren(oldTreeChildren:Seq[XSTreeNode]) : TreeNodeChange = getChildren(info.treeNodeFields,oldTreeChildren)
   def getTableChildren(oldTableChildren:Map[XSFieldInfo,IndexedSeq[XSTreeNode]]) : Map[XSFieldInfo,IndexedSeq[XSTreeNode]] = {
@@ -156,7 +157,7 @@ class XSTreeNode(
     else {
       // can't just loop over field.getAllFieldElements(parent.getObject) as there may be multiple equal (pointer equality too) fields in a collection.
       var res = 0
-      for (n<-if (field.isTableEditable) parent.tableChildren(field) else parent.treeChildren) {
+      for (n<-if (field.isTableEditable || field.isInlineEditable) parent.tableAndInlineChildren(field) else parent.treeChildren) {
         if (n eq this) return res
         else if (n.fieldInParent==field) res+=1
       }
