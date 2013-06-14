@@ -117,11 +117,19 @@ class Discoverer(
     )
 
 @XS
+class SizeInM(
+    @ErrorIfNotNumber(min=0) @StringEditable val x:Double,
+    @ErrorIfNotNumber(min=0) @StringEditable val y:Double,
+    @ErrorIfNotNumber(min=0) @StringEditable val z:Double
+    )
+    
+@XS
 @XSIcon("Comet")
 class Comet(
     @CustomPopup("DemoPopup") @EditSection("nomenclature") @StringEditable @DefaultValue("New comet")  val name:String,
     @StringEditable val period:Double,
     @InlineEditable val firstDiscoverer:Option[Discoverer],
+    @InlineEditable val size:SizeInM,
     @XSName("OtherDiscoverer") @InlineEditable val discoverers:List[Discoverer]
  ) extends HeavenlyBody {
   override def toString = name

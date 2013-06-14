@@ -17,6 +17,10 @@ import ExecutionContext.Implicits.global
 import org.greatcactus.xs.impl.GeneralizedField
 import org.greatcactus.xs.api.command.ProgressMonitor
 import org.greatcactus.xs.api.command.ProgressMonitorUI
+import scala.xml.transform.RewriteRule
+import scala.xml.Elem
+import scala.xml.Node
+import scala.xml.transform.RuleTransformer
 
 /**
  * XSDetailsPane specialized for HTML5. This is not a complete implementation - it ignores transport.
@@ -247,10 +251,12 @@ class GUICreatorHTML5(pane:HTML5DetailsPane,inlineParentDivId:Option[String]) ex
   private[this] def newid() = { idIndex+=1; idBase+idIndex }
   private[this] val rowBuffer = new ListBuffer[xml.Elem]
   private[this] val sectionBuffer = new ListBuffer[xml.Elem]
+  private[this] var template:Option[FillInTemplate] = None
   val postCreationJavascript = new ListBuffer[ClientMessage]
   
-  private def addRow(row:xml.Elem,visible:Boolean) { 
+  private def addRow(row:xml.Elem,visible:Boolean,fieldName:String,field:NodeSeq,label:NodeSeq) { 
     val withvisibility = XSHTMLUtil.possiblySetNoDisplay(row,visible)
+    for (t<-template) t.add(fieldName,field,label,withvisibility)
     //println("Adding row "+row)
     rowBuffer+=withvisibility 
   }
@@ -290,7 +296,8 @@ class GUICreatorHTML5(pane:HTML5DetailsPane,inlineParentDivId:Option[String]) ex
     sectionBuffer+=withvisibility
   }
   
-  override def startForm(title:DetailsPaneFieldSection,currently:CurrentFieldState) : String = {
+  override def startForm(title:DetailsPaneFieldSection,currently:CurrentFieldState,template:Option[Node]) : String = {
+    this.template=template.map{new FillInTemplate(_)}
     val id = newid();
     if (title.couldContainErrorIcon) sectionBuffer+=errorIcon(id)
     title.title match {
@@ -310,7 +317,12 @@ class GUICreatorHTML5(pane:HTML5DetailsPane,inlineParentDivId:Option[String]) ex
   
   override def endForm() = {
     val id = newid()
-    val res : NodeSeq = <div id={id} class="xsFormWrapper">{sectionBuffer.toList}</div>
+    val contents : NodeSeq = template match {
+      case Some(t) => t.get
+      case None => sectionBuffer.toList
+    } 
+    template=None
+    val res = <div id={id} class="xsFormWrapper">{contents}</div>
     //println(res)
     sectionBuffer.clear()
     inlineParentDivId match {
@@ -334,7 +346,7 @@ class GUICreatorHTML5(pane:HTML5DetailsPane,inlineParentDivId:Option[String]) ex
     val link = addTitle(<a id={id+"_ui"} href="javascript:void(0)" onclick={sessionprefix+"action('"+id+"');false"}>{iconlabel(field.icon,currently,id)}{textlabel(field.label,currently,id)}</a>,field.tooltip)
     val withenabled = addEnabled(link,currently.enabled)
     val inrow = <tr id={id+"_all"}><td colspan="2">{withenabled}</td></tr>
-    addRow(inrow,currently.visible)
+    addRow(inrow,currently.visible,field.name,withenabled,NodeSeq.Empty)
     id
   }
   override def createProgressMonitor(id:String) : ()=>ProgressMonitor = () => {
@@ -481,16 +493,17 @@ class GUICreatorHTML5(pane:HTML5DetailsPane,inlineParentDivId:Option[String]) ex
     val withTooltip = if (currently.canHaveTooltip) {
          <div class="xsTooltipHolder"><div class="xsTooltip" id={id+"_tooltip"}>{currently.tooltip match { case Some(t) => t.html; case None => NodeSeq.Empty}}</div>{withenabled}</div>
       } else withenabled
+    val fieldHTML : NodeSeq = errorIcon(id,field.couldContainErrorIcon)++customPopupHTML++withTooltip
+    val label = addTitle(<label for={id+"_ui"}>{iconlabel(field.icon,currently,id)}{textlabel(field.label,currently,id)}</label>,field.tooltip)
     val inrow = {
-      def mainTD(colspan:Int) : xml.Elem = <td colspan={colspan.toString} class={"xsErrorLabeled xsColMainWidth"+colspan}>{errorIcon(id,field.couldContainErrorIcon)}{customPopupHTML}{withTooltip}</td>
+      def mainTD(colspan:Int) : xml.Elem = <td colspan={colspan.toString} class={"xsErrorLabeled xsColMainWidth"+colspan}>{fieldHTML}</td>
       if (field.hideName) <tr id={id+"_all"}>{mainTD(2)}</tr>
       else {
-        val label = addTitle(<label for={id+"_ui"}>{iconlabel(field.icon,currently,id)}{textlabel(field.label,currently,id)}</label>,field.tooltip)
         if (field.wholeLine) <tbody id={id+"_all"}><tr><td colspan="2" >{label}</td></tr><tr>{mainTD(2)}</tr></tbody>
         else <tr id={id+"_all"}><td class="xsColLabel">{label}</td>{mainTD(1)}</tr>
       }
     }
-    addRow(inrow,currently.visible) 
+    addRow(inrow,currently.visible,field.name,fieldHTML,label) 
   }
   
   def createBooleanField(field:DetailsPaneFieldBoolean,currently:CurrentFieldState,initialValue:Boolean) : String = {
@@ -511,4 +524,35 @@ class GUICreatorHTML5(pane:HTML5DetailsPane,inlineParentDivId:Option[String]) ex
 
 }
 
+class FillInTemplate(val template:Node) {
+  var fields : Map[String,NodeSeq] = Map.empty
+  var labels : Map[String,NodeSeq] = Map.empty
+  var trs : Map[String,NodeSeq] = Map.empty
 
+  def add(name:String,field:NodeSeq,label:NodeSeq,tr:NodeSeq) {
+    fields+=name->field
+    labels+=name->label
+    trs+=name->tr
+  }
+  
+  def get : NodeSeq = {
+    //println("template = "+template)
+    object t1 extends RewriteRule {
+      override def transform(n: Node): Seq[Node] = { 
+        //println("Matching node "+n)
+        n match {
+          case Elem("field",fieldName, attribs, scope, children @ _*) => fields.get(fieldName).getOrElse(NodeSeq.Empty)
+          case Elem("label",fieldName, attribs, scope, children @ _*) => labels.get(fieldName).getOrElse(NodeSeq.Empty)
+          case Elem("tr",fieldName, attribs, scope, children @ _*) => trs.get(fieldName).getOrElse(NodeSeq.Empty)
+          case elem: Elem =>
+            //println("Other elem : prefix = "+elem.prefix+" namespace = "+elem.namespace+" name="+elem.label)
+            elem copy (child = elem.child flatMap (this transform))
+          case other => other
+        }
+      }
+    }
+    val result = (new RuleTransformer(t1))(template)
+    //println("result = "+result)
+    result
+  }
+}

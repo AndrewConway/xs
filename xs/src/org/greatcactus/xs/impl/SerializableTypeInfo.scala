@@ -23,6 +23,8 @@ import org.greatcactus.xs.api.edit._
 import org.greatcactus.xs.api.display._
 import org.greatcactus.xs.util.EqualityByPointerEquality
 import org.greatcactus.xs.api.command.XSCommand
+import scala.xml.NodeSeq
+import scala.xml.XML
 
 
 /**
@@ -382,6 +384,16 @@ class SerializableTypeInfo[T <: AnyRef] private (val clazz : java.lang.Class[T])
   
   def getPane(locale:Locale,mayDelete:Boolean) : DetailsPaneFields = (if (mayDelete) panesDelete else panesNoDelete).getOrElseUpdate(locale,DetailsPaneFields(this,locale,mayDelete))
   
+  //
+  // code pertaining to templates
+  //
+  lazy val htmlTemplate : Option[xml.Node] = {
+    try {
+      val is = clazz.getResourceAsStream(classSymbol.name.decoded+".template.xml")
+      val seq = XML.load(is)
+      Some(seq)
+    } catch { case _ : Exception => None }
+  }
 }
 
 

@@ -23,6 +23,7 @@ import org.greatcactus.xs.impl.GeneralizedField
 import org.greatcactus.xs.api.command.ProgressMonitor
 import org.greatcactus.xs.api.command.ProgressMonitorUI
 import org.greatcactus.xs.impl.SerializableTypeInfo
+import scala.xml.Node
 
 /**
  * A GUI client should extend this controller to manage the "details" pane of the item currently being edited.
@@ -269,7 +270,7 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit) { basePane 
         new CurrentFieldState(enabled,visible,icon,label,tooltip,canHaveSpecialIcon,canHaveSpecialLabel,canHaveTooltip)              
     }
     val headingState = getState(pane.field)
-    val headingGUI = creator.startForm(pane.field,headingState)
+    val headingGUI = creator.startForm(pane.field,headingState,tree.info.htmlTemplate)
     buffer+=new UIFieldHeading(pane.field,headingGUI,headingState)
     for (section<-pane.sections) {
       val sectionState = getState(section.field)
@@ -994,7 +995,7 @@ class CurrentFieldState(var enabled:Boolean,var visible:Boolean,var specialIcon:
  */
 abstract class GUICreator[T] {
   /** First thing ever called, with information about headings, icons, etc. for the form. */
-  def startForm(section:DetailsPaneFieldSection,currently:CurrentFieldState) : T
+  def startForm(section:DetailsPaneFieldSection,currently:CurrentFieldState,template:Option[Node]) : T
   /** Called at the start of each section */
   def startSection(section:DetailsPaneFieldSection,currently:CurrentFieldState) : T
   /** Called to create an action field (inside a section) */

@@ -114,7 +114,7 @@ class GUICreatorSwing(pane:SwingDetailsPane) extends GUICreator[Component] {
       panel.contents+=l    
   } 
   
-  override def startForm(title:DetailsPaneFieldSection,currently:CurrentFieldState) = {
+  override def startForm(title:DetailsPaneFieldSection,currently:CurrentFieldState,template:Option[xml.Node]) = {
     for (t<-title.title) addLabel(t,Font.BOLD)
     for (t<-title.description) addLabel(t,Font.ITALIC)
     panel

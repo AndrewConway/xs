@@ -171,7 +171,7 @@ class TestXSDetailsPane(_locale:Locale,_xsedit:XSEdit) extends XSDetailsPane[Str
 
 /** Dummy GUI creator referring to everything by its name */
 class TestGUICreator extends GUICreator[String] {
-  override def startForm(title:DetailsPaneFieldSection,currently:CurrentFieldState) : String =  title.name
+  override def startForm(title:DetailsPaneFieldSection,currently:CurrentFieldState,template:Option[xml.Node]) : String =  title.name
   def startSection(section:DetailsPaneFieldSection,currently:CurrentFieldState) = section.name
   def endSection(section:DetailsPaneFieldSection,id:String,currently:CurrentFieldState) {}
   def endForm() = ""

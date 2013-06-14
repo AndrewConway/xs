@@ -144,6 +144,13 @@ val deserialized : Complex = XMLDeserialize.deserialize[Complex](serializedData)
    
     <p>The providers and controllers above can also be applied to sections by using the section name prepended by "Section." as the argument.</p>  
       
+   <h4>Templates</h4>
+   <p>Sometimes you may want more control over the layout than the standard one-field-per-line XS approach. You can define a template
+   file containing an html fragment that is used instead of the standard layout for that file. This should be in a file in the same
+   package as the class, with name "classname".template.xml (similar to properties files), and should be a valid xml file. Fields and
+   labels can be inserted into this tamplate: field "abc" will be inserted with a node called <code>field:abc</code>; labels with
+   <code>label:abc</code>, and a two column wide table row with the label in the LHS and field in the RHS for <code>tr:abc</code>.</p> 
+   
    <h3>Errors</h3>
       <aside>Refers to package <code>org.greatcactus.xs.api.errors</code></aside>
    

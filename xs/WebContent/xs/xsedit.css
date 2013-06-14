@@ -325,7 +325,7 @@ img.xsImageField {
     background : white;
     white-space: pre-wrap;
     min-height:1em;
-    min-width:10em;
+    min-width:1em;
 /*    overflow : scroll; */
 }
 
