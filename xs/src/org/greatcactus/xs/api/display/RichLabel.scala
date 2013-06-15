@@ -83,6 +83,7 @@ object RichLabel {
   val nullLabel = new RichLabel("",scala.xml.Text(""),Nil)
   def apply(text:String,html:NodeSeq,postCreationJavascript:List[String]) = new RichLabel(text,html,postCreationJavascript)
   def apply(text:String,html:NodeSeq) = new RichLabel(text,html,Nil)
+  def apply(html:NodeSeq) = new RichLabel(html.text,html,Nil)
   def apply(text:String,html:String) = new RichLabel(text,XML.loadString("<span>"+html+"</span>"),Nil)
   def apply(text:String) = {
     if (text==null) nullLabel 
