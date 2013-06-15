@@ -48,7 +48,7 @@ class SwingDetailsPane(_locale:Locale,_xsedit:XSEdit) extends XSDetailsPane[Comp
 
   override def changeUITextField(id:Component,shouldBe:String) { id match {
     case t:scala.swing.TextField => t.text=shouldBe // ; println("Changed text to "+shouldBe)
-    case cb:scala.swing.ComboBox[_] => uiField(id) match {
+    case cb:scala.swing.ComboBox[_] => uiField(id).map{_.field} match {
       case Some(uit:UIFieldText) if uit.choices.isDefined => cb.asInstanceOf[scala.swing.ComboBox[LocalizedChoice]].selection.item = uit.choices.get.lookupOriginalNull(shouldBe)
       case _ =>
     }
