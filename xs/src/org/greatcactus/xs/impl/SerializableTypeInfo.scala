@@ -232,6 +232,7 @@ class SerializableTypeInfo[T <: AnyRef] private (val clazz : java.lang.Class[T])
         //println("Getting simple error checks for field "+field.name)
         for (ann<-field.annotation(typeErrorIfBlank)) buffer.addErrorIfBlank(field,ann.getString("severity")) 
         for (ann<-field.annotation(typeErrorIfEmptyCollection)) buffer.addErrorIfEmptyCollection(field,ann.getString("severity")) 
+        for (ann<-field.annotation(typeErrorIfNegative)) buffer.addErrorIfNegative(field,ann.getString("severity")) 
         for (ann<-field.annotation(typeErrorIfNotNumber)) buffer.addErrorIfNotNumber(field,ann.getBoolean("integer").getOrElse(false),ann.getDoubleOrNaN("min"),ann.getDoubleOrNaN("max"),ann.getString("severity")) 
         for (ann<-field.annotation(typeErrorIfNotRegex)) buffer.addErrorIfNotRegex(field,ann.getString("value").getOrElse(field.error("No arg to ErrorIfNotRegex annotation")),ann.getString("severity")) 
         for (ann<-field.annotation(typeErrorIfNotSuffix)) buffer.addErrorIfNotSuffix(field,ann.getString("value").getOrElse(field.error("No arg to ErrorIfNotSuffix annotation")),ann.getString("severity")) 
@@ -464,6 +465,7 @@ object SerializableTypeInfo {
   private[impl] val typeErrorIfBlank = universe.typeOf[ErrorIfBlank]
   private[impl] val typeErrorIfEmptyCollection = universe.typeOf[ErrorIfEmptyCollection]
   private[impl] val typeErrorIfNotNumber = universe.typeOf[ErrorIfNotNumber]
+  private[impl] val typeErrorIfNegative = universe.typeOf[ErrorIfNegative]
   private[impl] val typeErrorIfNotRegex = universe.typeOf[ErrorIfNotRegex]
   private[impl] val typeErrorIfNotSuffix = universe.typeOf[ErrorIfNotSuffix]
   private[impl] val typeErrorIfNotUniqueInObject = universe.typeOf[ErrorIfNotUniqueInObject]

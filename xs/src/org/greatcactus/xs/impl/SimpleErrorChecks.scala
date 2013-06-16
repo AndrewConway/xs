@@ -46,6 +46,7 @@ class SimpleErrorChecksBuffer {
   def addErrorIfNotRegex(field:XSFieldInfo,regexp:String,severity:Option[String]) { add(field.name,new PseudoDIErrorIfNotRegex(field,regexp.r,sev(severity)))} 
   def addErrorIfNotUnique(field:XSFieldInfo,key:UniquenessClass,getBadness:XSTreeNode=>NonuniqueElements,severity:Option[String]) { add(field.name,new PseudoDIErrorIfNotUnique(field,key,getBadness,sev(severity)))} 
   def addErrorIfNotNumber(field:XSFieldInfo,integer:Boolean,min:Double,max:Double,severity:Option[String]) { add(field.name,new PseudoDIErrorIfNotNumber(field,integer,min,max,sev(severity)))}
+  def addErrorIfNegative(field:XSFieldInfo,severity:Option[String]) { add(field.name,new PseudoDIErrorIfNegative(field,sev(severity)))}
   def get = new SimpleErrorChecks(map)
 }
 /**
@@ -127,7 +128,17 @@ class PseudoDIErrorIfNotNumber(val field:XSFieldInfo,val integer:Boolean,val min
     } catch { case _:NumberFormatException => false }
   }
 }
+
+class PseudoDIErrorIfNegative(val field:XSFieldInfo,val severity:Severity) extends SimpleTextErrorCheck {
+  def localizationKey = "ErrorIfNegative"
+  def isOK(s:String) : Boolean = {
+    try {
+      s.toDouble >= 0
+    } catch { case _:NumberFormatException => false }
+  }
+}
      
+
 object SimpleErrorMessageSource extends TextLocalizationSource {
   def textResources(locale:Locale) = TextLocalizationResources.getCached(locale,classOf[SimpleErrorChecks]) 
 }
