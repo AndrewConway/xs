@@ -9,7 +9,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Wraps this field in an extra tag.
+ * Wraps this field in an extra tag for XML serialization. Does not affect JSON serialization.
  * 
  * Fields are generally direct subtags of the parent tag, with the tag text denoting the class. 
  * Polymorphic fields have their type resolved by this name.

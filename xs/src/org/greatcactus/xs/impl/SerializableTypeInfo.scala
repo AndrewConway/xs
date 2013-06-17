@@ -63,7 +63,9 @@ class SerializableTypeInfo[T <: AnyRef] private (val clazz : java.lang.Class[T])
   }
   /** transitive completion of subclasses mentioned in SerializableSubclasses structure including self but not including abstract classes. */
   private[xs] lazy val transitiveSubclasses : Seq[SerializableTypeInfo[_ <: AnyRef]] = (subclasses.flatMap{_.transitiveSubclasses}++List(this)).filter{!_.isAbstract}
-  
+    
+  lazy val subClassFromName : Map[String,SerializableTypeInfo[_ <: T]] = Map.empty++transitiveSubclasses.map{s=>s.name->s.asInstanceOf[SerializableTypeInfo[_ <: T]]}
+
   /**
    * This (and related) has to be lazy as it may include a reference to itself, which would require the class itself to be constructed. 
    * However, until it is instantiated we can't tell whether this class is valid. So we have method checkIsValid below.
@@ -148,6 +150,19 @@ class SerializableTypeInfo[T <: AnyRef] private (val clazz : java.lang.Class[T])
     private[SerializableTypeInfo] val attributeFieldsFromNames : Map[String,XSFieldInfo] = {
       var res : Map[String,XSFieldInfo] = Map.empty
       for (field<-fieldsAsAttributes) {
+        def add(name:String) {
+          if (res.contains(name)) error("Tag "+name+" applies to more than one field")
+          res+=name->field
+        }
+        add(field.name)
+        for (obsolete<-field.obsoleteNames) add(obsolete)
+      }
+      res
+    }
+
+    private[SerializableTypeInfo] val allFieldsFromNames : Map[String,XSFieldInfo] = {
+      var res : Map[String,XSFieldInfo] = Map.empty
+      for (field<-fields) {
         def add(name:String) {
           if (res.contains(name)) error("Tag "+name+" applies to more than one field")
           res+=name->field
@@ -253,6 +268,7 @@ class SerializableTypeInfo[T <: AnyRef] private (val clazz : java.lang.Class[T])
   /** Get the field expected when an attribute with a given name is found */
   def getAttributeField(name:String) : XSFieldInfo = constructor.flatMap{_.attributeFieldsFromNames.get(name)}.
           orElse(blockFieldAsAttributeField(name)).getOrElse(deserializeError("Unexpected tag "+name))
+  def getField(name:String) : XSFieldInfo = constructor.flatMap{_.allFieldsFromNames.get(name)}.getOrElse(deserializeError("Unexpected field "+name))
   // found an attribute that should really be a block, but can still read safely.
   def blockFieldAsAttributeField(name:String) : Option[XSFieldInfo] = constructor.flatMap{_.blockFieldsFromNames.get(name).map{_._1}}.filter{_.couldBeAttribute}
           

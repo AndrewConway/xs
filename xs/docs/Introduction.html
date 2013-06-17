@@ -5,7 +5,7 @@
 <title>Introduction to XS</title>
 </head>
 <body>
-  <p>XS is provides a high quality editor and XML serialization/deserialization for Scala classes that form a tree. 
+  <p>XS is provides a high quality editor and XML/JSON serialization/deserialization for Scala classes that form a tree. 
   This introduction provides an introduction to the main concepts. More details are available in the Javadocs for the annotations.</p>
   
   <h2>XS Classes and fields</h2>
@@ -40,6 +40,7 @@
   <h4>Serialization</h4>
            <aside>Refers to package <code>org.greatcactus.xs.api.serialization</code></aside>
   
+  <h5>XML serialization</h5>
   <p>This is generally all the information needed for serialization. Such a class will be serialized into a XML structure with tag name
   the class' name (override by <code>@XSName</code>), attributes with the fields serialized to Strings (unless annotated by <code>@XSSerializeAsBlock</code>), 
   and nested XML elements for the other fields.</p>
@@ -62,7 +63,25 @@ val c = new Complex(0.6,0.8)
 val serializedData : Array[Byte] = XMLSerialize.serializeToByteArray(c)
 val deserialized : Complex = XMLDeserialize.deserialize[Complex](serializedData)
 </pre>
-   
+  
+  <h5>JSON serialization</h5>
+  <p>Usage and general idea is similar to XML serialization, except just the <code>JSONSerialize</code> and <code>JSONDeserialize</code> classes.</p>
+  
+  <p>Polymorphism causes different problems; working out what class a field is. For this reason each object, when serialized contains an explicit
+  field called <code>"xsType"</code> set to a string specifying the name of the actual type. This field must be listed first for deserialization
+  to work. <code>@XSWrapper</code> is not needed and will be ignored.</p>
+  
+  <p>More specifically, an xs object is serialized with JSON fields for all its non-empty fields, plus "xsType" with the name of the class being serialized.
+  Fields are serialized as follows:<p>
+  <ul>
+   <li>Numbers/booleans are serialized as the appropriate JSON primitive.</li>
+   <li>Other non-XS fields are serialized as strings (as in XML serialization).  </li>
+   <li>non-empty collections (other than option) are serialized as a JSON array</li>
+   <li>non-null object fields, or non-empty options, are serialized as a JSON object</li>
+  </ul>
+
+  
+     
    <h2>Editing</h2>
          <aside>Refers to package <code>org.greatcactus.xs.api.edit</code></aside>
    

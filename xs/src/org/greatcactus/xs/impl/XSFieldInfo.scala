@@ -237,6 +237,11 @@ class XSFieldInfo(val fieldSymbol:reflect.runtime.universe.Symbol,val index:Int,
       val s = if (stringrep==null) "" else if (shouldTrimStringrep) stringrep.trim else stringrep
       Try { parser(s) }
     }
+    /** Given a string representation of the baseClass object, get the object. This Does not work for semicolon separated lists.  */
+    def parseStringSingle(stringrep:String) : AnyRef = {
+      val s = if (stringrep==null) "" else if (shouldTrimStringrep) stringrep.trim else stringrep
+      parser(s) 
+    }
     /** Given a string representation of the object, get the object. This also works for semicolon separated lists. Return Some(result) or None if the string is illegal. */
     def parseStringPossiblyMultipleSafe(stringrep:String) : Try[AnyRef] = {
       val s = if (stringrep==null) "" else if (shouldTrimStringrep) stringrep.trim else stringrep
