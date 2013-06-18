@@ -42,6 +42,17 @@ class ZZZ_Serialization {
     assertEquals(Seq("Rubble"),m2.barney)
     assertEquals("""{"xsType":"Test1","fred":"Flintstone","barney":["Rubble"]}""",JSONSerialize.serializeToString(m2))
   }
+  
+  @Test
+  def test1bson {
+    val t = new Test1("Flintstone",List("Rubble"))
+    val bson = MongoDBSerialize.serializeDBO(t)
+    assertEquals("""{ "xsType" : "Test1" , "fred" : "Flintstone" , "barney" : [ "Rubble"]}""",bson.toString)
+    val m2 = MongoDBDeserialize.deserialize[Test1](bson)
+    assertEquals("Flintstone",m2.fred)
+    assertEquals(Seq("Rubble"),m2.barney)
+    assertEquals("""{"xsType":"Test1","fred":"Flintstone","barney":["Rubble"]}""",JSONSerialize.serializeToString(m2))
+  }
 
   @Test
   def test2xml {
@@ -69,7 +80,7 @@ class ZZZ_Serialization {
     assertEquals(3,m2.f3(2))
     assertEquals("""{"xsType":"Test2","f1":4,"f2":3.6,"f3":[5,4,3]}""",new String(JSONSerialize.serializeToByteArray(m2)))
   }
-  
+    
   @Test
   def test3xml {
     val t = new Test3(List(5,4,3))
@@ -115,9 +126,18 @@ class ZZZ_Serialization {
     assertEquals(expectedXML,new String(XMLSerialize.serializeToByteArray(obj)))
     val m = XMLDeserialize.deserialize[T](expectedXML.getBytes)
     assertEquals(expectedXML,new String(XMLSerialize.serializeToByteArray(m)))
+    assertEquals(expectedJSON,new String(JSONSerialize.serializeToByteArray(m)))
     assertEquals(expectedJSON,new String(JSONSerialize.serializeToByteArray(obj)))
     val m2 = JSONDeserialize.deserialize[T](expectedJSON.getBytes)
-    assertEquals(expectedJSON,new String(JSONSerialize.serializeToByteArray(m)))
+    assertEquals(expectedJSON,new String(JSONSerialize.serializeToByteArray(m2)))
+    assertEquals(expectedXML,new String(XMLSerialize.serializeToByteArray(m2)))
+    val bson = MongoDBSerialize.serializeDBO(obj)
+    val m3 = JSONDeserialize.deserialize[T](bson.toString)
+    assertEquals(expectedJSON,new String(JSONSerialize.serializeToByteArray(m3)))
+    assertEquals(expectedXML,new String(XMLSerialize.serializeToByteArray(m3)))
+    val m4 = MongoDBDeserialize.deserialize[T](bson)
+    assertEquals(expectedJSON,new String(JSONSerialize.serializeToByteArray(m4)))
+    assertEquals(expectedXML,new String(XMLSerialize.serializeToByteArray(m4)))
   }
 
   @Test

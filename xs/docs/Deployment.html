@@ -8,8 +8,9 @@
 
   <h2>Server side, code</h2>
   <p>You will need the xs code base. This can either be a compiled xs.jar or compiled from the source code in the xs project of the xs repository.
-  There is one dependent third party library, jackson-core (MIT license). The code is tested and compiled against version 2.1.1, but different versions are likely
-  to work. jackson-core is only used for the HTML interface; if you just want to use the XML serialization you do not need to include it.</p>
+  There are two dependent third party library, jackson-core (MIT license), and mongo-java-driver (Apache license). 
+  The code is tested and compiled against version 2.1.1 of jackson-core and 2.11.1 of mongo-java-driver, but different versions are likely
+  to work. jackson-core is only used for the HTML interface and JSON serialization; if you just want to use the XML serialization you do not need to include it.</p>
  
   <p>If you are running the demo, you will also need to include the code in the xs-test project of the xs repository.
 

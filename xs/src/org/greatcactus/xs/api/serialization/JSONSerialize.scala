@@ -31,10 +31,7 @@ import java.io.Writer
 object JSONSerialize {
 
   val typeTag = "xsType" // field for types. 
-  
-  val CopiedDataTag = "xs-copied-data"
-  val CopiedDataOpenTag = "xs-is-open"
-  
+    
   def serializeToByteArray(obj:Any) : Array[Byte] = {
     val w = new ByteArrayOutputStream
     serialize(obj,w)
