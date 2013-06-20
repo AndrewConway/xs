@@ -190,7 +190,7 @@ img.xsIcon {
 
 
 .XSDetailsPane fieldset table.xsForm {
-/*	width : 100%; */
+	width : 100%; 
   padding:0px 0px 0px 0px;
   margin:0px 0px 0px 0px;
 }
