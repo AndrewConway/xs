@@ -18,6 +18,7 @@ import scala.util.Success
 import scala.collection.GenTraversable
 import org.greatcactus.xs.impl.GeneralizedField
 import org.greatcactus.xs.api.command.ProgressMonitor
+import scala.concurrent.ExecutionContext
 
 /**
  * Immutable description of the fields on the details pane.
@@ -185,7 +186,7 @@ class DetailsPaneFieldSection(
  class ActionBusy extends Exception
 
 sealed abstract class DetailsPaneFieldAction extends DetailsPaneField {
-  def go(edit:XSEdit,parent:XSTreeNode,getMonitor:ProgressMonitorInfo)
+  def go(edit:XSEdit,parent:XSTreeNode,getMonitor:ProgressMonitorInfo,executionContext:ExecutionContext)
   def label:String
   def tooltip:Option[String]
   def icon:Option[Icon]
@@ -202,7 +203,7 @@ class DetailsPaneFieldActionAdd(
     val concreteClass:SerializableTypeInfo[_]
     ) extends DetailsPaneFieldAction {
   def icon = concreteClass.icon
-  def go(edit:XSEdit,parent:XSTreeNode,getMonitor:ProgressMonitorInfo) {
+  def go(edit:XSEdit,parent:XSTreeNode,getMonitor:ProgressMonitorInfo,executionContext:ExecutionContext) {
     edit.addField(parent,None, field,concreteClass.newElement().asInstanceOf[AnyRef],None,"Add")
   }
   override def shouldBeVisible(parent:XSTreeNode) = parent.canAdd(field) && parent.isVisible(name)
@@ -213,7 +214,7 @@ class DetailsPaneFieldActionDelete(
     val label:String,
     val tooltip:Option[String]
     ) extends DetailsPaneFieldAction {
-  def go(edit:XSEdit,nodeBeingDeleted:XSTreeNode,getMonitor:ProgressMonitorInfo) {
+  def go(edit:XSEdit,nodeBeingDeleted:XSTreeNode,getMonitor:ProgressMonitorInfo,executionContext:ExecutionContext) {
     edit.deleteTreeNode(nodeBeingDeleted)
   }
   def icon = Some(SystemIcons.delete)
@@ -226,8 +227,8 @@ class DetailsPaneFieldActionCommand(
     val tooltip:Option[String],
     val icon:Option[Icon]
     ) extends DetailsPaneFieldAction {
-  def go(edit:XSEdit,parent:XSTreeNode,getMonitor:ProgressMonitorInfo) {
-    parent.dependencyInjection.executeCommandInSeparateThread(function,getMonitor)
+  def go(edit:XSEdit,parent:XSTreeNode,getMonitor:ProgressMonitorInfo,executionContext:ExecutionContext) {
+    parent.dependencyInjection.executeCommandInSeparateThread(function,getMonitor,executionContext)
   }
   val name = function.name
 }

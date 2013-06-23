@@ -137,7 +137,7 @@ class ZZZ_EditSpace {
 }
 
 
-class TestXSDetailsPane(_locale:Locale,_xsedit:XSEdit) extends XSDetailsPane[String](_locale,_xsedit) {
+class TestXSDetailsPane(_locale:Locale,_xsedit:XSEdit) extends XSDetailsPane[String](_locale,_xsedit,scala.concurrent.ExecutionContext.Implicits.global) {
   
   // things it has to implement
   def dispose(guis:UIFields) {}

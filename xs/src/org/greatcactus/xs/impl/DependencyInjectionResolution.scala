@@ -26,6 +26,7 @@ import java.lang.reflect.InvocationTargetException
 import org.greatcactus.xs.api.dependency.IndexInParentField
 import org.greatcactus.xs.frontend.ProgressMonitorInfo
 import org.greatcactus.xs.frontend.ActionBusy
+import scala.concurrent.ExecutionContext
 
 
 
@@ -298,7 +299,7 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
     }
   }
   
-  def executeCommandInSeparateThread(function:DependencyInjectionFunction,getMonitor : ProgressMonitorInfo) { synchronized {
+  def executeCommandInSeparateThread(function:DependencyInjectionFunction,getMonitor : ProgressMonitorInfo,executionContext:ExecutionContext) { synchronized {
     clean()
     val monitor = try { getMonitor.getMonitor() } catch { case _:ActionBusy => return}
     val monitorSource = monitor.subTask(1.0)
@@ -306,7 +307,7 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
     function.getArgs(possibleArgs) match {
       case Some(args) =>
         //println("Got args")
-        import concurrent.ExecutionContext.Implicits.global
+        //import concurrent.ExecutionContext.Implicits.global
         val mirror = parentMirror
         concurrent.future{
           def err(e:Throwable) = e match {
@@ -334,7 +335,7 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
             case e:Exception => err(e)
           }
           getMonitor.releaseMonitor()
-        }
+        }(executionContext)
       case None => 
         //println("executeCommandInSeparateThread could not get args")
         monitor.failed(Some(RichLabel("Could not run command")))

@@ -23,11 +23,18 @@ import org.greatcactus.xs.api.icon.ResolvedIcon
 import java.net.URLEncoder
 import scala.concurrent.Await
 import org.greatcactus.xs.frontend.XSToolBar
+import scala.concurrent.ExecutionContext
 
 /**
  * A base class for a typical servlet using the XS framework. Takes care of the XS connections (images, comet, events) and separates out the user code.
  */
 abstract class XSServlet extends HttpServlet {  
+  
+  import concurrent.ExecutionContext
+  val executorService = java.util.concurrent.Executors.newFixedThreadPool(4)
+  val executionContext = ExecutionContext.fromExecutorService(executorService)
+
+  //val executionContext : ExecutionContext = scala.concurrent.ExecutionContext.Implicits.global
   
   /** The main front page, for a get command without a "sub" parameter. This is what the user should override. */
   def mainPage(request:HttpServletRequest,response:HttpServletResponse)
@@ -57,13 +64,21 @@ abstract class XSServlet extends HttpServlet {
     }
   }
   
+  private val openCometThreadsSync = new Object
+  private var openCometThreads : Set[Thread] = Set.empty
+  
   /** Sending via comet or message */
   override def doPost(request:HttpServletRequest,response:HttpServletResponse) {
     val responseMessage = (for (sessionID<-Option(request.getParameter("xsSessionID"));e<-SessionManagement.get(sessionID)) yield e) match {
       case Some(session) =>
         request.getParameter("sub") match {
-          case "comet" => 
-            val res = Await.result(session.cometCallFuture,scala.concurrent.duration.Duration.Inf) // TODO should do asynchronously rather than await.
+          case "comet" =>
+            val t = Thread.currentThread()
+            openCometThreadsSync.synchronized{ openCometThreads+=t }
+            val res = try {
+              Await.result(session.cometCallFuture,scala.concurrent.duration.Duration.Inf) // TODO should do asynchronously rather than await.
+            } catch { case _:InterruptedException => None }
+            openCometThreadsSync.synchronized{ openCometThreads-=t }
               //session.cometCallShouldReturnImmediately().orElse{session.cometCall()}
            // Thread.sleep(3000L) // simulate a slow connection
             res
@@ -90,6 +105,14 @@ abstract class XSServlet extends HttpServlet {
   }
   
   override def destroy() {
+    println("Start destroy in XSServlet")
+    var tokill = openCometThreads
+    for (k<-tokill) k.interrupt()
+    executorService.shutdown()
+    SessionManagement.scheduler.shutdownNow()
+    Thread.sleep(10)
+    super.destroy()
+    println("End destroy in XSServlet")
     //if (loadedProperly || !file.exists()) save()
   }
   

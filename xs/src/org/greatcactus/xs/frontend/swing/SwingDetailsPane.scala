@@ -30,7 +30,7 @@ import org.greatcactus.xs.impl.GeneralizedField
  *
  * The type of a GUI object is a string representing the base of the identifier for the corresponding gui object.
  */
-class SwingDetailsPane(_locale:Locale,_xsedit:XSEdit) extends XSDetailsPane[Component](_locale,_xsedit) {
+class SwingDetailsPane(_locale:Locale,_xsedit:XSEdit) extends XSDetailsPane[Component](_locale,_xsedit,scala.concurrent.ExecutionContext.Implicits.global) {
   
   val panel = new BoxPanel(Orientation.Vertical)
   

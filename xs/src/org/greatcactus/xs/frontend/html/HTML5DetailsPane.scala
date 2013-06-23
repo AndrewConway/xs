@@ -12,8 +12,7 @@ import org.greatcactus.xs.frontend._
 import org.greatcactus.xs.api.icon.Icon
 import org.greatcactus.xs.api.display.RichLabel
 import org.greatcactus.xs.api.errors.ResolvedXSError
-import scala.concurrent._
-import ExecutionContext.Implicits.global
+import scala.concurrent.Future
 import org.greatcactus.xs.impl.GeneralizedField
 import org.greatcactus.xs.api.command.ProgressMonitor
 import org.greatcactus.xs.api.command.ProgressMonitorUI
@@ -27,7 +26,7 @@ import scala.xml.transform.RuleTransformer
  *
  * The type of a GUI object is a string representing the base of the identifier for the corresponding gui object.
  */
-class HTML5DetailsPane(val client:HTML5Client) extends XSDetailsPane[String](client.locale,client.xsedit) {
+class HTML5DetailsPane(val client:HTML5Client) extends XSDetailsPane[String](client.locale,client.xsedit,client.executionContext) {
   
   val detailsPaneID = "xsDP_"+client.session.jsSessionID // the ID of the main div holding all the details pane.
   
@@ -117,7 +116,7 @@ class HTML5DetailsPane(val client:HTML5Client) extends XSDetailsPane[String](cli
     }
   } 
   override def remove(gui:String) : Unit = { message(ClientMessage.removeID(gui))}
-  override def getClipboard(param:XSClipboardRequest) : Future[XSClipBoard] = client.session.getClipboard(param)
+  override def getClipboard(param:XSClipboardRequest) : Future[XSClipBoard] = client.session.getClipboard(param,client.executionContext)
   override def setClipboard(data:XSClipBoard) { client.session.setClipboard(data)}
     
   def setBlankScreen() { jsSetHTML(detailsPaneID,NodeSeq.Empty)}
@@ -254,6 +253,7 @@ class GUICreatorHTML5(pane:HTML5DetailsPane,inlineParentDivId:Option[String]) ex
   private[this] var template:Option[FillInTemplate] = None
   val postCreationJavascript = new ListBuffer[ClientMessage]
   
+  override def getExecutionContext = pane.client.executionContext
   private def addRow(row:xml.Elem,visible:Boolean,fieldName:String,field:NodeSeq,label:NodeSeq) { 
     val withvisibility = XSHTMLUtil.possiblySetNoDisplay(row,visible)
     for (t<-template) t.add(fieldName,field,label,withvisibility)

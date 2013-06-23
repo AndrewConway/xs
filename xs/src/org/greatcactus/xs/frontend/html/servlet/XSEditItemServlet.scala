@@ -36,12 +36,7 @@ abstract class XSEditItemServlet(val hasTree:Boolean) extends XSServlet {
   override def mainPage(request:HttpServletRequest,response:HttpServletResponse) {
     mainPage(xsobj(request),response)
   }
-  
-  
-  override def destroy() {
-    //if (loadedProperly || !file.exists()) save()
-  }
-  
+    
   abstract class XSSI(val title:String,val obj:AnyRef) {
     def save(editingResult:AnyRef)
   }
@@ -60,7 +55,7 @@ abstract class XSEditItemServlet(val hasTree:Boolean) extends XSServlet {
       override def onRevert() { xsEditor.replaceRoot(xssi.obj)}
       override def useRevert = true
     }
-    val client = new HTML5Client(xsEditor,Some(Toolbar),Locale.ENGLISH)
+    val client = new HTML5Client(xsEditor,Some(Toolbar),Locale.ENGLISH,executionContext)
     val page =  
       <html>
         <head>

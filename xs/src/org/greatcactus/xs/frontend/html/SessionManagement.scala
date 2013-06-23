@@ -8,7 +8,7 @@ import scala.collection.mutable.PriorityQueue
 import scala.math.Ordered
 import scala.collection.mutable.ListBuffer
 import scala.concurrent._
-import ExecutionContext.Implicits.global
+//import ExecutionContext.Implicits.global
 import scala.concurrent.Promise
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.Executors
@@ -95,7 +95,6 @@ class HTTPSession(val worker:HTTPSessionWorker) {
 
   /** A better way to do comet calls - via futures. */
   def cometCallFuture : Future[Option[ClientMessage]] = {
-    import scala.concurrent.ExecutionContext.Implicits.global
     synchronized {
       if (pendingResponse.isDefined) throw new IllegalArgumentException("Can't call cometCallFuture until previous call resolved")
       val immediate = cometCallShouldReturnImmediately()
@@ -201,14 +200,16 @@ class HTTPSession(val worker:HTTPSessionWorker) {
   
   private var localClipboard : Option[XSClipBoard] = None 
     
-  def getClipboard(param:XSClipboardRequest) : Future[XSClipBoard] = future { 
+  def getClipboard(param:XSClipboardRequest,executionContext:ExecutionContext) : Future[XSClipBoard] = {
+   future ( 
+  
     localClipboard match {
       case None => throw new IllegalArgumentException("Nothing on the clipboard")
       case Some(clip) =>
         if (clip.datatype==param) clip
         else throw new IllegalArgumentException("Clipboard is in the wrong format")
     }
-   
+   )(executionContext)
   }
   def setClipboard(data:XSClipBoard) {
     localClipboard=Some(data)

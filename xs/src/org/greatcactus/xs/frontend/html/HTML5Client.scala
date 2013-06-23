@@ -17,12 +17,13 @@ import org.greatcactus.xs.frontend.XSToolBar
 import org.greatcactus.xs.frontend.ToolbarStatusListener
 import org.greatcactus.xs.frontend.StatusForToolbar
 import org.greatcactus.xs.frontend.XSClipboardRequest
-import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.ExecutionContext
+//import scala.concurrent.ExecutionContext.Implicits.global
 /**
  * The controller for communication with an HTML client. The details of the transport are not
  * included here - it could be via HTTP or Websockets.
  */
-class HTML5Client(val xsedit:XSEdit,val toolbar:Option[XSToolBar],val locale:Locale) {
+class HTML5Client(val xsedit:XSEdit,val toolbar:Option[XSToolBar],val locale:Locale,val executionContext:ExecutionContext) {
 
   private[this] val cmdBuffer = new ClientMessageBuffer
   
@@ -64,7 +65,7 @@ class HTML5Client(val xsedit:XSEdit,val toolbar:Option[XSToolBar],val locale:Loc
         command match {
           case "copy" => session.setClipboard(xsedit.copyData(nodes))
           case "cut" => session.setClipboard(xsedit.copyData(nodes)); xsedit.deleteTreeNodes(nodes,"cut")
-          case "paste" => session.getClipboard(XSClipboardRequest.xsSerializedData).onSuccess{ case c=> for (node<-nodes.headOption) xsedit.pasteData(node, c, None) }
+          case "paste" => session.getClipboard(XSClipboardRequest.xsSerializedData,executionContext).onSuccess{ case c=> for (node<-nodes.headOption) xsedit.pasteData(node, c, None) }(executionContext)
           case "erase" => xsedit.deleteTreeNodes(nodes,"erase")
         }
       }

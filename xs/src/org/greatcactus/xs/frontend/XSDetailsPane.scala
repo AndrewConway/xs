@@ -17,7 +17,7 @@ import scala.util.Failure
 import org.greatcactus.xs.impl.TrimInfo
 import org.greatcactus.xs.impl.CollectionStringUtil
 import scala.concurrent._
-import ExecutionContext.Implicits.global
+//import ExecutionContext.Implicits.global
 import scala.collection.mutable.ArrayBuffer
 import org.greatcactus.xs.impl.GeneralizedField
 import org.greatcactus.xs.api.command.ProgressMonitor
@@ -33,7 +33,7 @@ import scala.xml.Node
  * There will be one copy of this per client
  *
  */
-abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit) { basePane =>
+abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit,executionContext:ExecutionContext) { basePane =>
 
   private var currentlyShowing : Option[XSTreeNode] = None
   private var currentPane : Option[DetailsPaneFields] = None
@@ -241,7 +241,7 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit) { basePane 
   
   private var localClipboard : Option[XSClipBoard] = None 
     
-  def getClipboard(param:XSClipboardRequest) : Future[XSClipBoard] = future { localClipboard.get }
+  def getClipboard(param:XSClipboardRequest) : Future[XSClipBoard] = future { localClipboard.get }(executionContext)
   def setClipboard(data:XSClipBoard) {
     localClipboard=Some(data)
   }
@@ -281,7 +281,7 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit) { basePane 
         field match {
           case f:DetailsPaneFieldAction =>  
             val gui = creator.createAction(f,state)
-            buffer+=new UIFieldAction(f,gui,state,creator.createProgressMonitor(gui))
+            buffer+=new UIFieldAction(f,gui,state,creator.createProgressMonitor(gui),creator.getExecutionContext)
           case f:DetailsPaneFieldText =>
             val initialValue = f.get(tree)
             val gui = creator.createTextField(f, state, initialValue)
@@ -858,7 +858,7 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit) { basePane 
           case "copy" => setClipboard(xsedit.copyData(nodes))
           case "cut" => setClipboard(xsedit.copyData(nodes)); xsedit.deleteTreeNodes(nodes,"cut")
           case "paste" => //for (c<-clipboard) xsedit.pasteData(parent, c, nodes.headOption)
-            getClipboard(XSClipboardRequest.xsSerializedData).onSuccess { case c =>  xsedit.pasteData(parent, c, nodes.headOption) }
+            getClipboard(XSClipboardRequest.xsSerializedData).onSuccess { case c =>  xsedit.pasteData(parent, c, nodes.headOption) }(executionContext)
           case "erase" => xsedit.deleteTreeNodes(nodes,"erase")
         }
     }
@@ -906,7 +906,7 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit) { basePane 
     override def toString = field.label+":"+currentlyShowing
   }
 
-  class UIFieldAction(val field:DetailsPaneFieldAction,val gui:T,var currently:CurrentFieldState,getMonitor:()=>ProgressMonitor) extends UIField {
+  class UIFieldAction(val field:DetailsPaneFieldAction,val gui:T,var currently:CurrentFieldState,getMonitor:()=>ProgressMonitor,executionContext:ExecutionContext) extends UIField {
     def humanEditedTrimInfo:Array[Option[TrimInfo]] = TrimInfo.empty
 
     var inProgress : Option[ProgressMonitor] = None
@@ -935,7 +935,7 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit) { basePane 
       }
       //println("UIFieldAction.go")
       refreshCurrently(node)
-      field.go(xsedit,node,progressMonitorInfo) 
+      field.go(xsedit,node,progressMonitorInfo,executionContext) 
     }
     override def toString = field.label
   }
@@ -1002,6 +1002,8 @@ abstract class GUICreator[T] {
   def createAction(field:DetailsPaneFieldAction,currently:CurrentFieldState) : T
   /** Called for actions to get code that will, on demand, create a progress monitor for said field */
   def createProgressMonitor(gui:T) : ()=>ProgressMonitor = () =>ProgressMonitor.dummy
+  /** Execution context used for actions */
+  def getExecutionContext : ExecutionContext = scala.concurrent.ExecutionContext.Implicits.global
   /** Called to create a text field (inside a section) */
   def createTextField(field:DetailsPaneFieldText,currently:CurrentFieldState,initialValue:String) : T
   /** Called to create a boolean field - typically a checkbox (inside a section) */
