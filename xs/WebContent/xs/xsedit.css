@@ -29,7 +29,7 @@ table.xsPasteTable tr:nth-child(odd) {
 
 .xsTableHolder {
 	width: 100%;
-	overflow-x:hidden;
+	/* overflow-x:hidden; */
 	/* height: 100px; */
 	outline: 0;
     border: 1px solid gray;
