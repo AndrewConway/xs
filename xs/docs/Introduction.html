@@ -168,7 +168,11 @@ val deserialized : Complex = XMLDeserialize.deserialize[Complex](serializedData)
    file containing an html fragment that is used instead of the standard layout for that file. This should be in a file in the same
    package as the class, with name "classname".template.xml (similar to properties files), and should be a valid xml file. Fields and
    labels can be inserted into this tamplate: field "abc" will be inserted with a node called <code>field:abc</code>; labels with
-   <code>label:abc</code>, and a two column wide table row with the label in the LHS and field in the RHS for <code>tr:abc</code>.</p> 
+   <code>label:abc</code>, and a two column wide table row with the label in the LHS and field in the RHS for <code>tr:abc</code> 
+   (<code>line:abc</code> if you want it prewrapped in a table). If you want your field (label) wrapped in an inline-block, you can
+   use <code>fieldib:abc</code> (<code>labelib:abc</code>) - either of which can take an attribute <code>width</code> with an
+   approriate css value. <code>xs:pack</code> is a utility which will process the contents of the node, dropping trailing whitespace,
+   and make the contents into a line with the last child taking up the rest of the line.</p> 
    
    <h3>Errors</h3>
       <aside>Refers to package <code>org.greatcactus.xs.api.errors</code></aside>

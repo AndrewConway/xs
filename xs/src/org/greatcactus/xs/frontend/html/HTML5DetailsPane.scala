@@ -542,8 +542,28 @@ class FillInTemplate(val template:Node) {
         //println("Matching node "+n)
         n match {
           case Elem("field",fieldName, attribs, scope, children @ _*) => fields.get(fieldName).getOrElse(NodeSeq.Empty)
+          case Elem("fieldib",fieldName, attribs, scope, children @ _*) => fields.get(fieldName) match {
+            case Some(field) =>
+              val width = attribs("width") match { case null => "" ; case w => "width:"+(w text)+";" }
+              val style = "display:inline-block;" + width
+              <div style={style} class="xsErrorLabeled">{field}</div>
+            case None => NodeSeq.Empty
+          }
+          case Elem("xs","pack", attribs, scope, children @ _*) =>
+            val revkids = children.reverse.dropWhile{n=>n.isAtom && n.text.trim.isEmpty} // get rid of trailing whitespace.
+            val lhs = revkids.tail.reverse
+            val rhs = revkids.head
+            <table class="xsForm"><tr><td><div style="display:inline-block;white-space:nowrap;">{lhs map transform}</div></td><td class="xsErrorLabeled xsColMainWidth1">{transform(rhs)}</td></tr></table>
           case Elem("label",fieldName, attribs, scope, children @ _*) => labels.get(fieldName).getOrElse(NodeSeq.Empty)
+          case Elem("labelib",fieldName, attribs, scope, children @ _*) => labels.get(fieldName) match {
+            case Some(field) =>
+              val width = attribs("width") match { case null => "" ; case w => "width:"+(w text)+";" }
+              val style = "display:inline-block;" + width
+              <div style={style}>{field}</div>
+            case None => NodeSeq.Empty
+          }
           case Elem("tr",fieldName, attribs, scope, children @ _*) => trs.get(fieldName).getOrElse(NodeSeq.Empty)
+          case Elem("line",fieldName, attribs, scope, children @ _*) => <table class="xsForm">{trs.get(fieldName).getOrElse(NodeSeq.Empty)}</table>
           case elem: Elem =>
             //println("Other elem : prefix = "+elem.prefix+" namespace = "+elem.namespace+" name="+elem.label)
             elem copy (child = elem.child flatMap (this transform))
