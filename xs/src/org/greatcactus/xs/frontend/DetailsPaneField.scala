@@ -374,7 +374,7 @@ class DetailsPaneFieldText(
   def set(parent:XSTreeNode,stringrep:String,executeAfterModificationBeforeRefreshing:Option[()=>Unit]) : Boolean = { 
     field.parseStringPossiblyMultipleSafe(stringrep) match {
       case Success(newValue) => parent.xsedit.setField(parent, field, newValue,executeAfterModificationBeforeRefreshing); true
-      case _ => false
+      case _ => for (f<-executeAfterModificationBeforeRefreshing) f(); false
     }
   }
   override def toString = label

@@ -174,9 +174,8 @@ class SerializableTypeInfo[T <: AnyRef] private (val clazz : java.lang.Class[T])
     }
 
   }
-  
-  
-  lazy val dependencyInjectionInfo : DependencyInjectionInformation = {
+    
+  lazy val (dependencyInjectionInfo : DependencyInjectionInformation,fieldUpdatersMap: Map[XSFieldInfo,DependencyInjectionFunction]) = {
     val providers = new ListBuffer[DependencyInjectionFunction]
     val iconProviders = new ListBuffer[FunctionForField]
     val labelProviders = new ListBuffer[FunctionForField]
@@ -191,7 +190,7 @@ class SerializableTypeInfo[T <: AnyRef] private (val clazz : java.lang.Class[T])
       case a if a!=null && a.value!=null => a.value().toList
       case _ => Nil
     }
-
+    val fieldUpdaters = new ListBuffer[FunctionForField]
     for (method<-ty.members.collect{case m if m.isMethod => m.asMethod }) if (!(method.isConstructor || method.isImplementationArtifact || method.isParamAccessor)) {
       val dp = hasAnnotation(method,typeDependencyProvider)
       val ip = getOptionalValue(method,typeIconProvider)
@@ -204,7 +203,8 @@ class SerializableTypeInfo[T <: AnyRef] private (val clazz : java.lang.Class[T])
       val cdf = getOptionalValue(method,typeCustomEditable)
       val visC = getOptionalValue(method,typeVisibilityController)
       val enC = getOptionalValue(method,typeEnabledController)
-      val numSpecial = (if (ip.isDefined) 1 else 0)+(if (lp.isDefined) 1 else 0)+(if (ttp.isDefined) 1 else 0)+(if (ec.isDefined) 1 else 0)+(if (edf) 1 else 0)+(if (cmd) 1 else 0)+(if (cdf.isDefined) 1 else 0)+(if (visC.isDefined) 1 else 0)+(if (enC.isDefined) 1 else 0)
+      val fu = getOptionalValue(method,typeFieldUpdater)
+      val numSpecial = (if (ip.isDefined) 1 else 0)+(if (lp.isDefined) 1 else 0)+(if (ttp.isDefined) 1 else 0)+(if (ec.isDefined) 1 else 0)+(if (edf) 1 else 0)+(if (cmd) 1 else 0)+(if (cdf.isDefined) 1 else 0)+(if (visC.isDefined) 1 else 0)+(if (enC.isDefined) 1 else 0)+(if (fu.isDefined) 1 else 0)
         if (numSpecial>1) error("Conflicting annotations on method "+method.name)
         if (dp||ptc||numSpecial>0) {
           if (visC.isDefined || enC.isDefined) { // check returns boolean
@@ -221,6 +221,7 @@ class SerializableTypeInfo[T <: AnyRef] private (val clazz : java.lang.Class[T])
           else if (ec.isDefined) errorChecks+=fff(ec)
           else if (visC.isDefined) visibilityControllers+=fff(visC)  
           else if (enC.isDefined) enabledControllers+=fff(enC) 
+          else if (fu.isDefined) fieldUpdaters+=fff(fu) 
           else if (cdf.isDefined) customFields+=new CustomFieldInfo(function,method.name.decoded,new FieldDisplayOptions(method,iconSource),cdf.get) 
           else if (edf) extraText+=new ExtraDisplayFieldInfo(function,method.name.decoded,new FieldDisplayOptions(method,iconSource))
           else if (cmd) commands+=new CommandMethod(function,method.name.decoded,new FieldDisplayOptions(method,iconSource))
@@ -241,6 +242,7 @@ class SerializableTypeInfo[T <: AnyRef] private (val clazz : java.lang.Class[T])
     check(visibilityControllers.toList,"@VisibilityController",false,false,true)
     check(enabledControllers.toList,"@EnabledController",false,false,true)
     check(errorChecks.toList,"@ErrorCheck",true,true,true)
+    check(fieldUpdaters.toList,"@FieldUpdater",false,false,false)
     val simpleErrorChecks : SimpleErrorChecks = {
       val buffer = new SimpleErrorChecksBuffer
       for (field<-fields) {
@@ -257,7 +259,10 @@ class SerializableTypeInfo[T <: AnyRef] private (val clazz : java.lang.Class[T])
       }
       buffer.get
     }
-    new DependencyInjectionInformation(providers.toList,iconProviders.toList,labelProviders.toList,tooltipProviders.toList,extraText.toList,customFields.toList,enabledControllers.toList,visibilityControllers.toList,errorChecks.toList,new CanPassToChildren(classesToBlockForChildren),simpleErrorChecks,commands.toList)
+    val fieldUpdatersMap : Map[XSFieldInfo,DependencyInjectionFunction] = Map((for (u <- fieldUpdaters.toList;fname<-u.field;f<-fields.find{_.name==fname}) yield f->u.function):_*)
+    //println("Class "+name+" field Updaters Map "+fieldUpdatersMap)
+    val dependencyInjectionInfo = new DependencyInjectionInformation(providers.toList,iconProviders.toList,labelProviders.toList,tooltipProviders.toList,extraText.toList,customFields.toList,enabledControllers.toList,visibilityControllers.toList,errorChecks.toList,new CanPassToChildren(classesToBlockForChildren),simpleErrorChecks,commands.toList)
+    (dependencyInjectionInfo,fieldUpdatersMap)
   }
   
   
@@ -342,15 +347,21 @@ class SerializableTypeInfo[T <: AnyRef] private (val clazz : java.lang.Class[T])
    * Change the given field "field" to the new value "element" of the "orginal" object. 
    * This is different from changeField in that if the field is a collection, then the argument to this is the whole collection, whereas changeField will only change one field in a collection.
    */
-  def setField(original:T,field:XSFieldInfo,element:AnyRef) : T = {
-    constructor match {
-      case Some(c) =>
-        val newfieldvalues = for (f<-c.fields) yield {
-          val current = f.getField(original).asInstanceOf[AnyRef]
-          if (f eq field) element else current
+  def setField(original:T,field:XSFieldInfo,element:AnyRef) : T = { 
+    fieldUpdatersMap.get(field) match {
+      case Some(fu) =>
+        //println("Updating via field updater rather than constructor")
+        fu.apply(scala.reflect.runtime.currentMirror.reflect(original.asInstanceOf[AnyRef]),List(element)).asInstanceOf[T]
+      case None =>
+        constructor match {
+          case Some(c) =>
+            val newfieldvalues = for (f<-c.fields) yield {
+              val current = f.getField(original).asInstanceOf[AnyRef]
+              if (f eq field) element else current
+            }
+            c.create(newfieldvalues)
+          case None => throw new IllegalArgumentException
         }
-        c.create(newfieldvalues)
-      case None => throw new IllegalArgumentException
     }
   }
   def setFieldAnyRef(original:AnyRef,field:XSFieldInfo,element:AnyRef) : AnyRef = setField(original.asInstanceOf[T],field,element).asInstanceOf[AnyRef]
@@ -474,6 +485,7 @@ object SerializableTypeInfo {
   private[impl] val typeVisibilityController = universe.typeOf[VisibilityController]
   private[impl] val typeEnabledController = universe.typeOf[EnabledController]
   private[impl] val typeOnlyAffectedByFields = universe.typeOf[OnlyAffectedByFields]
+  private[impl] val typeFieldUpdater = universe.typeOf[FieldUpdater]
   
 
   private[impl] val typeExpandOnFirstDisplay = universe.typeOf[ExpandOnFirstDisplay]

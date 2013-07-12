@@ -102,7 +102,8 @@ object RichLabel {
       case html:NodeSeq => Some(RichLabel(html.text,html))
       case localizable:Localizable => apply(localizable.localize(locale),locale)
       case lazylabel:LazyLabel => apply(lazylabel.value,locale)
-      case unknown => throw new IllegalArgumentException("Unknown label type "+unknown.getClass()+" value "+unknown.toString)
+      case other => Some(RichLabel(other.toString))
+      // case unknown => throw new IllegalArgumentException("Unknown label type "+unknown.getClass()+" value "+unknown.toString)
   }
   def apply(fromInjection:Option[AnyRef],fromToString: =>String,locale:Locale) : RichLabel = {
     fromInjection.flatMap{apply(_,locale)}.getOrElse(RichLabel(fromToString))
