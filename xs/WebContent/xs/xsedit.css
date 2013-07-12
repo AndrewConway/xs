@@ -22,7 +22,8 @@ table.xsPasteTable tr:nth-child(odd) {
 	white-space: nowrap;
 }
 
-.xsInlineField .xsFormWrapper {
+.xsInlineFieldBorder > .xsFormWrapper {
+	margin:1px;
 	border:1px solid #999;
     border-radius:0.3em;
 }

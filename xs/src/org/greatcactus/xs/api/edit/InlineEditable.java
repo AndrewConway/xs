@@ -19,7 +19,7 @@ import java.lang.annotation.Target;
  * in the subclasses will be displayed. Delete will be present unless the 
  * field is a plain direct member.
  * 
- * @see {@link TableEditable} {@link InlineEditable}
+ * @see {@link TableEditable} {@link IndividuallyEditable} {@link NoBorder}
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.FIELD,ElementType.METHOD})

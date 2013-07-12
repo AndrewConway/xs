@@ -44,6 +44,8 @@ abstract class XSEditItemServlet(val hasTree:Boolean) extends XSServlet {
   /** Main user defined function, that gets the object to be edited */
   def xsobj(request:HttpServletRequest) : XSSI
   
+  def extraStylesheets : List[String] = Nil
+  
   def mainPage(xssi:XSSI,response:HttpServletResponse) {
     response.setContentType("text/html");
     response.setCharacterEncoding("UTF-8")
@@ -64,6 +66,9 @@ abstract class XSEditItemServlet(val hasTree:Boolean) extends XSServlet {
           <link rel="stylesheet" href="jQueryUI/css/smoothness/jquery-ui.css"/>
           <link rel="stylesheet" href="jquery.contextMenu/jquery.contextMenu.css"/>
           <link rel="stylesheet" href="xs/xsedit.css"/>
+          {
+            for (ss<-extraStylesheets) yield <link rel="stylesheet" href={ss}/>
+          }
           <script src="jQuery/jquery-1.9.1.min.js"> </script>
           <script src="jQuery/jquery-migrate-1.1.0.js"> </script>
           <script src="xs/xsedit.js"> </script>

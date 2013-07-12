@@ -316,6 +316,7 @@ class DetailsPaneFieldInline(val field:XSFieldInfo,val label:String,val tooltip:
   def resolveNetworkReferences = field.resolveNetworkReferences
   def getNodes(parent:XSTreeNode) : IndexedSeq[XSTreeNode] = parent.tableAndInlineChildren(field)
   def get(parent:XSTreeNode) : GenTraversable[Any] = field.getAllFieldElements(parent)
+  def noBorder:Boolean = field.displayOptions.noBorder
   
   override def toString = label
   val couldContainErrorIcon : Boolean = fieldsThatCouldHaveErrors.contains(name)

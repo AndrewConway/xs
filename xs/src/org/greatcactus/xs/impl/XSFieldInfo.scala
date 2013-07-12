@@ -329,6 +329,7 @@ class XSFieldInfo(val fieldSymbol:reflect.runtime.universe.Symbol,val index:Int,
     }
     if (isInlineEditable && xsinfo.isEmpty) error("InlineEditable field should be of an @XS class")  
     val displayOptions = new FieldDisplayOptions(fieldSymbol,iconSource)
+    
     //
     // Information on errors
     //
@@ -380,7 +381,7 @@ class FieldDisplayOptions(val field:reflect.runtime.universe.Symbol,iconSource:I
     val wholeLine : Boolean = hasAnnotation(typeWholeLine)
     val icon : Option[Icon] = for (logicalName<-annotationValueString(typeXSIcon); if logicalName!=null && !logicalName.isEmpty(); icon<-iconSource.iconOfLogicalName(logicalName)) yield icon
 
-  
+    val noBorder : Boolean = hasAnnotation(typeNoBorder)
 }
 
 class EnumeratedOptions(

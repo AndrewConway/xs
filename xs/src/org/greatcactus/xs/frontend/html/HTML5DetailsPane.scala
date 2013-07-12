@@ -336,7 +336,8 @@ class GUICreatorHTML5(pane:HTML5DetailsPane,inlineParentDivId:Option[String]) ex
   override def createInlineField(field:DetailsPaneFieldInline,currently:CurrentFieldState) : (String,GUICreator[String]) = {
     val id = newid()
     val divid = id+"_ui"
-    val input = <div class="xsInlineField" id={divid}></div>
+    val extraclass = if (field.noBorder) "" else " xsInlineFieldBorder"
+    val input = <div class={"xsInlineField"+extraclass} id={divid}></div>
     addLabeledField(input,id,field,currently)
     (id,new GUICreatorHTML5(pane,Some(divid)))
   }

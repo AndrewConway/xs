@@ -473,6 +473,7 @@ object SerializableTypeInfo {
   private[impl] val typeDoNotTrim = universe.typeOf[DoNotTrim]
   private[impl] val typeImageEditable = universe.typeOf[ImageEditable]
   private[impl] val typeResolveNetworkReferences = universe.typeOf[ResolveNetworkReferences]
+  private[impl] val typeNoBorder = universe.typeOf[NoBorder]
 
   private[impl] val typeDependencyProvider = universe.typeOf[DependencyProvider]
   private[impl] val typeIconProvider = universe.typeOf[IconProvider]
