@@ -20,6 +20,8 @@ import java.lang.annotation.Target;
  * As the type of the result is not necessarily known at the start, the following algorithm is used
  *   (1) Find some function that can be done. Do it. Add the results to the dependency injection.
  *   (2) Go back to step 1.
+ *   
+ * Note that if the results are a collection or array or option, then the subelements will be added (not recursively)
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.FIELD,ElementType.METHOD})

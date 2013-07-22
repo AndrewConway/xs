@@ -27,6 +27,7 @@ import org.greatcactus.xs.api.dependency.IndexInParentField
 import org.greatcactus.xs.frontend.ProgressMonitorInfo
 import org.greatcactus.xs.frontend.ActionBusy
 import scala.concurrent.ExecutionContext
+import scala.collection.GenSeq
 
 
 
@@ -107,6 +108,17 @@ class FunctionEvaluationStatus(val function:DependencyInjectionFunction,val args
       case value => Some(value)
     }
   } catch { case e:Exception => None}
+  
+  lazy val resAsList : List[AnyRef] = res match {
+    case Some(x) if x!=null => x match {
+      case a:Array[_] => a.map{_.asInstanceOf[AnyRef]}.toList
+      case c:GenSeq[_] => c.toList.map{_.asInstanceOf[AnyRef]}
+      case Some(x) => List(x.asInstanceOf[AnyRef])
+      case None => Nil
+      case x => List(x)
+    }
+    case _ => Nil
+  }
   
   val shouldInjectToKids = function.isInjectedToKids && res.isDefined && res.get!=null
   
@@ -240,10 +252,7 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
         var resResolved : Map[DependencyInjectionFunction,FunctionEvaluationStatus] = Map.empty
         var mustDo = info.allDIFunctions
         def addResolved(resolution:FunctionEvaluationStatus) {
-          resolution.res match {
-            case Some(result) if resolution.function.isLocallyInjected && result!=null => resInjections+=result
-            case _ =>
-          }
+          if (resolution.function.isLocallyInjected) resInjections++=resolution.resAsList
           resResolved+=resolution.function->resolution
         }
         def processed(f:DependencyInjectionFunction) : Boolean = {
@@ -269,7 +278,7 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
         lastGoodResolved = resResolved
         errorListCache.clear()
         worstErrorCache = None
-        sendToChildren = new ToChildDependencies(injectedFromParent.filter(info.kidFilter).filter{! _.isInstanceOf[Parent[_]]}++existingResolved.values.filter{_.shouldInjectToKids}.map{_.res.get},new Parent(parentObject))
+        sendToChildren = new ToChildDependencies(injectedFromParent.filter(info.kidFilter).filter{! _.isInstanceOf[Parent[_]]}++existingResolved.values.filter{_.shouldInjectToKids}.flatMap{_.resAsList},new Parent(parentObject))
         val _ = {
           var fieldInParent : XSFieldInfo = null
           var indexInParentField = 0

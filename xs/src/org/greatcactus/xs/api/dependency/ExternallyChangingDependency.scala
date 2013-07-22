@@ -7,6 +7,7 @@ package org.greatcactus.xs.api.dependency
  * 
  * Similar to ExternalDependency, but without going through the external dependency manager.
  * Has a result, together with a function that is called when the result is not used any more.
+ * Note that if the results are a collection or array or option, then the subelements will be added (not recursively)
  */
 class ExternallyChangingDependency(val actual:AnyRef,val onNoLongerUsed:Option[()=>Unit]) 
 
