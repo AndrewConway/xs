@@ -254,6 +254,14 @@ val deserialized : Complex = XMLDeserialize.deserialize[Complex](serializedData)
    
    <p>The external context can directly add values to be dependency injected into the document using the XSEdit.setRootDependencyInjections function.</p>
       
+   <h4>Long running computations</h4>
+   <p>It is bad to have long running computations in the dependency injection system, as it will delay updating of everything else, and can cause
+   time outs. Think of a traditional UI update thread - it is not quite that bad, but it is better to avoid.</p>
+   
+   <p>You can avoid it by returning a <code>scala.concurrent.future</code> value, which will be recomputed in some external thread, and then
+   updated when appropriate. Even better, you can return <code>org.greatcactus.xs.util.InterruptableFuture</code> which will be interrupted
+   if the value is not needed (which will happen frequently if every keypress in a text field initiates the dependency injection computation)</p>
+      
    <h3>Custom editors</h3>
    <p>Sometimes you want something special, and the XS editors are not sufficient. You can embed your own.</p>
    <p>On the data structure, make a dummy function (it may as well return Unit). Annotate this with <code>@CustomEditable</code> with the argument the name of your custom widget.

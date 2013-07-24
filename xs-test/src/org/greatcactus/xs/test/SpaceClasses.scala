@@ -12,6 +12,8 @@ import scala.collection.mutable.ListBuffer
 import org.greatcactus.xs.api.errors._
 import org.greatcactus.xs.api.icon.Icon
 import org.greatcactus.xs.api.XSName
+import scala.concurrent.ExecutionContext
+import org.greatcactus.xs.util.InterruptableFuture
 
 /**
  * Contains all the classes used in the space test framework.
@@ -56,7 +58,11 @@ class Star(
   @ErrorCheck("name") private def checkName = ErrorChecks.checkValidCharacters(name)
   @ErrorCheck private def checkCometNumbers = if (associated.filter{_.isInstanceOf[Planet]}.length>associated.filter{_.isInstanceOf[Comet]}.length) Some(XSError.warning("More planets than comets")) else None
   @ExtraDisplayField @OnlyAffectedByFields(Array("constellation")) def constellationRaw = ""+constellation
-  
+  //@LabelProvider("nameReversed") private def delayedNameReversedLabel(context:ExecutionContext) = concurrent.future { Thread.sleep(2000); "* Reversed Name *" }(context)
+  @ExtraDisplayField @OnlyAffectedByFields(Array("name")) def slowNameReversed(context:ExecutionContext) = InterruptableFuture.future { Thread.sleep(2000); if (name==null) null else name.reverse }(context)
+
+  @DependencyProvider def slowReverseName2(context:ExecutionContext) = InterruptableFuture.future { Thread.sleep(2000); if (name==null) null else name.reverse }(context)
+  @ExtraDisplayField @OnlyAffectedByFields(Array()) def slowNameReversed2(rev:String) = rev
   
 }
 

@@ -24,6 +24,7 @@ import java.net.URLEncoder
 import scala.concurrent.Await
 import org.greatcactus.xs.frontend.XSToolBar
 import scala.concurrent.ExecutionContext
+import org.greatcactus.xs.impl.XSExecutionContext
 
 /**
  * A base class for a typical servlet using the XS framework. Takes care of the XS connections (images, comet, events) and separates out the user code.
@@ -33,6 +34,8 @@ abstract class XSServlet extends HttpServlet {
   import concurrent.ExecutionContext
   val executorService = java.util.concurrent.Executors.newFixedThreadPool(4)
   val executionContext = ExecutionContext.fromExecutorService(executorService)
+  
+  XSExecutionContext.context = executionContext
 
   //val executionContext : ExecutionContext = scala.concurrent.ExecutionContext.Implicits.global
   
@@ -106,12 +109,15 @@ abstract class XSServlet extends HttpServlet {
   
   override def destroy() {
     println("Start destroy in XSServlet")
+    println("Current open comet threads = "+openCometThreads)
     var tokill = openCometThreads
     for (k<-tokill) k.interrupt()
     executorService.shutdown()
     SessionManagement.scheduler.shutdownNow()
     Thread.sleep(10)
     super.destroy()
+    println("About to end destroy in  XSServlet")
+    println("Remaining open comet threads  = "+openCometThreads)
     println("End destroy in XSServlet")
     //if (loadedProperly || !file.exists()) save()
   }

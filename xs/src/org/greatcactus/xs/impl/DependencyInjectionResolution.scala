@@ -28,8 +28,19 @@ import org.greatcactus.xs.frontend.ProgressMonitorInfo
 import org.greatcactus.xs.frontend.ActionBusy
 import scala.concurrent.ExecutionContext
 import scala.collection.GenSeq
+import scala.concurrent.Promise
+import scala.concurrent.Future
+import org.greatcactus.xs.frontend.html.SessionManagement
+import org.greatcactus.xs.util.InterruptableFuture
 
 
+/** 
+ * Manage context used by the dependency injection framework. A user could set this to
+ * something else so that a servlet destruction event can close it down cleanly.
+ */
+object XSExecutionContext {
+  var context : ExecutionContext = ExecutionContext.global 
+}
 
 
 class ExtraDisplayFieldInfo(val function:DependencyInjectionFunction,val name:String,val displayOptions:FieldDisplayOptions) {
@@ -91,7 +102,7 @@ class FunctionEvaluationStatus(val function:DependencyInjectionFunction,val args
   }
   
   /** The result of the function, or None if it executed with an error */
-  val res: Option[AnyRef] = try {
+  val rawres: Option[AnyRef] = try {
     val argsWithChanges = for (a<-args) yield if (a==null) new OnObsoleteCallback(onExternalChange _) else a
     function.apply(obj,argsWithChanges) match {
       case null => None
@@ -109,22 +120,77 @@ class FunctionEvaluationStatus(val function:DependencyInjectionFunction,val args
     }
   } catch { case e:Exception => None}
   
-  lazy val resAsList : List[AnyRef] = res match {
-    case Some(x) if x!=null => x match {
-      case a:Array[_] => a.map{_.asInstanceOf[AnyRef]}.toList
-      case c:GenSeq[_] => c.toList.map{_.asInstanceOf[AnyRef]}
-      case Some(x) => List(x.asInstanceOf[AnyRef])
-      case None => Nil
-      case x => List(x)
+  private[this] var completedFuture : Option[AnyRef] = rawres
+  
+  private[this] def onFuture(code: Future[_] => Unit) {
+    rawres match {
+      case Some(p:Future[_]) => code(p) 
+      case Some(p:InterruptableFuture[_]) => code(p.future) 
+      case _ =>
     }
-    case _ => Nil
+  }
+
+  def onFutureSuccess(code : => Unit) {
+    onFuture{_.onSuccess{case _ => code}(XSExecutionContext.context)}
+  }
+
+  onFuture{f=>
+      completedFuture=None
+      f.onSuccess { case newres => completedFuture = Some(newres.asInstanceOf[AnyRef]) }(XSExecutionContext.context)
   }
   
-  val shouldInjectToKids = function.isInjectedToKids && res.isDefined && res.get!=null
+  
+  def currentlyAwaitingFuture : Boolean = completedFuture.isEmpty && rawres.isDefined
+  
+  
+  /** Get a result. If it may change later due to a future being completed, then call node.updateGUI() when that happens */
+  def resForSimpleGUI(node:XSTreeNode) = {
+    if (currentlyAwaitingFuture) onFutureSuccess{node.updateGUI()}
+    completedFuture
+  }
+  /** Get a result. If it may change later due to a future being completed, then call node.updateGUIincludingErrorLevels() when that happens */
+  def resForErrors(node:XSTreeNode) = {
+    if (currentlyAwaitingFuture) onFutureSuccess{node.updateGUIincludingErrorLevels()}
+    completedFuture
+  }
+  /** Get a result. If it may change later due to a future being completed, then call node.updateGUIIncludingTableFieldsCache() when that happens */
+  def resForGUIAndTableFields(node:XSTreeNode) = {
+    if (currentlyAwaitingFuture) onFutureSuccess{node.updateGUIIncludingTableFieldsCache()}
+    completedFuture
+  }
+  
+  //def res : Option[AnyRef] = completedFuture
+  
+  def resAsList(dirtyable:DependencyInjectionCurrentStatus) : List[AnyRef] = {
+    if (currentlyAwaitingFuture) onFutureSuccess{
+      if (DependencyInjectionCurrentStatus.debugDependencyInjections) println("Recomputing dependency injections as future resolved")
+      dirtyable.makeDirty()
+      dirtyable.associatedNode.xsedit.dependencyInjectionCleaningQueue.cleanReturningInstantlyIfSomeOtherThreadIsAlreadyCleaning()
+    }
+    completedFuture match {
+      case Some(x) if x!=null => x match {
+        case a:Array[_] => a.map{_.asInstanceOf[AnyRef]}.toList
+        case c:GenSeq[_] => c.toList.map{_.asInstanceOf[AnyRef]}
+        case Some(x) => List(x.asInstanceOf[AnyRef])
+        case None => Nil
+        case x => List(x)
+      }
+      case _ => Nil
+    }
+  }
+  
+  def shouldInjectToKids = function.isInjectedToKids && completedFuture.isDefined && completedFuture.get!=null
   
   
   
-  def dispose() { for (cb<-callbackOnDispose) cb() } // remove listeners
+  def dispose() { 
+    //println("Disposing of function status")
+    for (cb<-callbackOnDispose) cb() // remove listeners
+    rawres match {
+      case Some(f:InterruptableFuture[_]) => f.cancel() 
+      case _ =>
+    }
+  } 
 }
 
 class CanPassToChildren(classesToBlockForChildren:Seq[Class[_]]) extends Function[AnyRef,Boolean] {
@@ -170,16 +236,16 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
   
   def dependenciesToPropagateToChildren(ci:FromParentDependencyInfo,indexInParent:Int) = sendToChildren.get(ci,indexInParent)
   
-  def getIconSpec : Option[AnyRef] = for (f<-info.classIconProvider;fr<-lastGoodResolved.get(f); res <-fr.res) yield res
-  def getIconSpecForField(fieldname:String) : Option[AnyRef] = for (f<-info.fieldIconProvider.get(fieldname);fr<-lastGoodResolved.get(f); res <-fr.res) yield res
+  def getIconSpec(node:XSTreeNode) : Option[AnyRef] = for (f<-info.classIconProvider;fr<-lastGoodResolved.get(f); res <-fr.resForSimpleGUI(node)) yield res
+  def getIconSpecForField(fieldname:String,node:XSTreeNode) : Option[AnyRef] = for (f<-info.fieldIconProvider.get(fieldname);fr<-lastGoodResolved.get(f); res <-fr.resForSimpleGUI(node)) yield res
   
-  def getLabel : Option[AnyRef] = for (f<-info.classLabelProvider;fr<-lastGoodResolved.get(f); res <- fr.res ) yield res
-  def getLabelForField(fieldname:String) : Option[AnyRef] = for (f<-info.fieldLabelProvider.get(fieldname);fr<-lastGoodResolved.get(f); res <- fr.res ) yield res
-  def getTooltip : Option[AnyRef] = for (f<-info.classTooltipProvider;fr<-lastGoodResolved.get(f); res <- fr.res ) yield res
-  def getTooltipForField(fieldname:String) : Option[AnyRef] = for (f<-info.fieldTooltipProvider.get(fieldname);fr<-lastGoodResolved.get(f); res <- fr.res ) yield res
+  def getLabel(node:XSTreeNode) : Option[AnyRef] = for (f<-info.classLabelProvider;fr<-lastGoodResolved.get(f); res <- fr.resForSimpleGUI(node) ) yield res
+  def getLabelForField(fieldname:String,node:XSTreeNode) : Option[AnyRef] = for (f<-info.fieldLabelProvider.get(fieldname);fr<-lastGoodResolved.get(f); res <- fr.resForSimpleGUI(node) ) yield res
+  def getTooltip(node:XSTreeNode) : Option[AnyRef] = for (f<-info.classTooltipProvider;fr<-lastGoodResolved.get(f); res <- fr.resForSimpleGUI(node) ) yield res
+  def getTooltipForField(fieldname:String,node:XSTreeNode) : Option[AnyRef] = for (f<-info.fieldTooltipProvider.get(fieldname);fr<-lastGoodResolved.get(f); res <- fr.resForSimpleGUI(node) ) yield res
   
-  def isEnabled(fieldname:String) : Boolean = (for (f<-info.fieldEnabledController.get(fieldname);fr<-lastGoodResolved.get(f); res <-fr.res if res==false) yield false).getOrElse(true)
-  def isVisible(fieldname:String) : Boolean = (for (f<-info.fieldVisibilityController.get(fieldname);fr<-lastGoodResolved.get(f); res <-fr.res if res==false) yield false).getOrElse(true)
+  def isEnabled(fieldname:String,node:XSTreeNode) : Boolean = (for (f<-info.fieldEnabledController.get(fieldname);fr<-lastGoodResolved.get(f); res <-fr.resForSimpleGUI(node) if res==false) yield false).getOrElse(true)
+  def isVisible(fieldname:String,node:XSTreeNode) : Boolean = (for (f<-info.fieldVisibilityController.get(fieldname);fr<-lastGoodResolved.get(f); res <-fr.resForSimpleGUI(node) if res==false) yield false).getOrElse(true)
   
   def processErrorResults(result:AnyRef,found: XSError=>Unit,function:DependencyInjectionFunction) { result match {
           case null =>
@@ -197,24 +263,24 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
     if (simpleErrorCheckResults.isEmpty ) simpleErrorCheckResults=Some(info.simpleErrorChecks.check(associatedNode))
     simpleErrorCheckResults.get.errors.get(fieldname).getOrElse(Nil)
   }
-  def getErrors(fieldname:String) : List[XSError] = {
+  def getErrors(fieldname:String,node:XSTreeNode) : List[XSError] = {
     //println("getErrors("+fieldname+")")
     synchronized {
       errorListCache.getOrElseUpdate(fieldname,{
         var res = new ListBuffer[XSError]
         res++= getSimpleErrors(fieldname)
         def proc(result:AnyRef,function:DependencyInjectionFunction) { processErrorResults(result,res+= _,function) }
-        for (functions<-info.errorFunctionsByField.get(fieldname);f<-functions; fr<-lastGoodResolved.get(f); frres<-fr.res) proc(frres,f)
+        for (functions<-info.errorFunctionsByField.get(fieldname);f<-functions; fr<-lastGoodResolved.get(f); frres<-fr.resForErrors(node)) proc(frres,f)
         res.toList
       })
     }
   } 
   
-  def worstErrorLevel : Int = synchronized {
+  def worstErrorLevel(node:XSTreeNode) : Int = synchronized {
     if (worstErrorCache.isEmpty) {
       var worst = 1000
       def proc(result:AnyRef,function:DependencyInjectionFunction) { processErrorResults(result,e=>worst=worst min e.severity.level(),function) }
-      for (functionForField<-info.errorChecks;fr<-lastGoodResolved.get(functionForField.function); frres<-fr.res) proc(frres,functionForField.function)
+      for (functionForField<-info.errorChecks;fr<-lastGoodResolved.get(functionForField.function); frres<-fr.resForErrors(node)) proc(frres,functionForField.function)
       for (name<-info.simpleErrorChecks.checks.keys;e<-getSimpleErrors(name)) worst=worst min e.severity.level() 
       worstErrorCache = Some(worst)
     }
@@ -231,7 +297,7 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
     associatedNode.xsedit.dependencyInjectionCleaningQueue.add(associatedNode)
   }
   
-  def getFunctionResult(function:DependencyInjectionFunction) : Option[AnyRef] = lastGoodResolved.get(function).flatMap{_.res} 
+  def getFunctionResult(function:DependencyInjectionFunction,node:XSTreeNode) : Option[AnyRef] = lastGoodResolved.get(function).flatMap{_.resForGUIAndTableFields(node)} 
   
   def dispose() {
     synchronized {
@@ -248,11 +314,11 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
   def clean() = {
     synchronized {
       if (dirty && parentMirror!=null) {
-        var resInjections = injectedFromParent
+        var resInjections = injectedFromParent+XSExecutionContext.context
         var resResolved : Map[DependencyInjectionFunction,FunctionEvaluationStatus] = Map.empty
         var mustDo = info.allDIFunctions
         def addResolved(resolution:FunctionEvaluationStatus) {
-          if (resolution.function.isLocallyInjected) resInjections++=resolution.resAsList
+          if (resolution.function.isLocallyInjected) resInjections++=resolution.resAsList(this)
           resResolved+=resolution.function->resolution
         }
         def processed(f:DependencyInjectionFunction) : Boolean = {
@@ -278,7 +344,7 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
         lastGoodResolved = resResolved
         errorListCache.clear()
         worstErrorCache = None
-        sendToChildren = new ToChildDependencies(injectedFromParent.filter(info.kidFilter).filter{! _.isInstanceOf[Parent[_]]}++existingResolved.values.filter{_.shouldInjectToKids}.flatMap{_.resAsList},new Parent(parentObject))
+        sendToChildren = new ToChildDependencies(injectedFromParent.filter(info.kidFilter).filter{! _.isInstanceOf[Parent[_]]}++existingResolved.values.filter{_.shouldInjectToKids}.flatMap{_.resAsList(this)},new Parent(parentObject))
         val _ = {
           var fieldInParent : XSFieldInfo = null
           var indexInParentField = 0
@@ -355,7 +421,9 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
   
   def changedObject(oldObject:AnyRef,newObject:AnyRef) {
     synchronized {
-      existingResolved = existingResolved.filter{_._2.function.survivesChange(oldObject,newObject)}
+      val (keepExisting,disposeExisting) = existingResolved.partition{_._2.function.survivesChange(oldObject,newObject)}
+      existingResolved = keepExisting
+      for ((_,d)<-disposeExisting) d.dispose()
       if (DependencyInjectionCurrentStatus.debugDependencyInjections) println("Changed object "+oldObject+" to "+newObject+" saved "+existingResolved.size)
       //(new IllegalArgumentException).printStackTrace()
       makeDirty()
@@ -365,7 +433,7 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
     }
   }
   
-  private def makeDirty() {
+  private[impl] def makeDirty() {
     //println("Set to dirty")
     if (!dirty) {
       dirty=true

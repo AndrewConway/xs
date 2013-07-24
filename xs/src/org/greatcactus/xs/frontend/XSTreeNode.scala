@@ -212,11 +212,24 @@ class XSTreeNode(
    // println("In cleanDependencies for "+this)
     if (dependencyInjection.clean()) { // need to refresh this node on clients.
       tableFieldsCache.clear()
+      updateGUIincludingErrorLevels()
+    }
+  }
+  
+  def updateGUIincludingErrorLevels() {
       worstErrorLevelCache.invalidate()
       if (parent!=null) parent.childHadWorstErrorLevelRecomputed()
       //println("Boadcasting clean event for "+this)
-      xsedit.broadcast(new TreeChange(List(new TreeNodeChange(this,treeChildren,Nil,Nil,Nil))))
-    }
+      updateGUI()    
+  }
+
+  def updateGUIIncludingTableFieldsCache() {
+      tableFieldsCache.clear()
+      updateGUI()
+  }
+  
+  def updateGUI() {
+    xsedit.broadcast(new TreeChange(List(new TreeNodeChange(this,treeChildren,Nil,Nil,Nil))))
   }
   
   private def childHadWorstErrorLevelRecomputed() {
@@ -227,7 +240,7 @@ class XSTreeNode(
        existing!=newRes 
     }
     if (changed) {
-      xsedit.broadcast(new TreeChange(List(new TreeNodeChange(this,treeChildren,Nil,Nil,Nil))))
+      updateGUI()
       if (parent!=null) parent.childHadWorstErrorLevelRecomputed()
     }
   }
@@ -248,8 +261,8 @@ class XSTreeNode(
     XMLSerialize.serialize(obj,writer,info,if (fieldInParent==null) None else fieldInParent.overridingName,openTags.toSet)
   }
   
-  def label(locale:Locale):RichLabel = RichLabel(dependencyInjection.getLabel,obj.toString,locale)
-  def tooltip(locale:Locale):Option[RichLabel] = dependencyInjection.getTooltip.flatMap{RichLabel(_,locale)}
+  def label(locale:Locale):RichLabel = RichLabel(dependencyInjection.getLabel(this),obj.toString,locale)
+  def tooltip(locale:Locale):Option[RichLabel] = dependencyInjection.getTooltip(this).flatMap{RichLabel(_,locale)}
   
   private val iconFromDependencies : AnyRef=>Option[Icon] = {
     case s:String => info.iconSource.iconOfLogicalName(s)
@@ -258,34 +271,34 @@ class XSTreeNode(
     case _ => None    
   }
   
-  def icon:Option[Icon] = dependencyInjection.getIconSpec.flatMap{iconFromDependencies}.orElse(info.icon)
+  def icon:Option[Icon] = dependencyInjection.getIconSpec(this).flatMap{iconFromDependencies}.orElse(info.icon)
   
   /** Get the icon for the field from dependency injection */
-  def specialIconForField(fieldname:String) : Option[Icon] = dependencyInjection.getIconSpecForField(fieldname).flatMap{iconFromDependencies}
+  def specialIconForField(fieldname:String) : Option[Icon] = dependencyInjection.getIconSpecForField(fieldname,this).flatMap{iconFromDependencies}
   
   /** Get the label for the field from dependency injection */
-  def specialLabelForField(fieldname:String,locale:Locale):Option[RichLabel] = dependencyInjection.getLabelForField(fieldname).flatMap{RichLabel(_,locale)}
-  def tooltipForField(fieldname:String,locale:Locale): Option[RichLabel] = dependencyInjection.getTooltipForField(fieldname).flatMap{RichLabel(_,locale)}
+  def specialLabelForField(fieldname:String,locale:Locale):Option[RichLabel] = dependencyInjection.getLabelForField(fieldname,this).flatMap{RichLabel(_,locale)}
+  def tooltipForField(fieldname:String,locale:Locale): Option[RichLabel] = dependencyInjection.getTooltipForField(fieldname,this).flatMap{RichLabel(_,locale)}
   
   def errors(fieldname:String,locale:Locale,humanEdited:Array[Option[TrimInfo]]) : List[ResolvedXSError] = {
     lazy val collectionLengths = for (field<-info.fields.find(_.name==fieldname);col<-field.getFieldAsStringCollectionLengthInfo(obj,humanEdited)) yield col 
-    dependencyInjection.getErrors(fieldname).map{_.resolve(locale, collectionLengths)}
+    dependencyInjection.getErrors(fieldname,this).map{_.resolve(locale, collectionLengths)}
   }
   private[this] val worstErrorLevelCache = new InvalidatableCache[Int](
-      allChildren.foldLeft(dependencyInjection.worstErrorLevel)((e,n)=>e.min(n.worstErrorLevel))
+      allChildren.foldLeft(dependencyInjection.worstErrorLevel(this))((e,n)=>e.min(n.worstErrorLevel))
     
   )
   def worstErrorLevel : Int = worstErrorLevelCache.get
   
-  def getPseudoField(function:DependencyInjectionFunction,locale:Locale) : RichLabel = RichLabel(dependencyInjection.getFunctionResult(function),"",locale)
+  def getPseudoField(function:DependencyInjectionFunction,locale:Locale) : RichLabel = RichLabel(dependencyInjection.getFunctionResult(function,this),"",locale)
   
   private[this] val tableFieldsCache =new collection.mutable.HashMap[ColumnExtractors,IndexedSeq[String]]
   
   def getTableFields(extractor:ColumnExtractors) : IndexedSeq[String] = tableFieldsCache.getOrElseUpdate(extractor,extractor.extract(this))
   
   def mayDelete = parent!=null && fieldInParent.isCollectionOrArray
-  def isEnabled(field:String) = dependencyInjection.isEnabled(field)
-  def isVisible(field:String) = dependencyInjection.isVisible(field)
+  def isEnabled(field:String) = dependencyInjection.isEnabled(field,this)
+  def isVisible(field:String) = dependencyInjection.isVisible(field,this)
   def canAdd(field:XSFieldInfo) = field.maxChildren match {
     case -1 => true
     case n =>
