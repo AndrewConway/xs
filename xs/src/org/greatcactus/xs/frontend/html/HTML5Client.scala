@@ -42,6 +42,11 @@ class HTML5Client(val xsedit:XSEdit,val toolbar:Option[XSToolBar],val locale:Loc
 
   val session = new HTTPSession(new HTTPSessionWorker{
     override def receivedMessage(message:SimpleClientMessage) { process(message) }
+    override def dispose() {
+      xsedit.removeDetailsPane(detailsPane)
+      xsedit.removeTreeListener(treeListener)
+      xsedit.unregisterActiveEditor()
+    }
   })
   val transport = new HTMLTransport {
     def sendMessageWork(message:ClientMessage) { session.addMessage(message) }
@@ -72,7 +77,7 @@ class HTML5Client(val xsedit:XSEdit,val toolbar:Option[XSToolBar],val locale:Loc
   }
   val treePane = new HTML5Tree(locale,transport,treeModel,xsedit.treeRoot,session.sessionPrefix,session.id,false,true) 
   addMessageProcessor(treePane.processMessages)
-  xsedit.addTreeListener(new XSEditListener() {
+  private val treeListener : XSEditListener = new XSEditListener() {
       def apply(changes:TreeChange) { 
         //println("Got tree changes")
         def process(e:TreeNodeChange) {
@@ -86,12 +91,15 @@ class HTML5Client(val xsedit:XSEdit,val toolbar:Option[XSToolBar],val locale:Loc
         treePane.setSelected(node,false)
         flushMessages()
       }
-  })
+  }
+  
+  xsedit.addTreeListener(treeListener)
   
   var toolbarUndoCurrentValue : Option[String] = Some("")
   var toolbarRedoCurrentValue : Option[String] = Some("")
   var saveEnabledCurrentValue = true
   var revertEnabledCurrentValue = true
+  var staleCurrentValue=false
   val toolbarIDprefix = session.sessionPrefix+"toolbar."
   
 
@@ -117,12 +125,16 @@ class HTML5Client(val xsedit:XSEdit,val toolbar:Option[XSToolBar],val locale:Loc
           revertEnabledCurrentValue=status.dirty
           sendMessage(ClientMessage.setToolbarStatus(toolbarIDprefix+"revert",status.dirty,"Revert"))
         }
+        if (staleCurrentValue!=status.stale) {
+          staleCurrentValue=status.stale
+          sendMessage(ClientMessage.setToolbarStatus(toolbarIDprefix+"stale",status.stale,if (status.stale) (<em>While you were editing, the file was changed elsewhere.</em>).toString else ""))
+        }
       }
     }
   }
   xsedit.addToolbarStatusListener(toolbarListener)
   
-  // FIXME add something that shuts down the client when the session expires to stop a memory leak.
+  // FIXME add something that shuts down the client when the session expires to stop a memory leak. The client currently does a decent job of warning the server of a closed window, but crashes are still a possibility.
   
   private def process(message:SimpleClientMessage) {
     try {
@@ -240,6 +252,7 @@ class HTML5Client(val xsedit:XSEdit,val toolbar:Option[XSToolBar],val locale:Loc
       {if (t.useUndoRedo) button("undo","Undo") else NodeSeq.Empty}    
       {if (t.useUndoRedo) button("redo","Redo") else NodeSeq.Empty}
       {for (id<-t.others) yield button(id,id) }
+      <div id={toolbarIDprefix+"stale"}></div>
      </div>
     case None => NodeSeq.Empty
   } 

@@ -39,6 +39,7 @@ class XSEdit(original:AnyRef,val externalDependencyResolver:Option[ExternalDepen
   private var treeListeners : Set[XSEditListener]= Set.empty
   private var detailsPanes : List[XSDetailsPane[_]] = Nil
   private var toolbarStatusListeners : Set[ToolbarStatusListener] = Set.empty
+  private var activeEditorListeners : Set[ActiveEditorRegistrationListener] = Set.empty
   
   def addTreeListener(l:XSEditListener) { synchronized {treeListeners+=l; l.setCurrentlyEditing(Option(currentlyEditing))}}
   def removeTreeListener(l:XSEditListener) { synchronized { treeListeners-=l}}
@@ -46,6 +47,11 @@ class XSEdit(original:AnyRef,val externalDependencyResolver:Option[ExternalDepen
   def removeToolbarStatusListener(l:ToolbarStatusListener) { synchronized { toolbarStatusListeners-=l}}
   def addDetailsPane(l:XSDetailsPane[_]) { synchronized {detailsPanes::=l; l.setCurrentlyEditing(Option(currentlyEditing))}}
   def removeDetailsPane(l:XSDetailsPane[_]) { synchronized { detailsPanes=detailsPanes.filter{_!=l}}}
+  def addActiveEditorListener(l:ActiveEditorRegistrationListener) { synchronized {activeEditorListeners+=l}}
+  def removeActiveEditorListener(l:ActiveEditorRegistrationListener) { synchronized { activeEditorListeners-=l}}
+  def registerActiveEditor() { for (l<-activeEditorListeners) l.register() }
+  def unregisterActiveEditor() { for (l<-activeEditorListeners) l.unregister() }
+  
   
   def dispose() { treeRoot.dispose() }
   //
@@ -90,7 +96,7 @@ class XSEdit(original:AnyRef,val externalDependencyResolver:Option[ExternalDepen
     synchronized {
       if (node.isOpen!=open) {
         node.isOpen=open
-        broadcast(new TreeChange(List(new TreeNodeChange(node,node.treeChildren,Nil,Nil,Nil))))
+        broadcast(new TreeChange(List(new TreeNodeChange(node,node.treeChildren,Nil,Nil,Nil)),false))
       }
     }
   }
@@ -170,7 +176,7 @@ class XSEdit(original:AnyRef,val externalDependencyResolver:Option[ExternalDepen
       }
     }
     if (undoDescription!=null) undoRedo.addUserChange(currentObject,undoRedoKey,undoDescription)
-    broadcast(new TreeChange(fullList.toList))
+    broadcast(new TreeChange(fullList.toList,true))
     updateToolbar()
     dependencyInjectionCleaningQueue.cleanReturningInstantlyIfSomeOtherThreadIsAlreadyCleaning()
   }}
@@ -182,7 +188,10 @@ class XSEdit(original:AnyRef,val externalDependencyResolver:Option[ExternalDepen
   
   private var isIntrinsiclyDirty = false
   def setIntrinsiclyDirty(newIsIntrinsiclyDirty:Boolean) { isIntrinsiclyDirty=newIsIntrinsiclyDirty;updateToolbar() }
-  def getToolbarStatus = new StatusForToolbar(undoRedo.canUndo,undoRedo.canRedo,undoRedo.canUndo.isDefined || isIntrinsiclyDirty)
+  private var isStale = false
+  def setIsStale(newIsStale:Boolean) { isStale=newIsStale;updateToolbar() }
+  def isDirty = undoRedo.canUndo.isDefined || isIntrinsiclyDirty
+  def getToolbarStatus = new StatusForToolbar(undoRedo.canUndo,undoRedo.canRedo,isDirty,isStale)
   def updateToolbar() {
     val status = getToolbarStatus
     for (l<-toolbarStatusListeners) l(status)
@@ -282,7 +291,7 @@ class XSEdit(original:AnyRef,val externalDependencyResolver:Option[ExternalDepen
       var newCurrentlyEditing = currentlyEditing
       while (!newCurrentlyEditing.isStillBeingEdited) newCurrentlyEditing=newCurrentlyEditing.parent
       if (newCurrentlyEditing ne currentlyEditing) changeCurrentlyEditing(newCurrentlyEditing)
-      broadcast(new TreeChange(List(change)))
+      broadcast(new TreeChange(List(change),true))
       updateToolbar()
       
     }
@@ -320,7 +329,7 @@ class XSEdit(original:AnyRef,val externalDependencyResolver:Option[ExternalDepen
   dependencyInjectionCleaningQueue.cleanReturningInstantlyIfSomeOtherThreadIsAlreadyCleaning()
 }
 
-class TreeChange(val elements:Seq[TreeNodeChange]) {
+class TreeChange(val elements:Seq[TreeNodeChange],/** True iff the actual data has changed */ val dataChanged:Boolean) {
   /** Elements, plus all subs */
   lazy val elementsIncludingRecursive : List[TreeNodeChange] = {
     val res = new ListBuffer[TreeNodeChange]
@@ -342,5 +351,12 @@ trait ToolbarStatusListener {
   def apply(status:StatusForToolbar)
 }
 
+/** Something that wants to see when the number of active clients using this XSEditor changes */
+trait ActiveEditorRegistrationListener {
+  def register()
+  def unregister()
+}
 
-class StatusForToolbar(val undoDesc:Option[String],val redoDesc:Option[String],val dirty:Boolean)
+
+
+class StatusForToolbar(val undoDesc:Option[String],val redoDesc:Option[String],val dirty:Boolean,val stale:Boolean)

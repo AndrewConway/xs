@@ -58,9 +58,8 @@ function xsProcessClientMessageFromServer(json,session) {
 			$(json.args[0]).removeAttr('disabled');
 		} else if (json.cmd=="Disable") {
 			$(json.args[0]).attr('disabled', 'disabled');
-		} else if (json.cmd=="LostSession") {
-			alert("Lost Session");
-			location.reload(true);
+		} else if (json.cmd=="LostSession") { 
+			session.errorInServerConnection("LostSession");
 		} else if (json.cmd=="SetGridTooltip") {
 		    var id = json.args[0];	
 		    var html = json.args[1];
@@ -342,12 +341,12 @@ var xs = {
   
   
   Session : function(sessionid) {
+	  this.sessionClosed = false;
 	  this.id = sessionid;
 	  this.sentMessageCount = 0;
 	  this.currentlyEditing = "";
-	  
 	  /** Actually do the sending of a command. This is a low level interface - you would normally use this.sendToServer */
-	  var sendCmd = function(cmd) {
+	  var sendCmd = function(cmd,isSynchronous) {
 			$.ajax({
 				cache:false,
 				url : xs.userURL+"?sub=message&xsSessionID="+sessionid+"&count="+cmd.index,
@@ -355,6 +354,7 @@ var xs = {
 				contentType: "application/json; charset=utf-8",
 				processData : false,
 				dataType : "json",
+				async : !isSynchronous,
 				error : function () { considerResending(1000,cmd.index);},
 				success : function (acks) { if (acks.cmd=="ACK" && acks.args && acks.args.length==3) gotAcks(acks.args[0],acks.args[1],acks.args[2]); },
 				type: "POST"
@@ -389,11 +389,11 @@ var xs = {
     	  },delay);
       };	  
 	  
-	  this.sendToServer = function (message) {
+	  this.sendToServer = function (message,isSynchronous) {
 		  var cmd = { index : this.sentMessageCount, "message" : message };
 		  this.sentMessageCount++;
 		  sendBuffer.push(cmd);
-		  sendCmd(cmd);
+		  sendCmd(cmd,isSynchronous);
 		  considerResending(10000,cmd.index);
 	  };
 	  /** Called by a client action - eg clicking on a "new X" action */
@@ -644,13 +644,29 @@ var xs = {
 		  try { ev.dataTransfer.effectAllowed='copy'; } catch (err) {} // causes exception on IE9
 	  };
 	  
-	  
+	  window.addEventListener("beforeunload", function( event ) {
+		  if (!xsthis.sessionClosed) {
+			  xsthis.sessionClosed = true;
+			  $("body").hide();
+			  xsthis.sendToServer({cmd:"CloseConnection",args:[]},true); // send synchronously
+			  //alert("Sent");			  
+		  }
+      });
+
+
+	  this.errorInServerConnection = function(cause) {
+		  if (!xsthis.sessionClosed) { 
+			  if (xsthis.sentMessageCount>0) alert("reloading from server"); 
+			  else $("body").hide();
+			  location.reload(true); 
+		  }
+	  };
 	  this.cometCall = function() {
 		  $.ajax({
 			  cache : false,
 			  complete : function (xhr,status) {
-				  if (status=="success" || status=="timeout") xsthis.cometCall();
-				  else { alert("comet failed "+status); location.reload(true); }
+				  if (status=="success" || status=="timeout") { if (!xsthis.sessionClosed) xsthis.cometCall(); }
+				  else { xsthis.errorInServerConnection("Connection fail"); }
 				  //else if (status=="notmodified")
 				  //"success", "notmodified", "error", "timeout", "abort", or "parsererror"				  
 			  },

@@ -96,7 +96,12 @@ class HTTPSession(val worker:HTTPSessionWorker) {
   /** A better way to do comet calls - via futures. */
   def cometCallFuture : Future[Option[ClientMessage]] = {
     synchronized {
-      if (pendingResponse.isDefined) throw new IllegalArgumentException("Can't call cometCallFuture until previous call resolved")
+      println("Starting cometCallFuture for session "+id)
+      pendingResponse match {
+        case Some(p) => p.success(None); pendingResponse=None // may happen if the server goes to sleep for a long time.
+        case None =>
+      }
+      // if (pendingResponse.isDefined) throw new IllegalArgumentException("Can't call cometCallFuture until previous call resolved")
       val immediate = cometCallShouldReturnImmediately()
       val promise = scala.concurrent.promise[Option[ClientMessage]]
       if (immediate.isDefined) promise.success(immediate)
@@ -190,7 +195,11 @@ class HTTPSession(val worker:HTTPSessionWorker) {
   
   def receivedOrderedMessage(message:ClientMessage) {
      message match {
-      case sm:SimpleClientMessage => worker.receivedMessage(sm)
+      case sm:SimpleClientMessage =>
+        if (sm.command=="CloseConnection") {
+           println("closed connection for "+id)
+           dispose()
+        } else worker.receivedMessage(sm)
       case mm:MultipleClientMessage => for (sub<-mm.commands) receivedOrderedMessage(sub)
       case _ => throw new IllegalArgumentException(message.toString)
     }

@@ -229,7 +229,7 @@ class XSTreeNode(
   }
   
   def updateGUI() {
-    xsedit.broadcast(new TreeChange(List(new TreeNodeChange(this,treeChildren,Nil,Nil,Nil))))
+    xsedit.broadcast(new TreeChange(List(new TreeNodeChange(this,treeChildren,Nil,Nil,Nil)),false))
   }
   
   private def childHadWorstErrorLevelRecomputed() {
