@@ -234,20 +234,8 @@ val deserialized : Complex = XMLDeserialize.deserialize[Complex](serializedData)
    
    <p>A function annotated by <code>@OnlyAffectedByFields</code> and also having its own arguments is reevaluated if those arguments change (using != as the definition of change)
    even if the fields listed in <code>@OnlyAffectedByFields</code> do not change. Power user trick: a function taking arguments labeled <code>@OnlyAffectedByFields</code> with
-   no fields listed will only be recomputed if the arguments change. This can be used for sophisticated caching of expensive computations.
-   
-   <p>Sometimes you may want to inject some information from outside the object. For instance, a field may be the name of a file. You may want error messages
-   to depend upon the contents of the file. This would seem straight forward - just read the file in the <code>@ErrorCheck</code> method - but it does not
-   handle the file changing under you in which case the error check function needs to be recomputed. This is dealt with by returning an element
-   of type <code>ExternalDependency</code> from a <code>@DependencyProvider</code> method. You will then have to have set up a <code>ExternalDependencyResolver</code>
-   class when you set up the editor initially. The <code>ExternalDependencyResolver</code> will resolve the <code>ExternalDependency</code> and provide notifications
-   of changing. As usual see the Javadocs or main example for details.</p>
-   
-   <p>There is a similar mechanism to <code>ExternalDependencyResolver</code> which is sometimes simpler - you can have as an argument to a dependency injection
-   function an element of type <code>OnObsoleteCallback</code>. This will be filled in by XS with a function that should be called when the result of the function
-   becomes obsolete. Independently, (but in practice generally used at the same time) a dependency provider function may return a class of type <code>ExternallyChangingDependency</code>,
-   which contains a callback called by XS when XS no longer is using the result of the function. This can also be used for resource cleaning.</p>
-   
+   no fields listed will only be recomputed if the arguments change. This can be used for sophisticated caching of expensive computations.</p>
+      
    <p>Sometimes you may want to block a dependency from being propagated to children. This can be done by putting the <code>@BlockDependencyInjection</code> annotation
    on the class and listing the classes of dependency to block. This is most useful if you have a class that wants to override some dependencies that would otherwise
    be propagated to children.</p>
@@ -261,6 +249,32 @@ val deserialized : Complex = XMLDeserialize.deserialize[Complex](serializedData)
    <p>You can avoid it by returning a <code>scala.concurrent.future</code> value, which will be recomputed in some external thread, and then
    updated when appropriate. Even better, you can return <code>org.greatcactus.xs.util.InterruptableFuture</code> which will be interrupted
    if the value is not needed (which will happen frequently if every keypress in a text field initiates the dependency injection computation)</p>
+   
+   <h4>Results which depend on external, changing circumstances</h4>
+  
+   <p>Sometimes you may want to inject some information from outside the object. For instance, a field may be the name of a file. You may want error messages
+   to depend upon the contents of the file. This would seem straight forward - just read the file in the <code>@ErrorCheck</code> method - but it does not
+   handle the file changing under you in which case the error check function needs to be recomputed.</p>
+   
+   <p>There are two ways of dealing with this, both of which fundamentally share the same architecture - the idea is that XS provides a callback function
+   which some external event calls when the result of a dependency injection function becomes obsolete. XS will then recompute that dependency function
+   and anything dependent upon it</p>
+   
+   <p>The first method is explicit. A dependency provider function can have as an argument to a dependency injection
+   function an element of type <code>OnObsoleteCallback</code>. This will be filled in by XS with a function that should be called when the result of the function
+   becomes obsolete. Independently, (but in practice generally used at the same time) a dependency provider function may return a class of type <code>ExternallyChangingDependency</code>,
+   which contains a callback called by XS when XS no longer is using the result of the function. This can also be used for resource cleaning.</p>
+   
+   <p>This seems somewhat similar to the <code>org.greatcactus.xs.util.InterruptableFuture</code> mentioned in the section above about long running
+   computations, and indeed it frequently makes sense to combine these two. This can be messy if done explicitly using the method of the prior paragraph.
+   A simpler method is to return a <code>org.greatcactus.xs.util.ObsoletableAndInterruptableFuture</code>, which combines the two. If you use this you
+   do not need to have a <code>OnObsoleteCallback</code> in the method signature - XS will attach to the <code>ObsoletableAndInterruptableFuture</code>
+   both for the notification from XS to to the external system and vice versa.</p>
+   
+   <p>Note that composing multiple operations that can be interruptable and obsoletable is quite a finnicky and error prone thing to do; I suggest
+   using the monadic functions on the <code>ObsoletableAndInterruptableFuture</code> class that take care of everything for you and can be used 
+   inside a for comprehension for quite simple and easy to read code. They can be basically used the same way as the normal <code>scala.concurrent.Future</code>.</p>
+      
       
    <h3>Custom editors</h3>
    <p>Sometimes you want something special, and the XS editors are not sufficient. You can embed your own.</p>

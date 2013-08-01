@@ -14,7 +14,7 @@ import org.greatcactus.xs.frontend.swing.SwingTreePane
 object SwingTest extends SimpleSwingApplication {
 
   val base = new Space(new History(""),Nil)
-  val edit = new XSEdit(base,Some(SpaceExternalDependencyResolver))
+  val edit = new XSEdit(base)
   val details = new SwingDetailsPane(Locale.FRANCE,edit)
   edit.addDetailsPane(details)
   val treePanel = new SwingTreePane(edit)

@@ -23,7 +23,7 @@ import org.greatcactus.xs.util.InterruptableFuture
 @XSIcon("Space")
 class Space(@IndividuallyEditable val history:History,@IndividuallyEditable val stars:List[Star]) {
   override def toString = "Space"
-  @DependencyProvider @PropagateToChildren @OnlyAffectedByFields(Array("history")) def getHistoryInfo = new ExternalDependency(history.fileref,classOf[HistoryFile])
+  @DependencyProvider @PropagateToChildren @OnlyAffectedByFields(Array("history")) def getHistoryInfo = SpaceExternalDependencyResolver.resolve(history.fileref)
 }
 
 class HistoryFile(val lines:Array[String])

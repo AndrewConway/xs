@@ -3,8 +3,6 @@
  */
 package org.greatcactus.xs.impl
 
-import org.greatcactus.xs.api.dependency.ExternalDependency
-import org.greatcactus.xs.api.dependency.ExternalDependencyResolver
 import org.greatcactus.xs.frontend.XSTreeNode
 import org.greatcactus.xs.api.dependency.Parent
 import scala.collection.mutable.ListBuffer
@@ -32,6 +30,7 @@ import scala.concurrent.Promise
 import scala.concurrent.Future
 import org.greatcactus.xs.frontend.html.SessionManagement
 import org.greatcactus.xs.util.InterruptableFuture
+import org.greatcactus.xs.util.ObsoletableAndInterruptableFuture
 
 
 /** 
@@ -94,11 +93,24 @@ class DependencyInjectionInformation(
 
 
 class FunctionEvaluationStatus(val function:DependencyInjectionFunction,val args:Seq[AnyRef],holder:DependencyInjectionCurrentStatus,obj:reflect.runtime.universe.InstanceMirror) {
-  var callbackOnDispose : Option[()=>Unit] = None
+  private[this] var callbackOnDispose : Option[()=>Unit] = None
+  private[this] var isExternallyChanged = false
 
   def onExternalChange() {
-    callbackOnDispose=None; 
-    holder.changedExternalResource(this)
+    synchronized {
+      if (!isExternallyChanged) {
+        isExternallyChanged=true
+        for (f<-callbackOnDispose) f()
+        callbackOnDispose=None // not really necessary, but could help GC
+        holder.changedExternalResource(this)    
+      }
+    }
+  }
+  def setCallbackOnDispose(f:()=>Unit) {
+    synchronized {
+      if (isExternallyChanged) f()
+      else callbackOnDispose=Some(f)
+    }
   }
   
   /** The result of the function, or None if it executed with an error */
@@ -106,16 +118,15 @@ class FunctionEvaluationStatus(val function:DependencyInjectionFunction,val args
     val argsWithChanges = for (a<-args) yield if (a==null) new OnObsoleteCallback(onExternalChange _) else a
     function.apply(obj,argsWithChanges) match {
       case null => None
-      case e:ExternalDependency => holder.associatedNode.xsedit.externalDependencyResolver match {
-        case Some(resolver) =>
-          val resolved = resolver.resolve(e,onExternalChange _)
-          callbackOnDispose = resolved.onNoLongerUsed
-          Option(resolved.result)
-        case None => None
-      }
       case e:ExternallyChangingDependency =>
-        callbackOnDispose = e.onNoLongerUsed
+        setCallbackOnDispose(e.onNoLongerUsed)
         Option(e.actual)
+      case e:ObsoletableAndInterruptableFuture[_] =>
+        callbackOnDispose = Some(() => {
+          for (c<-e.changes) c.dispose()
+        })
+        for (c<-e.changes) c.addChangeListener(onExternalChange)
+        Option(e.future)
       case value => Some(value)
     }
   } catch { case e:Exception => None}
@@ -300,11 +311,14 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
   def getFunctionResult(function:DependencyInjectionFunction,node:XSTreeNode) : Option[AnyRef] = lastGoodResolved.get(function).flatMap{_.resForGUIAndTableFields(node)} 
   
   def dispose() {
-    synchronized {
-      for ((_,oldvalue)<-existingResolved) oldvalue.dispose()
-    }
+    discardDependencies()
   }
 
+  def discardDependencies() {
+    synchronized {
+      for ((_,oldvalue)<-existingResolved) oldvalue.dispose()
+    }    
+  }
   /** Result of the last call to clean(). You usually do NOT want to use this. */
   var lastInjections : Set[AnyRef] = Set.empty // the result of the last call to clean()
   

@@ -51,7 +51,7 @@ abstract class XSEditItemServlet(val hasTree:Boolean) extends XSServlet {
     response.setCharacterEncoding("UTF-8")
     val out = response.getWriter();
     out.println("""<!DOCTYPE html>""")
-    val xsEditor = new XSEdit(xssi.obj,None)
+    val xsEditor = new XSEdit(xssi.obj)
     object Toolbar extends XSToolBar {
       override def onSave() { xssi.save(xsEditor.currentObject)}
       override def onRevert() { xsEditor.replaceRoot(xssi.obj)}

@@ -31,7 +31,7 @@ class ZZZ_EditSpace {
   @Test
   def test {
     val base = new Space(new History(""),Nil)
-    val edit = new XSEdit(base,Some(SpaceExternalDependencyResolver))
+    val edit = new XSEdit(base)
     val details = new TestXSDetailsPane(Locale.FRANCE,edit)
     edit.addDetailsPane(details)
     //println(edit.toString)
@@ -39,7 +39,7 @@ class ZZZ_EditSpace {
     assertEquals("Edit Space\nSpace is big. This contains the things in space (that is, everything)\nAdd history\nAjoutez un étoile",details.getCurrentPane.get.toString)
     details.uiActivated("Ajoutez un étoile")
     assertEquals(" - Space\n  . History\n* . New star",edit.toString)
-    assertEquals("Edit Star\nInformation about a stellar system\nName\nconstellation\nAjoutez un étoile\nAdd Planet\nAdd Comet\nconstellationRaw\nName backwards\nDelete Star",details.getCurrentPane.get.toString)
+    assertEquals("Edit Star\nInformation about a stellar system\nName\nconstellation\nAjoutez un étoile\nAdd Planet\nAdd Comet\nslowNameReversed2\nslowNameReversed\nconstellationRaw\nName backwards\nDelete Star",details.getCurrentPane.get.toString)
     details.uiChangedTextField("name","Sol",true)
     assertEquals(" - Space\n  . History\n* . Sol",edit.toString)
     details.uiActivated("Add Planet")
@@ -124,7 +124,7 @@ class ZZZ_EditSpace {
     edit.changeCurrentlyEditing(sol)
     details.uiActivated("Add Comet")
     assertEquals(" - Space\n  . History\n  - Sol\n   . Mercury\n   . Venus\n   + Earth (1 moon)\n   . Mars\n   . Asteroid Belt\n   . Jupiter\n   + Saturn (1 moon)\n*  . New comet",edit.toString)
-    assertEquals("Edit Comet\nInformation about a comet\nNomenclature\nSome comets have names\nName\nperiod\nDelete Comet",details.getCurrentPane.get.toString)
+    assertEquals("Edit Comet\nInformation about a comet\nNomenclature\nSome comets have names\nName\nperiod\nAdd firstDiscoverer\nfirstDiscoverer\nAdd size\nsize\nAdd OtherDiscoverer\nOtherDiscoverer\nDelete Comet",details.getCurrentPane.get.toString)
     println(edit.toString)
     println(details.getCurrentPane.get.toString)
     println(details.getCurrentUIElements.get.toString)

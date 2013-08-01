@@ -12,14 +12,13 @@ import java.io.ByteArrayOutputStream
 import org.greatcactus.xs.api.serialization.XMLDeserialize
 import java.util.Locale
 import java.io.ByteArrayInputStream
-import org.greatcactus.xs.api.dependency.ExternalDependencyResolver
 import org.greatcactus.xs.impl.DependencyInjectionCleaningQueue
 
 /**
  * The master access for editing objects. 
  */
 
-class XSEdit(original:AnyRef,val externalDependencyResolver:Option[ExternalDependencyResolver]) {
+class XSEdit(original:AnyRef) {
 
   val globalDependencyInjections : Set[AnyRef] = Set.empty
 
@@ -40,6 +39,7 @@ class XSEdit(original:AnyRef,val externalDependencyResolver:Option[ExternalDepen
   private var detailsPanes : List[XSDetailsPane[_]] = Nil
   private var toolbarStatusListeners : Set[ToolbarStatusListener] = Set.empty
   private var activeEditorListeners : Set[ActiveEditorRegistrationListener] = Set.empty
+  private var activeEditorCount : Int = 0
   
   def addTreeListener(l:XSEditListener) { synchronized {treeListeners+=l; l.setCurrentlyEditing(Option(currentlyEditing))}}
   def removeTreeListener(l:XSEditListener) { synchronized { treeListeners-=l}}
@@ -49,8 +49,26 @@ class XSEdit(original:AnyRef,val externalDependencyResolver:Option[ExternalDepen
   def removeDetailsPane(l:XSDetailsPane[_]) { synchronized { detailsPanes=detailsPanes.filter{_!=l}}}
   def addActiveEditorListener(l:ActiveEditorRegistrationListener) { synchronized {activeEditorListeners+=l}}
   def removeActiveEditorListener(l:ActiveEditorRegistrationListener) { synchronized { activeEditorListeners-=l}}
-  def registerActiveEditor() { for (l<-activeEditorListeners) l.register() }
-  def unregisterActiveEditor() { for (l<-activeEditorListeners) l.unregister() }
+  def registerActiveEditor() {
+    synchronized {
+      activeEditorCount+=1 ; 
+      for (l<-activeEditorListeners) l.register() ; 
+      if (!dependencyInjectionCleaningQueue.activated) {
+        dependencyInjectionCleaningQueue.activated=false
+        treeRoot.addToDependencyInjectionCleaningQueueRecursivelyOnChildren()
+      }    
+    }
+  }
+  def unregisterActiveEditor() {
+    synchronized {
+      activeEditorCount-=1 ; 
+      for (l<-activeEditorListeners) l.unregister() ; 
+      if (activeEditorCount<=0) { 
+        dependencyInjectionCleaningQueue.activated=false ; 
+        treeRoot.discardDependenciesRecursivelyOnChildren() 
+      } 
+    }
+  }
   
   
   def dispose() { treeRoot.dispose() }

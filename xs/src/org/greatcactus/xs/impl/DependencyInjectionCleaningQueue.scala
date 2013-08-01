@@ -40,6 +40,8 @@ import java.util.concurrent.Semaphore
  */
 class DependencyInjectionCleaningQueue {
 
+  @volatile var activated = true
+  
   private val nodesNeedingCleaning = new scala.collection.mutable.PriorityQueue[XSTreeNode]()(new Ordering[XSTreeNode]{ override def compare(n1:XSTreeNode,n2:XSTreeNode) = n2.depth-n1.depth}) // want smaller depth first, so unusual ordering.
   
   def add(node:XSTreeNode) {
@@ -67,7 +69,8 @@ class DependencyInjectionCleaningQueue {
       while (!isEmpty) {
         //println("Cleaning : nodesNeedingCleaning length = "+nodesNeedingCleaning.length)
         val node = synchronized { nodesNeedingCleaning.dequeue() }
-        node.cleanDependencies()
+        if (activated) node.cleanDependencies()
+        if (!activated) node.discardDependencies()
       }
     } finally {
       someThreadIsAlreadyCleaning.release()

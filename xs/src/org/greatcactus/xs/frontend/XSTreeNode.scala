@@ -53,7 +53,7 @@ class XSTreeNode(
   def injectionNodesFromParent : Set[AnyRef] = if (parent==null) xsedit.globalDependencyInjections else parent.dependencyInjection.dependenciesToPropagateToChildren(info.dependencyInjectionInfo.fromParentDependencyInfo,indexInParentFieldAtTimeOfCreation)
   private[xs] val dependencyInjection = new DependencyInjectionCurrentStatus(info.dependencyInjectionInfo,this)
   dependencyInjection.changedObject(null,obj)
-  private[this] var disposed=false
+  @volatile private[this] var disposed=false
   var isOpen : Boolean = if (fieldInParent==null) true else fieldInParent.isExpandOnFirstDisplay
   
   def isStillBeingEdited : Boolean = isRoot || (parent.isStillBeingEdited && parent.treeChildren.contains(this))
@@ -195,9 +195,11 @@ class XSTreeNode(
   /** Disposal needs to be done to dispose of the listeners in the dependencyInjection structure */
   def dispose() {
     if (disposed) return // could possible throw an error, at least in dev mode.
-    disposed=true
-    for (c<-allChildren) c.dispose()
-    dependencyInjection.dispose()
+    synchronized {
+      disposed=true
+      for (c<-allChildren) c.dispose()
+      dependencyInjection.dispose()
+    }
   }
   
   /** Note - this may be slow. Gets the current dependency injection information for this node */
@@ -214,6 +216,21 @@ class XSTreeNode(
       tableFieldsCache.clear()
       updateGUIincludingErrorLevels()
     }
+    if (disposed) dependencyInjection.discardDependencies()
+  }
+  
+  def discardDependencies() { dependencyInjection.discardDependencies() }
+  def discardDependenciesRecursivelyOnChildren() { 
+    synchronized {
+      discardDependencies()
+      for (c<-allChildren) c.discardDependenciesRecursivelyOnChildren()
+    }
+  }
+  def addToDependencyInjectionCleaningQueueRecursivelyOnChildren() {
+    synchronized {
+      xsedit.dependencyInjectionCleaningQueue.add(this)
+      for (c<-allChildren) c.addToDependencyInjectionCleaningQueueRecursivelyOnChildren()
+    }    
   }
   
   def updateGUIincludingErrorLevels() {
