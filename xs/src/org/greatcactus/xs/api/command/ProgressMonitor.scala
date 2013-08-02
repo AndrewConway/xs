@@ -4,6 +4,9 @@
 package org.greatcactus.xs.api.command
 
 import org.greatcactus.xs.api.display.RichLabel
+import org.greatcactus.xs.util.ObsoletableAndInterruptableFuture
+import scala.concurrent.Await
+import scala.concurrent.ExecutionContext
 
 /**
  * Update the UI of a progress monitor
@@ -24,11 +27,24 @@ class ProgressMonitor private[command](ui:Option[ProgressMonitorUI],expectedWork
   private var workDoneInChild = 0.0
   private var lastPortionSentUp = Double.NaN
   private var hasBeenCancelled = false
+  private[this] var notifyOfCancel : List[() => Unit] = Nil
   
+  def addNotifyOfCancel(callback: ()=>Unit) {
+    parent match {
+      case Some(p) => p.addNotifyOfCancel(callback)
+      case None => synchronized { notifyOfCancel = callback::notifyOfCancel }
+    }
+  }
   /** Called by the UI to indicate that it has been cancelled */
   def cancel() {
     //println("Job has been cancelled")
-    hasBeenCancelled=true;
+    val toNotify = synchronized {
+      hasBeenCancelled=true;
+      val res = notifyOfCancel
+      notifyOfCancel=Nil
+      res
+    }
+    for (f<-toNotify) f()
     for (p<-parent) p.cancel()
   }
 
@@ -97,6 +113,22 @@ class ProgressMonitor private[command](ui:Option[ProgressMonitorUI],expectedWork
   /** Finished this task or subtask */
   def finished() {
     for (p<-parent) p.childHasFinished()
+  }
+  
+  def execute(work:ObsoletableAndInterruptableFuture[CommandResult])(implicit executor: ExecutionContext) : CommandResult = {
+    try {
+      addNotifyOfCancel(work.future.cancel)
+      var dataChanged = false
+      def dataChangeFN() = { dataChanged=true; work.future.cancel(); this.cancel() }
+      work.addChangeListener(dataChangeFN)
+      val work2 = work.recover{
+        case f:CommandError => CommandResult.failure(f.description)
+        case _ if dataChanged => CommandResult.failure("Data changed during computation")
+      }
+      Await.result(work2.future.future, scala.concurrent.duration.Duration.Inf)
+    } finally {
+      work.dispose()
+    }
   }
 }
 

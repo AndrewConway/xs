@@ -11,6 +11,7 @@ import scala.util.Failure
 import java.lang.InterruptedException
 import scala.util.Try
 import scala.collection.mutable.ListBuffer
+import org.greatcactus.xs.api.command.ProgressMonitor
 
 /**
  * Make a future that can be interrupted. Generally behaves like a future, except
@@ -87,7 +88,18 @@ abstract class InterruptableFuture[+T] {
 
     p.future
   }
+  
+  /** Note that the code executed will not check for interruptions */
+  def andThen[U](pf: PartialFunction[Try[T], U])(implicit executor: ExecutionContext): InterruptableFuture[T] = {
+    val p = new InterruptablePromise[T]
+    p.onCancel(()=> cancel())
 
+    future.onComplete {
+      case r => try { if (pf isDefinedAt r) pf(r)} finally { p complete r }
+    }(executor)
+
+    p.future
+  }
 
 }
 
@@ -296,8 +308,20 @@ class ObsoletableAndInterruptableFuture[+T](val future:InterruptableFuture[T],va
   def recover[U >: T](pf: PartialFunction[Throwable, U])(implicit executor: ExecutionContext): ObsoletableAndInterruptableFuture[U] = {
     new ObsoletableAndInterruptableFuture(future.recover(pf)(executor),changes)
   }
-
   
+  def andThen[U](pf: PartialFunction[Try[T], U])(implicit executor: ExecutionContext): ObsoletableAndInterruptableFuture[T] = {
+    new ObsoletableAndInterruptableFuture(future.andThen(pf)(executor),changes)
+  }
+  
+  def asProgress(progressMonitor:ProgressMonitor,amount:Double)(implicit executor: ExecutionContext) : ObsoletableAndInterruptableFuture[T] = andThen{case _ => progressMonitor.doUnitWork(amount)}
+
+  def dispose() {
+    for (c<-changes) c.dispose()
+  }
+  def addChangeListener(onExternalChange: ()=>Unit) {
+    for (c<-changes) c.addChangeListener(onExternalChange)
+  }     
+
 }
 
 object ObsoletableAndInterruptableFuture {

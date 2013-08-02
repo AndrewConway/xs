@@ -19,3 +19,5 @@ object CommandResult {
   def failure(label:RichLabel) = new CommandResult(false,Some(label))
   def failure(label:String) = new CommandResult(false,Some(RichLabel(label)))
 }
+
+class CommandError(val description:String) extends Exception(description)

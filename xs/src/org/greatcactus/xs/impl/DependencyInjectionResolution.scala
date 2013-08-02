@@ -122,10 +122,8 @@ class FunctionEvaluationStatus(val function:DependencyInjectionFunction,val args
         setCallbackOnDispose(e.onNoLongerUsed)
         Option(e.actual)
       case e:ObsoletableAndInterruptableFuture[_] =>
-        callbackOnDispose = Some(() => {
-          for (c<-e.changes) c.dispose()
-        })
-        for (c<-e.changes) c.addChangeListener(onExternalChange)
+        callbackOnDispose = Some(e.dispose)
+        e.addChangeListener(onExternalChange)
         Option(e.future)
       case value => Some(value)
     }
@@ -178,16 +176,16 @@ class FunctionEvaluationStatus(val function:DependencyInjectionFunction,val args
       dirtyable.makeDirty()
       dirtyable.associatedNode.xsedit.dependencyInjectionCleaningQueue.cleanReturningInstantlyIfSomeOtherThreadIsAlreadyCleaning()
     }
-    completedFuture match {
-      case Some(x) if x!=null => x match {
-        case a:Array[_] => a.map{_.asInstanceOf[AnyRef]}.toList
-        case c:GenSeq[_] => c.toList.map{_.asInstanceOf[AnyRef]}
-        case Some(x) => List(x.asInstanceOf[AnyRef])
-        case None => Nil
-        case x => List(x)
-      }
-      case _ => Nil
-    }
+    flattenCollections(completedFuture)
+  }
+  
+  def flattenCollections(x:Any) : List[AnyRef] = x match {
+    case null => Nil
+    case None => Nil
+    case Some(o) => flattenCollections(o)
+    case a:Array[_] => a.toList.flatMap{flattenCollections _}
+    case c:GenSeq[_] => c.toList.flatMap{flattenCollections _}
+    case x => List(x.asInstanceOf[AnyRef])
   }
   
   def shouldInjectToKids = function.isInjectedToKids && completedFuture.isDefined && completedFuture.get!=null
