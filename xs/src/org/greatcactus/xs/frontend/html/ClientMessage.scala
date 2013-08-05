@@ -249,6 +249,7 @@ object ClientMessage {
   def run(command:String) = new SimpleClientMessage("Run",Array(command))
   
   val defaultStartGridOptions = """[{"autoHeight":true, "editable":true, "enableAddRow":true, "enableCellNavigation":true, "fullWidthRows":true, "forceFitColumns":true}][0]""" // produces an error if I have l instead of [l][0]. I don't know why.
+  val noAutoheightGridOptions = """[{"editable":true, "enableAddRow":true, "enableCellNavigation":true, "fullWidthRows":true, "forceFitColumns":true}][0]""" // produces an error if I have l instead of [l][0]. I don't know why.
   def startGrid(baseid:String,columns:String,onInputObj:String,options:String=defaultStartGridOptions) = new SimpleClientMessage("StartGrid",Array(baseid,columns,onInputObj,options))
   def stopGrid(baseid:String) = new SimpleClientMessage("StopGrid",Array(baseid))
   def setGridRowCSSStyles(baseid:String,classes:Seq[String]) = {

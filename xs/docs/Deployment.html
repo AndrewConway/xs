@@ -73,7 +73,7 @@
   <h3>Using html page</h3>
 
   <p>If you want to edit an object <code>O</code>, then you need to create an editing object <code>XSEdit</code>. The constructor takes <code>O</code> as
-  the first argument, and optionally an external resource resolver (see its Scaladocs) as a second argument. This holds the current state of the object and
+  the argument. This holds the current state of the object and
   the paraphenalia needed to edit it. Each actual web page that edits it needs its own <code>HTML5Client</code> object, the constructor of which takes
   the <code>XSEdit</code> as the first argument and a locale as the second. You would typically only have one client per <code>XSEdit</code> object, but
   you can have multiple ones per object if you want different web pages to edit the same object (and see each others' edits in real time). The demos
@@ -84,6 +84,9 @@
     <li>Javascript and css references for xs and the libraries above. See the demos for a complete list.</li>
     <li>In the body somewhere, <code>client.baseHTML</code> where <code>client</code> is the <code>HTML5Client</code> object above.</li>
     <li>Optionally, information channel URLs. See section below.</li>
+    <li>Optionally, the Javascript code <code>xs.makeXSEditUseAllVerticalSpace();</code> which will make the editor resize vertically to the size of 
+        the browser window (less the toolbar, and any other elements you may also include as a selector string argument to the function). This shoule 
+        go after the javascript includes above. </li> 
   </ul>
   
   <p>It is possible to have multiple clients in a single web page - each will then have its own information channel.</p>

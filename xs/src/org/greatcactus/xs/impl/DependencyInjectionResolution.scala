@@ -368,7 +368,7 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
         }
         dirty=false
         if (DependencyInjectionCurrentStatus.debugDependencyInjections && !(lastGoodResolved.values.isEmpty && mustDo.isEmpty)) {
-          println("Dependency Injection for "+parentObject)
+          println("Dependency Injection for "+parentObjectName)
           if (!lastGoodResolved.values.isEmpty) println(" Successfully resolved "+lastGoodResolved.values.map{_.function.name}.mkString(","))
           if (!mustDo.isEmpty) {
             println(" Unsuccessful resolution of "+mustDo.map{_.name}.mkString(","))
@@ -436,7 +436,7 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
       val (keepExisting,disposeExisting) = existingResolved.partition{_._2.function.survivesChange(oldObject,newObject)}
       existingResolved = keepExisting
       for ((_,d)<-disposeExisting) d.dispose()
-      if (DependencyInjectionCurrentStatus.debugDependencyInjections) println("Changed object "+oldObject+" to "+newObject+" saved "+existingResolved.size)
+      if (DependencyInjectionCurrentStatus.debugDependencyInjections) println("Changed object "+makeNameSane(""+oldObject)+" to "+makeNameSane(""+newObject)+" saved "+existingResolved.size)
       //(new IllegalArgumentException).printStackTrace()
       makeDirty()
       parentMirror = if (newObject==null) null else scala.reflect.runtime.currentMirror.reflect(newObject)
@@ -445,6 +445,8 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
     }
   }
   
+  def makeNameSane(s:String) = s.replaceAll("[\r\n]+[\\s\\S]*","...")
+  def parentObjectName = makeNameSane(parentObject.toString)
   private[impl] def makeDirty() {
     //println("Set to dirty")
     if (!dirty) {
@@ -453,7 +455,7 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
     }
   }
   def changedParentInjections(newInjectionsFromParent : Set[AnyRef]) {
-    if (DependencyInjectionCurrentStatus.debugDependencyInjections) println("Changed injections from parent for "+parentObject+" added "+(newInjectionsFromParent--injectedFromParent)+" removed "+(injectedFromParent--newInjectionsFromParent))
+    if (DependencyInjectionCurrentStatus.debugDependencyInjections) println("Changed injections from parent for "+parentObjectName+" added "+(newInjectionsFromParent--injectedFromParent)+" removed "+(injectedFromParent--newInjectionsFromParent))
     synchronized {
       if (newInjectionsFromParent != injectedFromParent) {
         injectedFromParent=newInjectionsFromParent;

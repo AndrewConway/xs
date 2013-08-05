@@ -255,6 +255,20 @@ function xsProcessClientMessageFromServer(json,session) {
 
 var xs = {
 	
+  /** Make the .xsEdit div take up all space other than that in the otherselectors variable (default ".xsToolbar").  */
+  makeXSEditUseAllVerticalSpace : function(otherselectors) {
+	if (!otherselectors) otherselectors = ".xsToolbar";
+	var onresize = function() {
+		var h = $(window).height()-3; // -2 for the border around the xsEdit sub blocks, and -1 for general rounding/fudge.
+		$(otherselectors).each(function() {h-=$(this).height();});
+		//console.log("Setting height to "+h);
+		$(".xsEdit").height(h);
+	};
+	$(window).resize(onresize);
+	$(onresize);
+  },
+
+
   resizeAllSlickGrids : function () {
 	$(".xsTableHolder").each(function () { xs.resizeSlickGrid(this);});  
   },
@@ -760,13 +774,14 @@ $(function() {
 			} else obj.gridContextMenu(key,tableid,selected);
 		},
 		items: {
-			cut : { name:"Cut", icon:"cut" },
-			copy : { name:"Copy", icon:"copy" },
+			cut : { name:"Cut local", icon:"cut" },
+			copy : { name:"Copy local", icon:"copy" },
 			copyExport : { name:"Copy to other application", icon:"copy" },
-		    paste : { name:"Paste", icon:"paste" },
+		    paste : { name:"Paste local", icon:"paste" },
 		    erase : { name:"Delete", icon:"delete" }
 		}
 	});
 });
 
 setInterval(xs.resizeAllSlickGrids,200); // onresize doesn't work for divs.
+

@@ -88,6 +88,7 @@ abstract class XSEditItemServlet(val hasTree:Boolean) extends XSServlet {
           <script src="SlickGrid/slick.grid.js"></script>
           <script src="jquery.contextMenu/jquery.ui.position.js"></script>
           <script src="jquery.contextMenu/jquery.contextMenu.js"></script>
+          <script type="text/javascript">xs.makeXSEditUseAllVerticalSpace();</script>
           <title>{xssi.title}</title>
         </head>
         <body spellcheck="false">

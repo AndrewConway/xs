@@ -1,4 +1,11 @@
 
+body {
+	margin-top:0px;
+    margin-bottom:0px;
+    margin-right:0px;
+    margin-left:0px;
+}
+
 table.xsPasteTable  {
 	border: 1px solid black;
     border-collapse:collapse;
@@ -78,7 +85,8 @@ border:0;
 }
 
 .xsEdit {
-	height : 500px;
+/*	height : 500px; */
+	height:500px;
 	width : 100%;
 }
 
@@ -338,10 +346,10 @@ img.xsImageField {
 }
 
 .slick-cell div.xsPseudoTextField.xsOverflowed {
-	background-image:url("overflow.svg");
-    background-size: auto 1em;
+	background-image:url("overflow.png");
+    background-size: 7px 3px; /* auto 1em; appropriate for overflow.svg */
 	background-repeat: no-repeat;
-	background-position: right top;
+	background-position: right bottom;
 	z-index: 40;
 }
 
