@@ -19,6 +19,8 @@ import scala.collection.GenTraversable
 import org.greatcactus.xs.impl.GeneralizedField
 import org.greatcactus.xs.api.command.ProgressMonitor
 import scala.concurrent.ExecutionContext
+import org.greatcactus.xs.api.command.EditCommandDescription
+import org.greatcactus.xs.api.command.EditCommandDescriptionMadeConcrete
 
 /**
  * Immutable description of the fields on the details pane.
@@ -99,7 +101,11 @@ object DetailsPaneFields {
       val field = new DetailsPaneFieldShowText(f.function,text(f.name),text.get(f.name+".tooltip"),f.displayOptions.icon,f.displayOptions.multiline,f.displayOptions.hideName,f.displayOptions.wholeLine,t.dependencyInjectionInfo.fieldsThatCouldHaveErrors)
       fields+=new EditPaneElem(field,f.displayOptions.editSection,f.displayOptions.orderingPriority)
     }
-    for (f<-t.dependencyInjectionInfo.commands) { // put in the (read only) pseudo text fields
+    for (f<-t.dependencyInjectionInfo.editCommands) { // put in the edit commands
+      val field = new DetailsPaneFieldEditCommands(f.function,text(f.name),text.get(f.name+".tooltip"),f.displayOptions.icon,f.displayOptions.hideName,f.displayOptions.wholeLine)
+      fields+=new EditPaneElem(field,f.displayOptions.editSection,f.displayOptions.orderingPriority)
+    }
+    for (f<-t.dependencyInjectionInfo.commands) { // put in the active commands
       val field = new DetailsPaneFieldActionCommand(f.function,text(f.name),text.get(f.name+".tooltip"),f.displayOptions.icon)
       fields+=new EditPaneElem(field,f.displayOptions.editSection,f.displayOptions.orderingPriority)
     }
@@ -231,6 +237,21 @@ class DetailsPaneFieldActionCommand(
     parent.dependencyInjection.executeCommandInSeparateThread(function,getMonitor,executionContext)
   }
   val name = function.name
+}
+
+class DetailsPaneFieldEditCommands(
+    val function:DependencyInjectionFunction,
+    val label:String,
+    val tooltip:Option[String],
+    val icon:Option[Icon],val hideName:Boolean,val wholeLine:Boolean
+    ) extends DetailsPaneFieldLabeled {
+  def get(parent:XSTreeNode,locale:Locale) : List[EditCommandDescriptionMadeConcrete] = {
+    parent.dependencyInjection.getFunctionResultAsList(function,parent).collect{case e:EditCommandDescription => new EditCommandDescriptionMadeConcrete(e)}
+  }
+  val name = function.name
+  def couldContainErrorIcon : Boolean = false
+  override def columnExtractor =None
+  override def multiline = false
 }
 
 

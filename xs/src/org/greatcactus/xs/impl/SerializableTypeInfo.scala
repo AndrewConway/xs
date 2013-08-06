@@ -25,6 +25,8 @@ import org.greatcactus.xs.util.EqualityByPointerEquality
 import org.greatcactus.xs.api.command.XSCommand
 import scala.xml.NodeSeq
 import scala.xml.XML
+import org.greatcactus.xs.api.command.XSEditCommands
+import org.greatcactus.xs.api.command.XSEditCommands
 
 
 /**
@@ -184,6 +186,7 @@ class SerializableTypeInfo[T <: AnyRef] private (val clazz : java.lang.Class[T])
     val enabledControllers = new ListBuffer[FunctionForField]
     val errorChecks = new ListBuffer[FunctionForField]
     val extraText = new ListBuffer[ExtraDisplayFieldInfo]
+    val editCommands = new ListBuffer[EditCommandMethods]
     val customFields = new ListBuffer[CustomFieldInfo]
     val commands = new ListBuffer[CommandMethod]
     val classesToBlockForChildren:Seq[Class[_]] = clazz.getAnnotation(classOf[BlockDependencyInjection]) match {
@@ -199,12 +202,13 @@ class SerializableTypeInfo[T <: AnyRef] private (val clazz : java.lang.Class[T])
       val ptc = hasAnnotation(method,typePropagateToChildren)
       val ec = getOptionalValue(method,typeErrorCheck)
       val edf = hasAnnotation(method,typeExtraDisplayField)
+      val edc = hasAnnotation(method,typeXSEditCommands)
       val cmd = hasAnnotation(method,typeXSCommand)
       val cdf = getOptionalValue(method,typeCustomEditable)
       val visC = getOptionalValue(method,typeVisibilityController)
       val enC = getOptionalValue(method,typeEnabledController)
       val fu = getOptionalValue(method,typeFieldUpdater)
-      val numSpecial = (if (ip.isDefined) 1 else 0)+(if (lp.isDefined) 1 else 0)+(if (ttp.isDefined) 1 else 0)+(if (ec.isDefined) 1 else 0)+(if (edf) 1 else 0)+(if (cmd) 1 else 0)+(if (cdf.isDefined) 1 else 0)+(if (visC.isDefined) 1 else 0)+(if (enC.isDefined) 1 else 0)+(if (fu.isDefined) 1 else 0)
+      val numSpecial = (if (ip.isDefined) 1 else 0)+(if (lp.isDefined) 1 else 0)+(if (ttp.isDefined) 1 else 0)+(if (ec.isDefined) 1 else 0)+(if (edf) 1 else 0)+(if (edc) 1 else 0)+(if (cmd) 1 else 0)+(if (cdf.isDefined) 1 else 0)+(if (visC.isDefined) 1 else 0)+(if (enC.isDefined) 1 else 0)+(if (fu.isDefined) 1 else 0)
         if (numSpecial>1) error("Conflicting annotations on method "+method.name)
         if (dp||ptc||numSpecial>0) {
           if (visC.isDefined || enC.isDefined) { // check returns boolean
@@ -224,12 +228,13 @@ class SerializableTypeInfo[T <: AnyRef] private (val clazz : java.lang.Class[T])
           else if (fu.isDefined) fieldUpdaters+=fff(fu) 
           else if (cdf.isDefined) customFields+=new CustomFieldInfo(function,method.name.decoded,new FieldDisplayOptions(method,iconSource),cdf.get) 
           else if (edf) extraText+=new ExtraDisplayFieldInfo(function,method.name.decoded,new FieldDisplayOptions(method,iconSource))
+          else if (edc) editCommands+=new EditCommandMethods(function,method.name.decoded,new FieldDisplayOptions(method,iconSource))
           else if (cmd) commands+=new CommandMethod(function,method.name.decoded,new FieldDisplayOptions(method,iconSource))
           else providers+=function
         }
     }
-    val fieldNames : Set[String] = Set("delete")++fields.flatMap{_.namesOfExpectedFields}++extraText.toList.map{_.name}++customFields.toList.map{_.name} 
-    val fieldAndSectionNames : Set[String] = fieldNames ++ fields.flatMap{_.displayOptions.editSection} ++ extraText.toList.flatMap{_.displayOptions.editSection}++ customFields.toList.flatMap{_.displayOptions.editSection}
+    val fieldNames : Set[String] = Set("delete")++fields.flatMap{_.namesOfExpectedFields}++extraText.toList.map{_.name}++editCommands.toList.map{_.name}++customFields.toList.map{_.name} 
+    val fieldAndSectionNames : Set[String] = fieldNames ++ fields.flatMap{_.displayOptions.editSection} ++ extraText.toList.flatMap{_.displayOptions.editSection} ++ editCommands.toList.flatMap{_.displayOptions.editSection}++ customFields.toList.flatMap{_.displayOptions.editSection}
     def check(list:List[FunctionForField],what:String,allowEmpty:Boolean,allowDuplicates:Boolean,allowSections:Boolean) {
       if (!allowDuplicates) for ((field,entries)<-list.groupBy{_.field}) if (entries.length>1) error("Conflicting "+what)
       if ((!allowEmpty) && list.exists{_.field.isEmpty}) error("Empty "+what)
@@ -261,7 +266,7 @@ class SerializableTypeInfo[T <: AnyRef] private (val clazz : java.lang.Class[T])
     }
     val fieldUpdatersMap : Map[XSFieldInfo,DependencyInjectionFunction] = Map((for (u <- fieldUpdaters.toList;fname<-u.field;f<-fields.find{_.name==fname}) yield f->u.function):_*)
     //println("Class "+name+" field Updaters Map "+fieldUpdatersMap)
-    val dependencyInjectionInfo = new DependencyInjectionInformation(providers.toList,iconProviders.toList,labelProviders.toList,tooltipProviders.toList,extraText.toList,customFields.toList,enabledControllers.toList,visibilityControllers.toList,errorChecks.toList,new CanPassToChildren(classesToBlockForChildren),simpleErrorChecks,commands.toList)
+    val dependencyInjectionInfo = new DependencyInjectionInformation(providers.toList,iconProviders.toList,labelProviders.toList,tooltipProviders.toList,extraText.toList,editCommands.toList,customFields.toList,enabledControllers.toList,visibilityControllers.toList,errorChecks.toList,new CanPassToChildren(classesToBlockForChildren),simpleErrorChecks,commands.toList)
     (dependencyInjectionInfo,fieldUpdatersMap)
   }
   
@@ -483,6 +488,7 @@ object SerializableTypeInfo {
   private[impl] val typeErrorCheck = universe.typeOf[ErrorCheck]
   private[impl] val typeExtraDisplayField = universe.typeOf[ExtraDisplayField]
   private[impl] val typeXSCommand = universe.typeOf[XSCommand]
+  private[impl] val typeXSEditCommands = universe.typeOf[XSEditCommands]
   private[impl] val typeVisibilityController = universe.typeOf[VisibilityController]
   private[impl] val typeEnabledController = universe.typeOf[EnabledController]
   private[impl] val typeOnlyAffectedByFields = universe.typeOf[OnlyAffectedByFields]

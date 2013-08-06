@@ -25,6 +25,8 @@ import scala.swing.event.ButtonClicked
 import org.greatcactus.xs.api.errors.ResolvedXSError
 import org.greatcactus.xs.frontend._
 import org.greatcactus.xs.impl.GeneralizedField
+import org.greatcactus.xs.api.command.EditCommandDescription
+import org.greatcactus.xs.api.command.EditCommandDescriptionMadeConcrete
 /**
  * XSDetailsPane specialized for Swing client
  *
@@ -91,6 +93,7 @@ class SwingDetailsPane(_locale:Locale,_xsedit:XSEdit) extends XSDetailsPane[Comp
   override def initiatePopup(field:UIFieldText,popupName:String,node:XSTreeNode) {} // TODO
   override def changeGridTooltip(gui:Component,row:Int,col:Int,colfield:GeneralizedField,tooltip:Option[RichLabel]) {}
   override def changeUITooltip(gui:Component,tooltip:Option[RichLabel]) {}
+  def changeUIShowCommands(gui:Component,shouldBe:List[EditCommandDescriptionMadeConcrete]) {}
 
   def getCustom(f:DetailsPaneFieldCustom) : Option[CustomComponent[_,Component]] = SwingDetailsPane.getCustom(f)
 
@@ -138,7 +141,7 @@ class GUICreatorSwing(pane:SwingDetailsPane) extends GUICreator[Component] {
     val link = new Button;
     val action = Action(field.label) {
         //println("Activated "+field.description)
-        pane.uiActivated(link) 
+        pane.uiActivated(link,0) 
     } 
     link.action=action
     link.enabled=currently.enabled
@@ -198,7 +201,8 @@ class GUICreatorSwing(pane:SwingDetailsPane) extends GUICreator[Component] {
   def createImageField(field:DetailsPaneFieldImage,currently:CurrentFieldState,initialValue:String) : scala.swing.Component = ??? // TODO implement
   def createTableField(field:DetailsPaneFieldTable,currently:CurrentFieldState,initialValue:IndexedSeq[IndexedSeq[String]]) = ??? // TODO implement
   override def createCustom[S](field:DetailsPaneFieldCustom,custom:CustomComponent[S,Component],currently:CurrentFieldState,initialValue:S) = ??? // TODO implement
-  
+  def createEditCommands(field:DetailsPaneFieldEditCommands,currently:CurrentFieldState,initialValue:List[EditCommandDescriptionMadeConcrete]) : scala.swing.Component = ???
+
   def createShowTextField(field:DetailsPaneFieldShowText,currently:CurrentFieldState,initialValue:RichLabel) : scala.swing.Component = {
     val gui = new Label("<html>"+initialValue.html.toString+"</html>")
     createLabeled(gui,field,currently)

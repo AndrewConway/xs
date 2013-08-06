@@ -17,13 +17,15 @@ import scala.util.Failure
 import org.greatcactus.xs.impl.TrimInfo
 import org.greatcactus.xs.impl.CollectionStringUtil
 import scala.concurrent._
-//import ExecutionContext.Implicits.global
 import scala.collection.mutable.ArrayBuffer
 import org.greatcactus.xs.impl.GeneralizedField
 import org.greatcactus.xs.api.command.ProgressMonitor
 import org.greatcactus.xs.api.command.ProgressMonitorUI
 import org.greatcactus.xs.impl.SerializableTypeInfo
 import scala.xml.Node
+import org.greatcactus.xs.api.command.EditCommandDescription
+import org.greatcactus.xs.api.command.EditCommandDescription
+import org.greatcactus.xs.api.command.EditCommandDescriptionMadeConcrete
 
 /**
  * A GUI client should extend this controller to manage the "details" pane of the item currently being edited.
@@ -98,9 +100,10 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit,executionCon
   //
   
   /** The client should call this when an action has been triggered by the user. The argument is the GUI item that has been triggered. */
-  def uiActivated(uiElement:T) {
+  def uiActivated(uiElement:T,sequence:Int) {
     uiAction(uiElement,{
       case f:UIFieldAction => node => f.go(node)
+      case f:UIFieldEditCommands => node => f.go(sequence,node)
     })
   }
   
@@ -216,6 +219,8 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit,executionCon
   def changeUIenabledness(gui:T,enabled:Boolean)
   /** XS sending a command to the GUI to change what a pseudo-field is showing */
   def changeUIShowText(gui:T,shouldBe:RichLabel)
+  /** XS sending a command to the GUI to change what an edit command field should look like */
+  def changeUIShowCommands(gui:T,shouldBe:List[EditCommandDescriptionMadeConcrete])
   /** XS sending a command to the GUI to change what text a label is */
   def changeUILabelText(gui:T,shouldBe:RichLabel)
   /** XS sending a command to the GUI to change what goes in a tooltip */
@@ -233,6 +238,7 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit,executionCon
   /** XS sending a command to the GUI to change the set of entries in a table that are illegal - eg a blank string box when a number is needed. This should do something like set a red background. The mey of the illegalEntries field is the row number; the contents are the column numbers. */
   def setUITableEntriesIllegalContents(gui:T,illegalEntries:Map[Int,List[Int]])
   /** XS sending a command to the GUI to redraw a custom control */
+  
   //def changeUIShowCustom[S](gui:T,custom:CustomComponent[S],shouldBe:S,old:S)
   
   //
@@ -282,6 +288,10 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit,executionCon
           case f:DetailsPaneFieldAction =>  
             val gui = creator.createAction(f,state)
             buffer+=new UIFieldAction(f,gui,state,creator.createProgressMonitor(gui),creator.getExecutionContext)
+          case f:DetailsPaneFieldEditCommands =>  
+            val initialValue = f.get(tree,locale)
+            val gui = creator.createEditCommands(f,state,initialValue)
+            buffer+=new UIFieldEditCommands(f,gui,state,initialValue,locale)
           case f:DetailsPaneFieldText =>
             val initialValue = f.get(tree)
             val gui = creator.createTextField(f, state, initialValue)
@@ -954,6 +964,28 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit,executionCon
     override def toString = field.label
   } 
 
+  class UIFieldEditCommands(val field:DetailsPaneFieldEditCommands,val gui:T,var currently:CurrentFieldState,var currentlyShowing:List[EditCommandDescriptionMadeConcrete],locale:Locale) extends UIField {
+    def humanEditedTrimInfo:Array[Option[TrimInfo]] = TrimInfo.empty
+    def refresh(node:XSTreeNode) {
+      //println("Refreshing node "+node.uid)
+      val shouldBe = field.get(node,locale)
+      if (shouldBe.length!=currentlyShowing.length || !shouldBe.zip(currentlyShowing).forall{case (s,c) => s.isSameUI(c)}) { // check look the same
+        changeUIShowCommands(gui,shouldBe)
+      }
+      currentlyShowing=shouldBe; // update run commands. Above check only checks the GUI is the same.
+      refreshCurrently(node)
+    }
+    def go(sequence:Int,node:XSTreeNode) {
+      val cs = currentlyShowing
+      if (cs.length>sequence) {
+        val c = cs(sequence)
+        val res = c.run()
+        if (res!=null) node.xsedit.changeNode(node,res,None,c.undoDescription)
+      }
+    }
+    override def toString = field.label
+  } 
+
   class UIFieldCustom[S](val field:DetailsPaneFieldCustom,val custom:CustomComponent[S,T],val gui:T,var currently:CurrentFieldState,val work:CustomComponentWork[S],locale:Locale) extends UIField {
     def humanEditedTrimInfo:Array[Option[TrimInfo]] = TrimInfo.empty
     def refresh(node:XSTreeNode) {
@@ -1006,6 +1038,8 @@ abstract class GUICreator[T] {
   def getExecutionContext : ExecutionContext = scala.concurrent.ExecutionContext.Implicits.global
   /** Called to create a text field (inside a section) */
   def createTextField(field:DetailsPaneFieldText,currently:CurrentFieldState,initialValue:String) : T
+  /** Called to create an edit commands field (inside a section) */
+  def createEditCommands(field:DetailsPaneFieldEditCommands,currently:CurrentFieldState,initialValue:List[EditCommandDescriptionMadeConcrete]) : T
   /** Called to create a boolean field - typically a checkbox (inside a section) */
   def createBooleanField(field:DetailsPaneFieldBoolean,currently:CurrentFieldState,initialValue:Boolean) : T
   /** Called to create an image field (inside a section) */

@@ -123,6 +123,17 @@ val deserialized : Complex = XMLDeserialize.deserialize[Complex](serializedData)
     </tbody>
    </table>
     
+   <h4>Editing other than just by fields</h4>
+   <p>The normal XS editing paradigm is the user edits a field leads to a new object of the class containing the field is created with all fields the same
+   as the old class except the one being altered.</p>
+   
+   <p>Sometimes you might want a field being edited to behave differently - if editing one field should change other fields. This can be done
+   by annotating with <code>@FieldUpdater</code> a method on the class with the field that takes the new value of said field as an argument and
+   produces a new object of the class containing the field. This method will then be called instead of the normal updating.</p>
+   
+   <p>Also you may want some command that changes a class somehow - like converting the first letter of each field to uppercase. This
+   can be accomplished using <code>@XSEditCommands</code> (look at the javadocs for details).</p>
+   
    <h3>Customising display - text, icons, sections and extra fields </h3>
       <aside>Refers to package <code>org.greatcactus.xs.api.display</code></aside>
 

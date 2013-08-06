@@ -48,6 +48,9 @@ class ExtraDisplayFieldInfo(val function:DependencyInjectionFunction,val name:St
 class CommandMethod(val function:DependencyInjectionFunction,val name:String,val displayOptions:FieldDisplayOptions) {
   
 }
+class EditCommandMethods(val function:DependencyInjectionFunction,val name:String,val displayOptions:FieldDisplayOptions) {
+  
+}
 class CustomFieldInfo(val function:DependencyInjectionFunction,val name:String,val displayOptions:FieldDisplayOptions,val customComponentName:String) {
   
 }
@@ -63,6 +66,7 @@ class DependencyInjectionInformation(
   val labelProviders : Seq[FunctionForField],
   val tooltipProviders : Seq[FunctionForField],
   val extraText : Seq[ExtraDisplayFieldInfo],
+  val editCommands : Seq[EditCommandMethods],
   val customFields : Seq[CustomFieldInfo],
   val enabledControllers : Seq[FunctionForField],
   val visibilityControllers : Seq[FunctionForField],
@@ -71,7 +75,7 @@ class DependencyInjectionInformation(
   val simpleErrorChecks:SimpleErrorChecks,
   val commands:List[CommandMethod]
   ) {
-  val allDIFunctions : Seq[DependencyInjectionFunction] = providers++(iconProviders.map{_.function})++(labelProviders.map{_.function})++(tooltipProviders.map{_.function})++(extraText.map{_.function})++(customFields.map{_.function})++(enabledControllers.map{_.function})++(visibilityControllers.map{_.function})++(errorChecks.map{_.function})
+  val allDIFunctions : Seq[DependencyInjectionFunction] = providers++(iconProviders.map{_.function})++(labelProviders.map{_.function})++(tooltipProviders.map{_.function})++(extraText.map{_.function})++(editCommands.map{_.function})++(customFields.map{_.function})++(enabledControllers.map{_.function})++(visibilityControllers.map{_.function})++(errorChecks.map{_.function})
   val allFunctions = allDIFunctions++(commands.map{_.function})
   val classLabelProvider : Option[DependencyInjectionFunction] = labelProviders.find{_.field==None}.map{_.function}
   val classTooltipProvider : Option[DependencyInjectionFunction] = tooltipProviders.find{_.field==None}.map{_.function}
@@ -166,6 +170,12 @@ class FunctionEvaluationStatus(val function:DependencyInjectionFunction,val args
   def resForGUIAndTableFields(node:XSTreeNode) = {
     if (currentlyAwaitingFuture) onFutureSuccess{node.updateGUIIncludingTableFieldsCache()}
     completedFuture
+  }
+  
+  /** Get a result. If it may change later due to a future being completed, then call node.updateGUIIncludingTableFieldsCache() when that happens */
+  def resAsListForGUIAndTableFields(node:XSTreeNode) : List[AnyRef] = {
+    if (currentlyAwaitingFuture) onFutureSuccess{node.updateGUIIncludingTableFieldsCache()}
+    flattenCollections(completedFuture)
   }
   
   //def res : Option[AnyRef] = completedFuture
@@ -307,6 +317,7 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
   }
   
   def getFunctionResult(function:DependencyInjectionFunction,node:XSTreeNode) : Option[AnyRef] = lastGoodResolved.get(function).flatMap{_.resForGUIAndTableFields(node)} 
+  def getFunctionResultAsList(function:DependencyInjectionFunction,node:XSTreeNode) : List[AnyRef] = lastGoodResolved.get(function) match { case None => Nil; case Some(r) => r.resAsListForGUIAndTableFields(node)} 
   
   def dispose() {
     discardDependencies()

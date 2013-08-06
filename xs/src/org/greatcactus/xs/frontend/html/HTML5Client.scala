@@ -158,10 +158,10 @@ class HTML5Client(val xsedit:XSEdit,val toolbar:Option[XSToolBar],val locale:Loc
         }
       }
       message.command match {
-        case "Action" if args.length==2 =>
+        case "Action" if args.length==3 =>
           //println("Got action command "+args(0))
           //println("for context "+args(1)+" expecting "+detailsPane.nodeIDCurrentlyBeingEdited)
-          if (detailsPane.nodeIDCurrentlyBeingEdited==args(1)) detailsPane.uiActivated(args(0)); 
+          if (detailsPane.nodeIDCurrentlyBeingEdited==args(2)) detailsPane.uiActivated(args(0),args(1).toInt); 
         case "Change" if args.length==3||args.length==5 =>
           //println("Got change command "+args(0)+" "+args(1))
           if (detailsPane.nodeIDCurrentlyBeingEdited==args(2)) {

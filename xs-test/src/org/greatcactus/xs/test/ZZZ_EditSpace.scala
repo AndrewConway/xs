@@ -18,6 +18,7 @@ import org.greatcactus.xs.api.display.RichLabel
 import org.greatcactus.xs.api.icon.Icon
 import org.greatcactus.xs.api.errors.ResolvedXSError
 import org.greatcactus.xs.impl.GeneralizedField
+import org.greatcactus.xs.api.command.EditCommandDescriptionMadeConcrete
 
 
 
@@ -37,12 +38,12 @@ class ZZZ_EditSpace {
     //println(edit.toString)
     assertEquals("*- Space\n  . History",edit.toString)
     assertEquals("Edit Space\nSpace is big. This contains the things in space (that is, everything)\nAdd history\nAjoutez un étoile",details.getCurrentPane.get.toString)
-    details.uiActivated("Ajoutez un étoile")
+    details.uiActivated("Ajoutez un étoile",0)
     assertEquals(" - Space\n  . History\n* . New star",edit.toString)
     assertEquals("Edit Star\nInformation about a stellar system\nName\nconstellation\nAjoutez un étoile\nAdd Planet\nAdd Comet\nslowNameReversed2\nslowNameReversed\nconstellationRaw\nName backwards\nDelete Star",details.getCurrentPane.get.toString)
     details.uiChangedTextField("name","Sol",true)
     assertEquals(" - Space\n  . History\n* . Sol",edit.toString)
-    details.uiActivated("Add Planet")
+    details.uiActivated("Add Planet",0)
     assertEquals(" - Space\n  . History\n  - Sol\n*  . New planet",edit.toString)
     assertEquals("Planetary system components\nThe things in the planetary system\nName\nDistance from primary\nType\nAdd Core\nAdd moon\nTidally Locked\nphoto\nDelete",details.getCurrentPane.get.toString)    
     details.uiChangedTextField("name","Mercury",true)
@@ -61,26 +62,26 @@ class ZZZ_EditSpace {
     assertEquals("Planetary system components\nSection.Main\nName:Mercury\nDistance from primary:0.38\nType:null\nAdd Core\nAdd moon\nTidally Locked:false\nphoto:null\nDelete",details.getCurrentUIElements.get.toString)  
     edit.changeCurrentlyEditing(edit.currentlyEditing.parent)
     assertEquals(" - Space\n  . History\n* - Sol\n   . Mercury",edit.toString)
-    details.uiActivated("Add Planet")
+    details.uiActivated("Add Planet",0)
     assertEquals(" - Space\n  . History\n  - Sol\n   . Mercury\n*  . New planet",edit.toString)
     details.uiChangedTextField("name","Venus",true)
     details.uiChangedTextField("distanceFromPrimary","0.72",true)
     assertEquals(" - Space\n  . History\n  - Sol\n   . Mercury\n*  . Venus",edit.toString)
     edit.changeCurrentlyEditing(edit.currentlyEditing.parent)
-    details.uiActivated("Add Planet")
+    details.uiActivated("Add Planet",0)
     assertEquals(" - Space\n  . History\n  - Sol\n   . Mercury\n   . Venus\n*  . New planet",edit.toString)
     details.uiChangedTextField("name","Earth",true)
     details.uiChangedTextField("distanceFromPrimary","1",true)
     assertEquals(" - Space\n  . History\n  - Sol\n   . Mercury\n   . Venus\n*  . Earth",edit.toString)
-    details.uiActivated("Add moon")
+    details.uiActivated("Add moon",0)
     assertEquals(" - Space\n  . History\n  - Sol\n   . Mercury\n   . Venus\n   - Earth (1 moon)\n*   . New planet",edit.toString)
     details.uiChangedTextField("name","Luna",true)
     assertEquals(" - Space\n  . History\n  - Sol\n   . Mercury\n   . Venus\n   - Earth (1 moon)\n*   . Luna",edit.toString)
     edit.changeCurrentlyEditing(edit.currentlyEditing.parent.parent)
-    details.uiActivated("Add Planet")
+    details.uiActivated("Add Planet",0)
     details.uiChangedTextField("name","Pluto",true)
     assertEquals(" - Space\n  . History\n  - Sol\n   . Mercury\n   . Venus\n   - Earth (1 moon)\n    . Luna\n*  . Pluto",edit.toString)
-    details.uiActivated("Delete") // Sorry Pluto, you;ve been pluto'd
+    details.uiActivated("Delete",0) // Sorry Pluto, you;ve been pluto'd
     assertEquals(" - Space\n  . History\n* - Sol\n   . Mercury\n   . Venus\n   - Earth (1 moon)\n    . Luna",edit.toString)
     // close Earth and Venus
     edit.currentlyEditing.treeChildren(1).isOpen=false
@@ -122,7 +123,7 @@ class ZZZ_EditSpace {
     edit.dragData(sol,List(sol.treeChildren(5)),Some(sol.treeChildren(3)))
     assertEquals(" - Space\n  . History\n  - Sol\n   . Mercury\n   . Venus\n   + Earth (1 moon)\n   . Mars\n*  . Asteroid Belt\n   . Jupiter\n   + Saturn (1 moon)",edit.toString)
     edit.changeCurrentlyEditing(sol)
-    details.uiActivated("Add Comet")
+    details.uiActivated("Add Comet",0)
     assertEquals(" - Space\n  . History\n  - Sol\n   . Mercury\n   . Venus\n   + Earth (1 moon)\n   . Mars\n   . Asteroid Belt\n   . Jupiter\n   + Saturn (1 moon)\n*  . New comet",edit.toString)
     assertEquals("Edit Comet\nInformation about a comet\nNomenclature\nSome comets have names\nName\nperiod\nAdd firstDiscoverer\nfirstDiscoverer\nAdd size\nsize\nAdd OtherDiscoverer\nOtherDiscoverer\nDelete Comet",details.getCurrentPane.get.toString)
     println(edit.toString)
@@ -166,6 +167,7 @@ class TestXSDetailsPane(_locale:Locale,_xsedit:XSEdit) extends XSDetailsPane[Str
   def getCustom(f:DetailsPaneFieldCustom) : Option[CustomComponent[_,String]] = None
   def changeUITooltip(gui:String,tooltip:Option[RichLabel]) {}
   def changeGridTooltip(gui:String,row:Int,col:Int,colfield:GeneralizedField,tooltip:Option[RichLabel]) {}
+  def changeUIShowCommands(gui:String,shouldBe:List[EditCommandDescriptionMadeConcrete]) {}
 
 }
 
@@ -183,4 +185,6 @@ class TestGUICreator extends GUICreator[String] {
   def createTableField(field:DetailsPaneFieldTable,currently:CurrentFieldState,initialValue:IndexedSeq[IndexedSeq[String]]) = field.name
   def createCustom[S](field:DetailsPaneFieldCustom,custom:CustomComponent[S,String],currently:CurrentFieldState,initialValue:S) = field.name
   def createInlineField(field:DetailsPaneFieldInline,currently:CurrentFieldState) = (field.name,this)
+  def createEditCommands(field:DetailsPaneFieldEditCommands,currently:CurrentFieldState,initialValue:List[EditCommandDescriptionMadeConcrete]) = field.name
+
 }

@@ -20,6 +20,8 @@ import scala.xml.transform.RewriteRule
 import scala.xml.Elem
 import scala.xml.Node
 import scala.xml.transform.RuleTransformer
+import org.greatcactus.xs.api.command.EditCommandDescription
+import org.greatcactus.xs.api.command.EditCommandDescriptionMadeConcrete
 
 /**
  * XSDetailsPane specialized for HTML5. This is not a complete implementation - it ignores transport.
@@ -144,6 +146,7 @@ class HTML5DetailsPane(val client:HTML5Client) extends XSDetailsPane[String](cli
   
   override def changeGridTooltip(gui:String,row:Int,col:Int,colfield:GeneralizedField,tooltip:Option[RichLabel]) { message(ClientMessage.setGridTooltip(gui+"_grid_R"+row+"C"+colfield.name,tooltip.getOrElse(RichLabel.nullLabel).html,gui+"_ui"))} // FIXME also should put them there in the first place maybe
   override def changeUITooltip(id:String,tooltip:Option[RichLabel]) {  jsSetHTML(id+"_tooltip",tooltip.getOrElse(RichLabel.nullLabel)) } 
+  override def changeUIShowCommands(id:String,shouldBe:List[EditCommandDescriptionMadeConcrete]) {jsSetHTML(id+"_ui",GUICreatorHTML5.editCommandsHTML(id,client.session.sessionPrefix,shouldBe))}
 
   /*override def changeUIShowCustom[S](gui:String,custom:CustomComponent[S,String],shouldBe:S,old:S) { 
     custom match {
@@ -236,6 +239,19 @@ object GUICreatorHTML5 {
     case None => NodeSeq.Empty
   }
   
+  def editCommandsHTML(id:String,sessionprefix:String,commands:List[EditCommandDescriptionMadeConcrete]) : NodeSeq = {
+    var res:NodeSeq = NodeSeq.Empty
+    for ((c,i) <-commands.zipWithIndex) yield {
+      val subid = id+"_"+i
+      val baseLink = <a id={subid+"_ui"} href="javascript:void(0)" onclick={sessionprefix+"action('"+id+"',"+i+");false"}>{rawicon(c.icon)}{c.label.html}</a>
+      val withTitle = c.tooltip match {
+        case None => baseLink
+        case Some(text) => <div class="xsTooltipHolder"><div class="xsTooltip">{text.html}</div>{baseLink}</div>
+      }
+      // addEnabled(withTitle,enabled)
+      withTitle
+    }
+  }
 
 }
 
@@ -523,6 +539,15 @@ class GUICreatorHTML5(pane:HTML5DetailsPane,inlineParentDivId:Option[String]) ex
     id 
   }
 
+  def createEditCommands(field:DetailsPaneFieldEditCommands,currently:CurrentFieldState,initialValue:List[EditCommandDescriptionMadeConcrete]) : String = {
+    val id = newid()
+    // dealWithPostProcessing(initialValue)
+    val input = <div id={id+"_ui"}>{editCommandsHTML(id,sessionprefix,initialValue)}</div>
+    addLabeledField(input,id,field,currently)
+    id     
+  }
+
+
 }
 
 class FillInTemplate(val template:Node) {
@@ -545,7 +570,7 @@ class FillInTemplate(val template:Node) {
           case Elem("field",fieldName, attribs, scope, children @ _*) => fields.get(fieldName).getOrElse(NodeSeq.Empty)
           case Elem("fieldib",fieldName, attribs, scope, children @ _*) => fields.get(fieldName) match {
             case Some(field) =>
-              val width = attribs("width") match { case null => "" ; case w => "width:"+(w text)+";" }
+              val width = attribs("width") match { case null => "" ; case w => "width:"+(w.text)+";" }
               val style = "display:inline-block;" + width
               <div style={style} class="xsErrorLabeled">{field}</div>
             case None => NodeSeq.Empty
@@ -558,7 +583,7 @@ class FillInTemplate(val template:Node) {
           case Elem("label",fieldName, attribs, scope, children @ _*) => labels.get(fieldName).getOrElse(NodeSeq.Empty)
           case Elem("labelib",fieldName, attribs, scope, children @ _*) => labels.get(fieldName) match {
             case Some(field) =>
-              val width = attribs("width") match { case null => "" ; case w => "width:"+(w text)+";" }
+              val width = attribs("width") match { case null => "" ; case w => "width:"+(w.text)+";" }
               val style = "display:inline-block;" + width
               <div style={style}>{field}</div>
             case None => NodeSeq.Empty
@@ -567,7 +592,7 @@ class FillInTemplate(val template:Node) {
           case Elem("line",fieldName, attribs, scope, children @ _*) => <table class="xsForm">{trs.get(fieldName).getOrElse(NodeSeq.Empty)}</table>
           case elem: Elem =>
             //println("Other elem : prefix = "+elem.prefix+" namespace = "+elem.namespace+" name="+elem.label)
-            elem copy (child = elem.child flatMap (this transform))
+            elem copy (child = elem.child flatMap (this.transform))
           case other => other
         }
       }

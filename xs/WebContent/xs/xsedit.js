@@ -411,10 +411,11 @@ var xs = {
 		  considerResending(10000,cmd.index);
 	  };
 	  /** Called by a client action - eg clicking on a "new X" action */
-	  this.action = function(id) {
+	  this.action = function(id,subindex) {
+		  if (!subindex) subindex=0;
 		  var elem = document.getElementById(id+"_ui");
 		  if (elem.getAttribute("disabled")=="disabled") return;
-		  this.sendToServer({cmd:"Action",args:[id,this.currentlyEditing]});
+		  this.sendToServer({cmd:"Action",args:[id,""+subindex,this.currentlyEditing]});
 	  };
 	  /** Called by a client clicking on the opener for a tree */
 	  this.treeOpen = function(id) {
