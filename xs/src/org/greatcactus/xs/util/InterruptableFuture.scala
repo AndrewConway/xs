@@ -320,7 +320,11 @@ class ObsoletableAndInterruptableFuture[+T](val future:InterruptableFuture[T],va
   }
   def addChangeListener(onExternalChange: ()=>Unit) {
     for (c<-changes) c.addChangeListener(onExternalChange)
-  }     
+  }  
+  /** dispose, after it has completed */
+  def disposeOnComplete()(implicit executor: ExecutionContext) {
+    future.future.onComplete{case _ => this.dispose() } 
+  }
 
 }
 
