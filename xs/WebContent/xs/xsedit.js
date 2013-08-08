@@ -509,16 +509,19 @@ var xs = {
 	  this.current_dragging_div = null;
 	  this.getParentDivNotBeingDragged = function(elem) {
 		  var div = xs.getParentDiv(elem);
-		  if (div) {
-			  if (div!=this.current_dragging_div && this.current_dragging_div!=null) return div; // don't drag onto self, or non-local
+		  if (div && div.id && div.id.length>10 && div.id.substring(0,10)=="xsTreeNode") {
+			  if (div!=this.current_dragging_div) return div; // don't drag onto self, 
 		  }
 		  return null;
 	  };
+	  
+	  this.treeDragMimeType = "application/x-xs-nonlocalreference";
 	  
 	  /** For the tree nodes */
 	  this.dragStart = function(ev) {
 		  ev.target.style.opacity = '0.4';
 		  ev.dataTransfer.setData("text/plain",ev.target.textContent);
+		  ev.dataTransfer.setData(xsthis.treeDragMimeType,ev.target.id);
 		  this.current_dragging_div = ev.target;
 		  return true;
 	  };
@@ -531,43 +534,95 @@ var xs = {
 	  
 	  this.dragOverAtTop = "false";
 
+	  this.mayDoTreeDrag = function(ev) {
+		  return xsthis.containsType(ev,"Files") || xsthis.containsType(ev,xsthis.treeDragMimeType); 
+	  };
+	  
+	  this.containsType = function(ev,desiredType) {
+		  var types = ev.dataTransfer.types;
+		  for (var i=0;i<types.length;i++) {
+			  var t = types[i];
+			  if (t==desiredType) return true;
+		  }
+		  return false;
+	  };
+	  
 	  /** For the tree nodes */
 	  this.dragOver = function(ev) {
-		  var div = this.getParentDivNotBeingDragged(ev.target);
-		  if (div) {
-		    if (ev.preventDefault) ev.preventDefault(); 
-		    var y = ev.clientY ;
-		    var rect = div.getBoundingClientRect();
-		    if (y-rect.top<4) {
-		       $(div).addClass("xs-dragover-top");
-		       this.dragOverAtTop = "true";
-		    } else {
-		       $(div).removeClass("xs-dragover-top");
-		       this.dragOverAtTop = "false";
-		    }
-		    return false;
+		  if (this.mayDoTreeDrag(ev)) {
+			  var div = this.getParentDivNotBeingDragged(ev.target);
+			  if (div) {
+			    if (ev.preventDefault) ev.preventDefault(); 
+			    var y = ev.clientY ;
+			    var rect = div.getBoundingClientRect();
+			    if (y-rect.top<4) {
+			       $(div).addClass("xs-dragover-top");
+			       this.dragOverAtTop = "true";
+			    } else {
+			       $(div).removeClass("xs-dragover-top");
+			       this.dragOverAtTop = "false";
+			    }
+			    return false;			  
+			  }
 		  }
 		  return true;
 	  },
 
+	  this.currentDraggedOverDiv = null;
 	  /** For the tree nodes */
 	  this.dragEnter = function(ev) {
 	    var div = this.getParentDivNotBeingDragged(ev.target);
-	    if (div) {
-	      $(div).toggleClass('xs-dragover');
+	    if (div && this.mayDoTreeDrag(ev)) {
+	      xsthis.currentDraggedOverDiv = {d:div,t:ev.target};
+		  //console.log("dragEnter "+div.id+" target = "+ev.target.id);
+	      $(div).addClass('xs-dragover');
+	      ev.preventDefault();
 	    }
 	  },
 
 	  /** For the tree nodes */
 	  this.dragLeave = function(ev) {
 	    var div = this.getParentDivNotBeingDragged(ev.target);
-	    if (div) {
-	      $(div).toggleClass('xs-dragover');
+	    if (div && this.mayDoTreeDrag(ev)) {
+		  //console.log("dragLeave "+div.id+" target = "+ev.target.id);
+		  if (xsthis.currentDraggedOverDiv && xsthis.currentDraggedOverDiv.d==div && xsthis.currentDraggedOverDiv.t==ev.target) xsthis.currentDraggedOverDiv=null;
+		  if (!(xsthis.currentDraggedOverDiv && xsthis.currentDraggedOverDiv.d==div)) $(div).removeClass('xs-dragover');
 	    }
 	  },
 		
 
 	  /** For the tree nodes */
+	  
+	  this.uploadFilesOrDirectories = function(id,transfer) {
+		  /* Chrome specific for handling directories. Temporarily not implemented pending other browser support.
+		  if (transfer.items && transfer.items[0] && transfer.items[0].webkitGetAsEntry) {
+			  var items = transfer.items;
+			  for (var i=0,item;item=items[i];i++) if (item.kind=='file') {
+				  console.log(item);
+				  var entry = item.webkitGetAsEntry();
+				  console.log(entry);
+				  if (entry.isDirectory) {
+					  console.log("Got directory");
+				  }
+			  }
+		  }*/
+		  xsthis.uploadFileList(id,transfer.files,0);
+	  }; 
+	  
+	  /** Upload files in the files list from upto onwards. Doesn't transfer the second until the first is read. */
+	  this.uploadFileList = function(id,files,upto) {
+          if (!files[upto]) return;
+          var file = files[upto];
+		  var filename = file.name;
+		  var lastMod = file.lastModifiedDate? ""+file.lastModifiedDate.getTime() : "";
+		  var reader = new FileReader();
+		  reader.onload = function (event) {
+			xsthis.sendToServer({cmd:"TreeFileDrag",args:[id,xsthis.dragOverAtTop,event.target.result,filename,lastMod]});
+			xsthis.uploadFileList(id,files,upto+1);
+		  };
+		  reader.readAsDataURL(file);
+          
+	  };
 	  
 	  this.drop = function(ev) {
 		var div = this.getParentDivNotBeingDragged(ev.target);
@@ -575,10 +630,28 @@ var xs = {
 	      $(div).removeClass('xs-dragover');
 		  ev.preventDefault();
 		  ev.stopPropagation();
-		  if (this.current_dragging_div!=null) {
-		    this.sendToServer({cmd:"TreeDragLocal",args:[this.current_dragging_div.id.slice(0,-4),div.id.slice(0,-4),this.dragOverAtTop]});			    	
-		  } else {
-			  // TODO non local drag
+		  if (xsthis.containsType(ev,"Files")) xsthis.uploadFilesOrDirectories(div.id.slice(0,-4),ev.dataTransfer);
+		  /*
+		  if (ev.dataTransfer.files && ev.dataTransfer.files!=null && ev.dataTransfer.files[0]) {
+			xsthis.uploadFilesOrDirectories(ev.dataTransfer);
+			console.log("Dropping files");
+			console.log(ev.dataTransfer.files);
+			var file;
+			for (var i=0;file=ev.dataTransfer.files[i];i++) {
+			  console.log(file);
+			  var filename = file.name;
+			  var lastMod = file.lastModifiedDate? ""+file.lastModifiedDate.getTime() : "";
+			  var reader = new FileReader();
+			  reader.onload = function (event) {
+				xsthis.sendToServer({cmd:"TreeFileDrag",args:[div.id.slice(0,-4),xsthis.dragOverAtTop,event.target.result,filename,lastMod]});
+			  };
+			  reader.readAsDataURL(file);
+			}
+		  }*/ else if (this.current_dragging_div!=null) {
+		    xsthis.sendToServer({cmd:"TreeDragLocal",args:[this.current_dragging_div.id.slice(0,-4),div.id.slice(0,-4),this.dragOverAtTop]});			    	
+		  } else { // non local drag
+			var fromid = ev.dataTransfer.getData(xsthis.treeDragMimeType);
+			if (fromid) xsthis.sendToServer({cmd:"TreeDragNonLocal",args:[fromid,div.id.slice(0,-4),this.dragOverAtTop]});			    	
 		  }
 		} 
 		return false;	
@@ -779,7 +852,8 @@ $(function() {
 			copy : { name:"Copy local", icon:"copy" },
 			copyExport : { name:"Copy to other application", icon:"copy" },
 		    paste : { name:"Paste local", icon:"paste" },
-		    erase : { name:"Delete", icon:"delete" }
+		    erase : { name:"Delete", icon:"delete" },
+		    insert : { name:"Insert Row", icon:"insert" }
 		}
 	});
 });

@@ -35,7 +35,7 @@ import org.greatcactus.xs.api.command.EditCommandDescriptionMadeConcrete
  * There will be one copy of this per client
  *
  */
-abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit,executionContext:ExecutionContext) { basePane =>
+abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit,val executionContext:ExecutionContext) { basePane =>
 
   private var currentlyShowing : Option[XSTreeNode] = None
   private var currentPane : Option[DetailsPaneFields] = None
@@ -602,7 +602,7 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit,executionCon
           currentlyShowing=shouldBe
           currentStringSetByUserCanonicalRepresentation=None
           currentlyIsIllegalValue = false
-          println("** Change field "+gui+" to "+shouldBe)
+          //println("** Change field "+gui+" to "+shouldBe)
           changeUITextField(gui,shouldBe)
         }  
         refreshIllegal()
@@ -870,6 +870,11 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit,executionCon
           case "paste" => //for (c<-clipboard) xsedit.pasteData(parent, c, nodes.headOption)
             getClipboard(XSClipboardRequest.xsSerializedData).onSuccess { case c =>  xsedit.pasteData(parent, c, nodes.headOption) }(executionContext)
           case "erase" => xsedit.deleteTreeNodes(nodes,"erase")
+          case "insert" => 
+            val newRow = for (i<-0 until field.columnExtractors.length) yield ""
+            val baseelem = field.field.newSingleElement()
+            parent.xsedit.addField(parent,nodes.headOption,field.field,baseelem,None,"insert row")
+
         }
     }
     override def toString = field.label+":"+currentlyShowing

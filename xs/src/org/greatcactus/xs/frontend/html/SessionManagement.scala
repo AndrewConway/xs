@@ -29,12 +29,12 @@ object SessionManagement {
     synchronized {
       sessions-=session.id
     }
-  }
+  }/*
   def addSession(session:HTTPSession) {
     synchronized {
       sessions+=session.id->session
     }
-  }
+  }*/
   private var gcCount = 0;
   private var gcInverseFrequency = 10000
   val random = new java.util.Random
@@ -51,11 +51,13 @@ object SessionManagement {
     val now = System.currentTimeMillis()
     for (s<-sessions.values) if (s.shouldDie(now)) s.dispose()
   }
-  def newID() = {
+  /** Get a new ID for a session, and add the session. Done at this point (before the session object is fully created) to prevent exceedingly unlikely race condition. */
+  def newID(session:HTTPSession) = {
     def rndID() = (random.nextLong()&0xffffffffffffL).toString
     var res = rndID()
     synchronized {
        while (sessions.contains(res)) res=rndID()
+       sessions+=res->session
     }
     res
   } 
@@ -66,7 +68,7 @@ object SessionManagement {
 
 
 class HTTPSession(val worker:HTTPSessionWorker) {
-  val id:String = SessionManagement.newID()
+  val id:String = SessionManagement.newID(this)
   /** Gets appended before each action command */
   val jsSessionID = "S"+id
   val sessionPrefixNoTrailingPeriod = "xs."+jsSessionID 
@@ -205,7 +207,7 @@ class HTTPSession(val worker:HTTPSessionWorker) {
     }
   }
   
-  SessionManagement.addSession(this)
+  //SessionManagement.addSession(this)
   
   private var localClipboard : Option[XSClipBoard] = None 
     
@@ -226,7 +228,8 @@ class HTTPSession(val worker:HTTPSessionWorker) {
 
 }
 
-class HTTPSessionWorker {
+abstract class HTTPSessionWorker {
   def dispose() {}
   def receivedMessage(message:SimpleClientMessage) {}
+  def getDraggedElement(subid:String) : Option[XSClipBoard] 
 }

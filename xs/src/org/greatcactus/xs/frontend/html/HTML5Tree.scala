@@ -10,6 +10,8 @@ import org.greatcactus.xs.util.EqualityByPointerEquality
 import scala.collection.mutable.ListBuffer
 import scala.xml.Attribute
 import org.greatcactus.xs.api.display.RichLabel
+import java.util.prefs.Base64
+import org.greatcactus.xs.frontend.XSClipBoard
 
 /**
  * A general purpose hierarchical HTML/javascript/ajax tree.
@@ -19,7 +21,7 @@ import org.greatcactus.xs.api.display.RichLabel
  *      Somewhat surprisingly, this model contains also information about what is open and what is closed.
  *   3) Provide the root of the tree
  *   4) Call the baseHTML() function once to get the initial HTML for the tree.
- *   5) Include appropriate Javascript and CSS files (TODO enumerate)
+ *   5) Include appropriate Javascript and CSS files (xsedit.js and xsedit.css)
  *   6) When a node changes in any way (open/closed, label, icon, children), call the refresh() function with that node.
  */
 class HTML5Tree[T <: AnyRef](val locale:Locale,val transport:HTMLTransport,val model:TreeModel[T],val root:T,val sessionprefix:String,val treeID:String,val allowMultipleSelection:Boolean,val allowDragging:Boolean) {
@@ -74,7 +76,7 @@ class HTML5Tree[T <: AnyRef](val locale:Locale,val transport:HTMLTransport,val m
     if (clientNodes.isEmpty) {
       val postCreationJavascript=new ListBuffer[String]
       val res= <div class={"xsEditTree "+divClasses} id={treeDivID} data-multiselect={allowMultipleSelection.toString} data-oninputobj={sessionprefixNoTrailingPeriod} ondragstart={sessionprefix+"dragStart(event);"} ondragend={sessionprefix+"dragEnd(event);"} ondragover={sessionprefix+"dragOver(event)"} ondragenter={sessionprefix+"dragEnter(event)"} ondragleave={sessionprefix+"dragLeave(event)"} ondrop={sessionprefix+"drop(event)"}>{newHTML(root,0,postCreationJavascript)._1}</div>
-      for (cmd<-postCreationJavascript) transport.sendMessage(ClientMessage.run(cmd)) // FIXME - this doesn't look like post-creation.
+      for (cmd<-postCreationJavascript) transport.sendMessage(ClientMessage.run(cmd)) // this doesn't look like post-creation, but actually is because the tree is created and then it starts the comet which gets these things. However, if this is called a second time, bad things will happen. Thus javadoc comment about only calling once.
       res
     }
     else throw new IllegalArgumentException("Called baseHTML more than once.")
@@ -98,44 +100,34 @@ class HTML5Tree[T <: AnyRef](val locale:Locale,val transport:HTMLTransport,val m
       model.userContextMenu(command,nodes)
     case SimpleClientMessage("TreeDragLocal",Array(ID(source),ID(dest),Bool(isAbove))) =>
       model.dragLocal(source.node,dest.node,isAbove)
+    case SimpleClientMessage("TreeFileDrag",Array(ID(dest),Bool(isAbove),urlEncodedContents,filename,lastModified)) =>
+      val commapos = urlEncodedContents.indexOf(",")
+      if (commapos>=0) {
+        val contents = new sun.misc.BASE64Decoder().decodeBuffer(urlEncodedContents.substring(commapos+1))
+        model.dragInFile(dest.node,isAbove,contents,filename,try {Some(lastModified.toLong)} catch { case _:NumberFormatException => None })
+      }
+      // println("TreeFileDrag of "+filename+" last modified "+lastModified+"  contents: "+base64encodedcontents) 
+    case SimpleClientMessage("TreeDragNonLocal",Array(source,ID(dest),Bool(isAbove))) =>
+      val NodeParser = """xsTreeNode(\d+)_(\d+)_all""".r
+      //println("TreeDragNonLocal "+source) 
+      source match {
+        case NodeParser(sessionid,nodeid) =>
+          //println("Session ID "+sessionid) 
+          SessionManagement.get(sessionid) match {
+            case Some(session) =>
+              //println("Found session")
+              for (clip<-session.worker.getDraggedElement("xsTreeNode"+sessionid+"_"+nodeid)) { // remove the _all
+                //println("Got clip "+clip)
+                model.nonLocalDrag(dest.node,isAbove,clip) 
+              }
+            case None =>
+          }
+        case _ =>
+      }
+      //model.dragLocal(source.node,dest.node,isAbove)
   }
 
   
-  /** Called by the client when the opener is clicked on for a given id */
-  /*
-  def clickedOnOpener(id:String,shouldBeNowOpen:Option[Boolean]) {
-    //println("Clicked on opener for "+id)
-    for (n<-clientNodes.get(id)) {
-      val open = shouldBeNowOpen.getOrElse(!n.isOpenOnClient)
-      //println("Changing status to "+ open)
-      model.userToggledStatus(n.node,open)
-    } 
-  }*/
-
-    /** Called by the client when the node proper is clicked on for a given id */
-  /*
-  def clickedOnNode(id:String) {
-    //println("Clicked on node for "+id)
-    for (n<-clientNodes.get(id)) {
-        model.userSelected(n.node)
-    } 
-  }*/
-  
-  /** Called by the gui client when a context menu is chosen */
-  /*
-  def contextMenu(command:String,nodeids:Seq[String]) {
-    var nodes = nodeids.flatMap{clientNodes.get(_)}.map{_.node}
-    model.userContextMenu(command,nodes)
-  }
-  */
-  /** Called by the client when one node is dragged onto another. isAbove is true if wants to be above the given node instead of on it. */
-  /*
-  def dragLocal(idSource:String,idDest:String,isAbove:Boolean) {
-    for (source<-clientNodes.get(idSource);dest<-clientNodes.get(idDest)) {
-      model.dragLocal(source.node,dest.node,isAbove)
-    }
-  }*/
-
   /** Called when something changes on the given node (eg open/closed/kids/title/icon) */
   def refresh(node:T) {
     val id = treePrefix+model.uniqueID(node)
@@ -294,4 +286,9 @@ abstract class TreeModel[T] {
   def dragLocal(source:T,dest:T,isAbove:Boolean)
     /** The user has chosen a context menu with particular nodes selected. */
   def userContextMenu(command:String,nodes:Seq[T])
+    /** The user has dragged and dropped a file */
+  def dragInFile(dest:T,isAbove:Boolean,contents:Array[Byte],filename:String,lastModified:Option[Long])
+    /** User has dragged, onto here, something from another window */
+  def nonLocalDrag(dest:T,isAbove:Boolean,clip:XSClipBoard)
+
 }

@@ -18,6 +18,7 @@ import org.greatcactus.xs.frontend.ToolbarStatusListener
 import org.greatcactus.xs.frontend.StatusForToolbar
 import org.greatcactus.xs.frontend.XSClipboardRequest
 import scala.concurrent.ExecutionContext
+import org.greatcactus.xs.frontend.XSClipBoard
 //import scala.concurrent.ExecutionContext.Implicits.global
 /**
  * The controller for communication with an HTML client. The details of the transport are not
@@ -47,11 +48,18 @@ class HTML5Client(val xsedit:XSEdit,val toolbar:Option[XSToolBar],val locale:Loc
       xsedit.removeTreeListener(treeListener)
       xsedit.unregisterActiveEditor()
     }
+    override def getDraggedElement(subid:String) : Option[XSClipBoard] = {
+      treePane.ID.unapply(subid) match {
+        case Some(node) => Some(xsedit.copyData(List(node.node)))
+        case None => None // could conceivably get something from a table in the detailsPane.
+      }
+      
+    }
   })
   val transport = new HTMLTransport {
     def sendMessageWork(message:ClientMessage) { session.addMessage(message) }
   }
-  val detailsPane = new HTML5DetailsPane(this)
+  val detailsPane : HTML5DetailsPane = new HTML5DetailsPane(this)
   xsedit.addDetailsPane(detailsPane)
   val treeModel = new TreeModel[XSTreeNode] {
       def children(node:XSTreeNode) : Seq[XSTreeNode] = node.treeChildren
@@ -74,8 +82,13 @@ class HTML5Client(val xsedit:XSEdit,val toolbar:Option[XSToolBar],val locale:Loc
           case "erase" => xsedit.deleteTreeNodes(nodes,"erase")
         }
       }
+      def dragInFile(dest:XSTreeNode,isAbove:Boolean,contents:Array[Byte],filename:String,lastModified:Option[Long]) {}
+      def nonLocalDrag(dest:XSTreeNode,isAbove:Boolean,clip:XSClipBoard) {
+        val parent = if (isAbove && dest.parent!=null) dest.parent else dest
+        xsedit.pasteData(parent, clip, if (isAbove) Some(dest) else None, "drag")
+      }
   }
-  val treePane = new HTML5Tree(locale,transport,treeModel,xsedit.treeRoot,session.sessionPrefix,session.id,false,true) 
+  val treePane : HTML5Tree[XSTreeNode] = new HTML5Tree(locale,transport,treeModel,xsedit.treeRoot,session.sessionPrefix,session.id,false,true) 
   addMessageProcessor(treePane.processMessages)
   private val treeListener : XSEditListener = new XSEditListener() {
       def apply(changes:TreeChange) { 

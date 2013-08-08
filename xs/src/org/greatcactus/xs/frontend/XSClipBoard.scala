@@ -22,6 +22,8 @@ class XSClipBoard(val data:Array[Byte],val datatype:XSClipboardRequest) {
       for (j<-0 until rowlen) yield in.readUTF()
     }
   }
+  
+  override def toString = "Clipboard type "+datatype+" data "+new String(data)
 }
 
 

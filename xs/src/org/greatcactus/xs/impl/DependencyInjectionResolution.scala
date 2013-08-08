@@ -456,7 +456,7 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
     }
   }
   
-  def makeNameSane(s:String) = s.replaceAll("[\r\n]+[\\s\\S]*","...")
+  def makeNameSane(s:String) = if (s==null) "" else s.replaceAll("[\r\n]+[\\s\\S]*","...")
   def parentObjectName = makeNameSane(parentObject.toString)
   private[impl] def makeDirty() {
     //println("Set to dirty")

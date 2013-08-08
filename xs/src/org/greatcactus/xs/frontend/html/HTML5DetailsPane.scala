@@ -201,7 +201,7 @@ class HTML5DetailsPane(val client:HTML5Client) extends XSDetailsPane[String](cli
   def baseHTML = <div class="XSDetailsPane" id={detailsPaneID}>Contacting server...</div>
   
   private def getColumnExtractor(uiElement:String) : Option[ColumnExtractors] = { 
-    for (field<-uiField(uiElement) if field.field.isInstanceOf[UIFieldTable]) yield field.asInstanceOf[UIFieldTable].field.columnExtractors
+    for (field<-uiField(uiElement) if field.field.isInstanceOf[UIFieldTable]) yield field.field.asInstanceOf[UIFieldTable].field.columnExtractors
   }
   
   

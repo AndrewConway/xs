@@ -289,7 +289,7 @@ class XSFieldInfo(val fieldSymbol:reflect.runtime.universe.Symbol,val index:Int,
     }
     lazy val emptyCollection = collectionOfBuffer(IndexedSeq())
     
-    def error(cause:String) = throw new XSSpecificationError(parentClass,cause)
+    def error(cause:String) = throw new XSSpecificationError(parentClass,cause+", field "+originalName)
     
     lazy val blockFieldLookup : Map[String,SerializableTypeInfo[_ <: AnyRef]] = Map.empty ++ (for (c<-xsinfo.get.transitiveSubclasses) yield c.name->c)
         
@@ -308,7 +308,7 @@ class XSFieldInfo(val fieldSymbol:reflect.runtime.universe.Symbol,val index:Int,
     //
     
     val isIndividuallyEditable : Boolean = hasAnnotation(typeIndividuallyEditable)
-    if (isIndividuallyEditable && !xsinfo.isDefined) throw new IllegalArgumentException("Individially Editable, but not xs serializable")
+    if (isIndividuallyEditable && !xsinfo.isDefined) error("Individially Editable, but not xs serializable")
     val isExpandOnFirstDisplay : Boolean = hasAnnotation(typeExpandOnFirstDisplay)
     val isStringEditable : Boolean = hasAnnotation(typeStringEditable)
     val isBooleanEditable : Boolean = hasAnnotation(typeBooleanEditable)
