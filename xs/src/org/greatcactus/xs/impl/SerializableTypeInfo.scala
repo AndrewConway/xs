@@ -123,7 +123,7 @@ class SerializableTypeInfo[T <: AnyRef] private (val clazz : java.lang.Class[T])
       var res : Map[String,(XSFieldInfo,Option[SerializableTypeInfo[_ <: AnyRef]],Boolean)] = Map.empty
       for (field<-fieldsAsBlocks) {
         def add(name:String,tpe:Option[SerializableTypeInfo[_ <: AnyRef]],isWrapper:Boolean) {
-          if (res.contains(name)) error("Attribute "+name+" applies to more than one field")
+          if (res.contains(name)) error("Polymorphic class "+name+" applies to both fields "+field.name+" and "+res(name)._1.name)
           res+=name->(field,tpe,isWrapper)
         }
         if (field.isCollectionOrArray) add(field.nullElementName,null,false)

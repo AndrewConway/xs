@@ -81,7 +81,7 @@ object DetailsPaneFields {
         val field = new DetailsPaneFieldText(f,text(f.name),text.get(f.name+".tooltip"),f.displayOptions.icon,f.errorIfBlank,f.displayOptions.maxLength,f.expectedRegex,f.displayOptions.displayOnly,f.displayOptions.multiline,f.displayOptions.hideName,f.displayOptions.wholeLine,text.get(f.name+".placeholder"),f.displayOptions.knownInterpretation,choices,t.dependencyInjectionInfo.fieldsThatCouldHaveErrors)
         fields+=new EditPaneElem(field,f.displayOptions.editSection,f.displayOptions.orderingPriority)
       } else if (f.isBooleanEditable) {
-        val field = new DetailsPaneFieldBoolean(f,text(f.name),text.get(f.name+".tooltip"),f.displayOptions.icon,t.dependencyInjectionInfo.fieldsThatCouldHaveErrors)
+        val field = new DetailsPaneFieldBoolean(f,text(f.name),text.get(f.name+".tooltip"),f.displayOptions.icon,f.displayOptions.displayOnly,t.dependencyInjectionInfo.fieldsThatCouldHaveErrors)
         fields+=new EditPaneElem(field,f.displayOptions.editSection,f.displayOptions.orderingPriority)        
       } 
       if (f.isImageEditable) {
@@ -282,7 +282,7 @@ class DetailsPaneFieldCustom(val function:DependencyInjectionFunction,val label:
 }
 
 
-class DetailsPaneFieldBoolean(val field:XSFieldInfo,val label:String,val tooltip:Option[String],val icon:Option[Icon],fieldsThatCouldHaveErrors:Set[String]) extends DetailsPaneFieldLabeled with DetailsPaneFieldBasedOnSimpleField {
+class DetailsPaneFieldBoolean(val field:XSFieldInfo,val label:String,val tooltip:Option[String],val icon:Option[Icon],val readonly:Boolean,fieldsThatCouldHaveErrors:Set[String]) extends DetailsPaneFieldLabeled with DetailsPaneFieldBasedOnSimpleField {
   def get(parent:XSTreeNode) : Boolean = field.getField(parent.getObject).asInstanceOf[Boolean]
   def set(edit:XSEdit,parent:XSTreeNode,newValue:Boolean) { 
     edit.setField(parent, field, newValue.asInstanceOf[AnyRef],None)

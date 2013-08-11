@@ -59,6 +59,7 @@ class DependencyInjectionCleaningQueue {
   }
   
   def cleanReturningInstantlyIfSomeOtherThreadIsAlreadyCleaning() {
+    // println("Entered cleanReturningInstantlyIfSomeOtherThreadIsAlreadyCleaning dirty="+nodesNeedingCleaning.size)
     if (someThreadIsAlreadyCleaning.tryAcquire()) doRealWork()
   }
   

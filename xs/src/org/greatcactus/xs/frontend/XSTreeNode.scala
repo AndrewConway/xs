@@ -122,8 +122,8 @@ class XSTreeNode(
         val duplicateStrings = getDuplicateStrings(failed1indices.map{i=>rawContents(i).toString})++ getDuplicateStrings(failed1nodes.map{_.getObject.toString}.toSeq)
         val perfectStringMatch : Map[String,XSTreeNode] = Map((for (v<-failed1nodes;s=v.getObject.toString;if !duplicateStrings.contains(s)) yield s->v) :_*)
         for (i<-failed1indices) perfectStringMatch.get(rawContents(i).toString) match {
-            case Some(node) => imperfectMatch(i,node) 
-            case None => failStringEqualityBuffer+=i          
+            case Some(node) if node.getObject.getClass == rawContents(i).getClass => imperfectMatch(i,node) // need to check class equality in case the field is polymorphic and two subclasses have the same toString.  
+            case _ => failStringEqualityBuffer+=i          
         }
         failStringEqualityBuffer.toList
       }
@@ -132,10 +132,10 @@ class XSTreeNode(
       // third try just match order. If that fails, make a new one.
       val _ = {
         for (i<-failed2indices) unusedOldChildren match {
-          case node::t => imperfectMatch(i,node); unusedOldChildren=t
-          case Nil => // run out of options. Make a new one.
+          case node::t if node.getObject.getClass == rawContents(i).getClass => imperfectMatch(i,node); unusedOldChildren=t // need to check class equality in case the field is polymorphic and two subclasses have the same toString. 
+          case _ => // run out of options. Make a new one.
             XSTreeNode.apply(rawContents(i),this,blockField,xsedit,i) match {
-              case Some(node) => foundChildren(i)=node; addedChildren+=node
+              case Some(node) => foundChildren(i)=node; addedChildren+=node 
               case None => // can't edit this
             }
         }

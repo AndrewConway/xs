@@ -433,7 +433,7 @@ class GUICreatorHTML5(pane:HTML5DetailsPane,inlineParentDivId:Option[String]) ex
         g.writeStringField("cssClass","xsCellReorder dnd")
       } else {
         val (formatter,editor) = c match {
-          case t:DetailsPaneFieldText => 
+          case t:DetailsPaneFieldText =>
             g.writeBooleanField("multiline",t.multiline)
             t.choices match {
               case Some(choicespec) if choicespec.required =>
@@ -451,11 +451,11 @@ class GUICreatorHTML5(pane:HTML5DetailsPane,inlineParentDivId:Option[String]) ex
                   g.writeEndObject()
                 }
                 g.writeEndArray()
-                ("xs.grid.SlickGridChoiceFormatter","xs.grid.SlickGridChoiceEditor")
-              case _ => ("xs.grid.SlickGridPTFFormatter","xs.grid.SlickGridPTFEditor")
+                ("xs.grid.SlickGridChoiceFormatter",if (t.readonly) null else "xs.grid.SlickGridChoiceEditor")
+              case _ => ("xs.grid.SlickGridPTFFormatter",if (t.readonly) null else "xs.grid.SlickGridPTFEditor")
             }
           case b:DetailsPaneFieldBoolean =>
-            ("xs.grid.SlickGridBooleanFormatter","xs.grid.SlickGridBooleanEditor")
+            ("xs.grid.SlickGridBooleanFormatter",if (b.readonly) null else "xs.grid.SlickGridBooleanEditor")
           case _ => throw new IllegalArgumentException("Invalid grid field "+c)
         }
         g.writeStringField("name",c.label)
@@ -468,7 +468,7 @@ class GUICreatorHTML5(pane:HTML5DetailsPane,inlineParentDivId:Option[String]) ex
         g.writeFieldName("formatter")
         g.writeRawValue(formatter)
         g.writeFieldName("editor")
-        g.writeRawValue(editor)       
+        if (editor==null) g.writeNull() else g.writeRawValue(editor)       
       }
     })
     postCreationJavascript+=new SetRows(id,initialValue,field.columnExtractors.names);
