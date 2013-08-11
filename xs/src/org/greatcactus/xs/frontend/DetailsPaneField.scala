@@ -56,9 +56,9 @@ object DetailsPaneFields {
     val fields = new ListBuffer[EditPaneElem]
     for (f<-t.fields) { 
       if (f.isIndividuallyEditable || f.isInlineEditable) { // put in all the "adds"
-        for (sub<-f.xsinfo.get.transitiveSubclasses) {
+        if (!f.mayNotAddChildren) for (sub<-f.xsinfo.get.transitiveSubclasses) if (!sub.mayNotAddChildren) {
           val subt = sub.textResources(locale)
-          val title = text.get(f.name+".Add_"+sub.name).orElse(text.get(f.name+".Add")).orElse(subt.get("Add")).getOrElse("Add "+f.name)
+          val title = text.get(f.name+".Add_"+sub.name).orElse(text.get(f.name+".Add")).orElse(subt.get("Add")).getOrElse("Add "+sub.name)
           val titletooltip = text.get(f.name+".Add_"+sub.name+".tooltip").orElse(text.get(f.name+".Add.tooltip")).orElse(subt.get("Add.tooltip"))
           val field = new DetailsPaneFieldActionAdd(title,titletooltip,f,sub)
           fields+=new EditPaneElem(field,f.displayOptions.editSection,f.displayOptions.orderingPriority)

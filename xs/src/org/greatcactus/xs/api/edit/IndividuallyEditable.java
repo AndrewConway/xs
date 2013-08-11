@@ -16,7 +16,7 @@ import java.lang.annotation.Target;
  * This generally only makes sense if this field is an array or collection, although
  * a normal field could be null or not, or even just a bunch of stuff to be edited
  * separately. 
- * @see {@link TableEditable} {@link ExpandOnFirstDisplay}
+ * @see {@link TableEditable} {@link ExpandOnFirstDisplay} {@link MayNotAddChildren} {@link MaxChildren}
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.FIELD,ElementType.METHOD})

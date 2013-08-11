@@ -177,6 +177,8 @@ class SerializableTypeInfo[T <: AnyRef] private (val clazz : java.lang.Class[T])
 
   }
     
+  val mayNotAddChildren = hasAnnotation(classSymbol,typeMayNotAddChildren)
+    
   lazy val (dependencyInjectionInfo : DependencyInjectionInformation,fieldUpdatersMap: Map[XSFieldInfo,DependencyInjectionFunction]) = {
     val providers = new ListBuffer[DependencyInjectionFunction]
     val iconProviders = new ListBuffer[FunctionForField]
@@ -473,6 +475,7 @@ object SerializableTypeInfo {
   private[impl] val typeHideName = universe.typeOf[HideName]
   private[impl] val typeWholeLine = universe.typeOf[WholeLine]
   private[impl] val typeMaxChildren = universe.typeOf[MaxChildren]
+  private[impl] val typeMayNotAddChildren = universe.typeOf[MayNotAddChildren]
   private[impl] val typeRequiredOptions = universe.typeOf[RequiredOptions]
   private[impl] val typeSuggestedOptions = universe.typeOf[SuggestedOptions]
   private[impl] val typeDoNotTrim = universe.typeOf[DoNotTrim]

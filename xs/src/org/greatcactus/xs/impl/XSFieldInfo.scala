@@ -319,6 +319,7 @@ class XSFieldInfo(val fieldSymbol:reflect.runtime.universe.Symbol,val index:Int,
     val customPopup : Option[String] = annotationValueString(typeCustomPopup)
     
     val resolveNetworkReferences : Boolean = hasAnnotation(typeResolveNetworkReferences)
+    val mayNotAddChildren = hasAnnotation(typeMayNotAddChildren)
 
     if (isBooleanEditable && (isCollectionOrArray || baseClass!=java.lang.Boolean.TYPE)) error("Boolean editable field should be boolean")
     if (isIndividuallyEditable && !xsinfo.isDefined) error("Individually editable field should be of an @XSE class")
