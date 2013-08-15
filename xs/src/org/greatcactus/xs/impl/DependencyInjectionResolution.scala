@@ -131,7 +131,7 @@ class FunctionEvaluationStatus(val function:DependencyInjectionFunction,val args
         Option(e.future)
       case value => Some(value)
     }
-  } catch { case e:Exception => None}
+  } catch { case e:Exception => e.printStackTrace(); None}
   
   private[this] var completedFuture : Option[AnyRef] = rawres
   

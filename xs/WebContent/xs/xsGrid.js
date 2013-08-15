@@ -201,6 +201,7 @@ xs.grid = {
         var $wrapper;
 
         this.init = function () {
+          //console.log("Starting SlickGridPTFEditor "+id);
           //console.log(gridpos);
           //console.log(gridpos.row);
           //console.log(id);
@@ -258,7 +259,7 @@ xs.grid = {
         };
 
         this.destroy = function () {
-        	//console.log("Destroy "+id);
+          //console.log("Destroy "+id);
           $wrapper.remove();
           xs.grid.endEditingCell(args.column.mainID,id); 
         };
