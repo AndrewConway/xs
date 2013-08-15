@@ -17,7 +17,15 @@ table.xsPasteTable td {
 }
 table.xsPasteTable tr:nth-child(odd) {
 	background : #eee;
-} 
+}
+
+span.xsTreeNodeName {
+	white-space:nowrap;
+}
+
+div.xsTreeNodeCompleteNode {
+	white-space:nowrap;
+}
 
 .xsForm .xsColMainWidth1 {
 	width: 99%;

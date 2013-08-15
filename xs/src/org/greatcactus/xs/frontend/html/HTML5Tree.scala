@@ -52,7 +52,7 @@ class HTML5Tree[T <: AnyRef](val locale:Locale,val transport:HTMLTransport,val m
       case None => NodeSeq.Empty
     }
     val labelS = model.title(node)
-    val label = <span id={id+"_label"}>{labelS.htmlNotBlank}</span>
+    val label = <span id={id+"_label"} class="xsTreeNodeName">{labelS.htmlNotBlank}</span>
     postCreationJavascript++=labelS.postCreationJavascript
     val childrenClicksAwayFromVisible = clicksAwayFromVisible+(if (isOpen) 0 else 1)
     val (kidsHTML,kidsLocal) = 
@@ -65,7 +65,7 @@ class HTML5Tree[T <: AnyRef](val locale:Locale,val transport:HTMLTransport,val m
     val selectableNoSelection = <span id={id+"_selectable"} class="xsTreeSelectable" onclick={sessionprefix+"treeSelect(event,'"+id+"'); return false"} oncontextmenu={sessionprefix+"treeSelect(event,'"+id+"'); return true"}>{erroricon}{icon}{label}</span>
     val isCurrentlySelected = getAllSelected.contains(node)
     val selectable = if (isCurrentlySelected) selectableNoSelection%Attribute(None,"class",Text("xsTreeSelectable xsSelected"),scala.xml.Null)  else selectableNoSelection
-    val html = <div id={id+"_all"} draggable={allowDragging.toString}>{opener}{selectable}{subs}</div>
+    val html = <div id={id+"_all"} draggable={allowDragging.toString} class="xsTreeNodeCompleteNode">{opener}{selectable}{subs}</div>
     val localnode = new OnClientTreeNode(iconURL,labelS,isOpenString,kidsLocal,clicksAwayFromVisible,!isOpen,isCurrentlySelected,errorlevel,node,id)
     clientNodes+=id->localnode
     (html,localnode)
