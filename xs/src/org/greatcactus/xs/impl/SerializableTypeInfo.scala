@@ -236,7 +236,7 @@ class SerializableTypeInfo[T <: AnyRef] private (val clazz : java.lang.Class[T])
         }
     }
     val fieldNames : Set[String] = Set("delete")++fields.flatMap{_.namesOfExpectedFields}++extraText.toList.map{_.name}++editCommands.toList.map{_.name}++customFields.toList.map{_.name} 
-    val fieldAndSectionNames : Set[String] = fieldNames ++ fields.flatMap{_.displayOptions.editSection} ++ extraText.toList.flatMap{_.displayOptions.editSection} ++ editCommands.toList.flatMap{_.displayOptions.editSection}++ customFields.toList.flatMap{_.displayOptions.editSection}
+    val fieldAndSectionNames : Set[String] = fieldNames ++ (fields.flatMap{_.displayOptions.editSection}.toSet ++ extraText.toList.flatMap{_.displayOptions.editSection} ++ editCommands.toList.flatMap{_.displayOptions.editSection}++ customFields.toList.flatMap{_.displayOptions.editSection}).map{"Section."+_}
     def check(list:List[FunctionForField],what:String,allowEmpty:Boolean,allowDuplicates:Boolean,allowSections:Boolean) {
       if (!allowDuplicates) for ((field,entries)<-list.groupBy{_.field}) if (entries.length>1) error("Conflicting "+what)
       if ((!allowEmpty) && list.exists{_.field.isEmpty}) error("Empty "+what)

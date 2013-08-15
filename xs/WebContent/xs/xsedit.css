@@ -181,7 +181,8 @@ img.xsIcon {
 }
 .XSDetailsPane fieldset legend {
 	text-align:left;
-    color:#008;
+    /* color:#008; */
+    font-weight: bold;
     font-size:1.1em;
     padding:0px 0px 0px 0px;
     margin-left:0;
@@ -195,7 +196,7 @@ img.xsIcon {
   padding:0px 0px 0px 0px;
   margin:0px 0px 0px 0px;
 }
-.XSDetailsPane > p, .XSDetailsPane > div > p{
+.XSDetailsPane > p, .XSDetailsPane > div > p , .xsFormWrapper > p, .xsFormWrapper > div > p , .xsFormWrapper > fieldset > p {
   font-size:0.7em;
 }
 

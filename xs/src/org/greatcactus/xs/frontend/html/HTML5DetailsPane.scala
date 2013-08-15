@@ -460,6 +460,7 @@ class GUICreatorHTML5(pane:HTML5DetailsPane,inlineParentDivId:Option[String]) ex
         }
         g.writeStringField("name",c.label)
         g.writeStringField("field",c.name)
+        for (t<-c.tooltip) g.writeStringField("toolTip",t)
         g.writeStringField("id",c.name)
         g.writeStringField("mainID",id)
         g.writeBooleanField("resizable", true)

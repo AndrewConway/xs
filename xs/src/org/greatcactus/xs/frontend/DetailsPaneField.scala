@@ -129,7 +129,7 @@ object DetailsPaneFields {
       val sortedElems = elems.sortBy(_.priority)
       new DetailsPaneSection(getSectionField(name),sortedElems.map{_.field})
     }
-    new DetailsPaneFields(getSectionField(wholeFormAsFieldName),sections.toList)
+    new DetailsPaneFields(getSectionField(wholeFormAsFieldName),sections.toList.sortBy{_.field.name}) 
   }
   
   private class EditPaneElem(val field:DetailsPaneField,val sectionName:Option[String],val priority:Int)
@@ -158,6 +158,7 @@ sealed abstract class DetailsPaneField {
   def couldContainErrorIcon : Boolean
   def label:String
   def icon:Option[Icon]
+  def tooltip:Option[String]
   def shouldBeEnabled(parent:XSTreeNode) = parent.isEnabled(name)
   def shouldBeVisible(parent:XSTreeNode) = parent.isVisible(name)
   /** None if this type of field is not valid in a table. Otherwise either a field or a dependency function */

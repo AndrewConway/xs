@@ -170,9 +170,10 @@ val deserialized : Complex = XMLDeserialize.deserialize[Complex](serializedData)
    <h4>Sections</h4>
     <p>Sections are groups of fields that can be displayed together, possibly with a heading.</p>
     
-    <p>Fields by default will go in the "Main" section, but this can be changed by the <code>@EditSection</code> option.</p> 
+    <p>Fields by default will go in the "Main" section, but this can be changed by the <code>@EditSection</code> option. Sections are ordered alphabetically.</p> 
    
-    <p>The providers and controllers above can also be applied to sections by using the section name prepended by "Section." as the argument.</p>  
+    <p>The providers and controllers above can also be applied to sections by using the section name prepended by "Section." as the argument.</p>    
+    
       
    <h4>Templates</h4>
    <p>Sometimes you may want more control over the layout than the standard one-field-per-line XS approach. You can define a template
