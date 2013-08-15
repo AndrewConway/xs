@@ -266,15 +266,17 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
   def isEnabled(fieldname:String,node:XSTreeNode) : Boolean = (for (f<-info.fieldEnabledController.get(fieldname);fr<-lastGoodResolved.get(f); res <-fr.resForSimpleGUI(node) if res==false) yield false).getOrElse(true)
   def isVisible(fieldname:String,node:XSTreeNode) : Boolean = (for (f<-info.fieldVisibilityController.get(fieldname);fr<-lastGoodResolved.get(f); res <-fr.resForSimpleGUI(node) if res==false) yield false).getOrElse(true)
   
-  def processErrorResults(result:AnyRef,found: XSError=>Unit,function:DependencyInjectionFunction) { result match {
+  def processErrorResults(result:Any,found: XSError=>Unit,function:DependencyInjectionFunction) { result match {
           case null =>
           case None =>
-          case Some(a:AnyRef) => processErrorResults(a,found,function)
+          case Some(a) => processErrorResults(a,found,function)
           case e:XSError => found(e)
-          case c:GenTraversable[_] => for (e<-c) processErrorResults(e.asInstanceOf[AnyRef],found,function)
-          case a:Array[_] => for (e<-a) processErrorResults(e.asInstanceOf[AnyRef],found,function)
+          case c:GenTraversable[_] => for (e<-c) processErrorResults(e,found,function)
+          case a:Array[_] => for (e<-a) processErrorResults(e,found,function)
           // should have a LocalizableErrorDetails class
-          case _ => throw new IllegalArgumentException("Error check function "+function.name+"(...) produced "+result)
+          case _ =>
+            println("***** ERROR ** Error check function "+function.name+"(...) produced "+result)
+            // throw new IllegalArgumentException("Error check function "+function.name+"(...) produced "+result)
         }}
   
   private def getSimpleErrors(fieldname:String) : List[XSError] = synchronized {
