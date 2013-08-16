@@ -31,6 +31,7 @@ import scala.concurrent.Future
 import org.greatcactus.xs.frontend.html.SessionManagement
 import org.greatcactus.xs.util.InterruptableFuture
 import org.greatcactus.xs.util.ObsoletableAndInterruptableFuture
+import org.greatcactus.xs.api.dependency.IndexInParentField
 
 
 /** 
@@ -369,13 +370,13 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
         lastGoodResolved = resResolved
         errorListCache.clear()
         worstErrorCache = None
-        sendToChildren = new ToChildDependencies(injectedFromParent.filter(info.kidFilter).filter{! _.isInstanceOf[Parent[_]]}++existingResolved.values.filter{_.shouldInjectToKids}.flatMap{_.resAsList(this)},new Parent(parentObject))
+        sendToChildren = new ToChildDependencies(injectedFromParent.filter(info.kidFilter).filter{case _:Parent[_] => false; case _:IndexInParentField => false; case _ => true}++existingResolved.values.filter{_.shouldInjectToKids}.flatMap{_.resAsList(this)},new Parent(parentObject))
         val _ = {
           var fieldInParent : XSFieldInfo = null
           var indexInParentField = 0
           for (c<-associatedNode.allChildren) {
             if (c.fieldInParent eq fieldInParent) indexInParentField+=1 else { fieldInParent=c.fieldInParent; indexInParentField=0 } 
-           // println("fieldInParent="+fieldInParent+" c.fieldInParent="+c.fieldInParent+" indexInParent="+indexInParentField)
+            // println("fieldInParent="+fieldInParent+" c.fieldInParent="+c.fieldInParent+" indexInParent="+indexInParentField)
             c.dependencyInjection.changedParentInjections(sendToChildren.get(c.info.dependencyInjectionInfo.fromParentDependencyInfo,indexInParentField))
           }
         }
@@ -468,7 +469,7 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
     }
   }
   def changedParentInjections(newInjectionsFromParent : Set[AnyRef]) {
-    if (DependencyInjectionCurrentStatus.debugDependencyInjections) println("Changed injections from parent for "+parentObjectName+" added "+(newInjectionsFromParent--injectedFromParent)+" removed "+(injectedFromParent--newInjectionsFromParent))
+    if (DependencyInjectionCurrentStatus.debugDependencyInjections) println("Changed injections from parent for "+parentObjectName+" added "+(newInjectionsFromParent--injectedFromParent)+" removed "+(injectedFromParent--newInjectionsFromParent)+(newInjectionsFromParent.collect{case i:IndexInParentField => i}.mkString(",")))
     synchronized {
       if (newInjectionsFromParent != injectedFromParent) {
         injectedFromParent=newInjectionsFromParent;
