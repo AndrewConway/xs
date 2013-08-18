@@ -27,6 +27,7 @@ import scala.xml.NodeSeq
 import scala.xml.XML
 import org.greatcactus.xs.api.command.XSEditCommands
 import org.greatcactus.xs.api.command.XSEditCommands
+import org.greatcactus.xs.api.logging.DebugDependencies
 
 
 /**
@@ -68,6 +69,8 @@ class SerializableTypeInfo[T <: AnyRef] private (val clazz : java.lang.Class[T])
     
   lazy val subClassFromName : Map[String,SerializableTypeInfo[_ <: T]] = Map.empty++transitiveSubclasses.map{s=>s.name->s.asInstanceOf[SerializableTypeInfo[_ <: T]]}
 
+  val debugDependencies = hasAnnotation(classSymbol,typeDebugDependencies)
+  
   /**
    * This (and related) has to be lazy as it may include a reference to itself, which would require the class itself to be constructed. 
    * However, until it is instantiated we can't tell whether this class is valid. So we have method checkIsValid below.
@@ -509,6 +512,8 @@ object SerializableTypeInfo {
   private[impl] val typeErrorIfNotUniqueInObject = universe.typeOf[ErrorIfNotUniqueInObject]
   private[impl] val typeErrorIfNotUniqueInParent = universe.typeOf[ErrorIfNotUniqueInParent]
   private[impl] val typeErrorIfNotGloballyUnique = universe.typeOf[ErrorIfNotGloballyUnique]
+
+  private[impl] val typeDebugDependencies = universe.typeOf[DebugDependencies]
 
   private[impl] val typeBoolean = universe.typeOf[Boolean]
   

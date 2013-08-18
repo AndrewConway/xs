@@ -183,7 +183,7 @@ class FunctionEvaluationStatus(val function:DependencyInjectionFunction,val args
   
   def resAsList(dirtyable:DependencyInjectionCurrentStatus) : List[AnyRef] = {
     if (currentlyAwaitingFuture) onFutureSuccess{
-      if (DependencyInjectionCurrentStatus.debugDependencyInjections) println("Recomputing dependency injections as future resolved")
+      if (holder.debug) println("Recomputing dependency injections as future resolved")
       dirtyable.makeDirty()
       dirtyable.associatedNode.xsedit.dependencyInjectionCleaningQueue.cleanReturningInstantlyIfSomeOtherThreadIsAlreadyCleaning()
     }
@@ -334,6 +334,7 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
   /** Result of the last call to clean(). You usually do NOT want to use this. */
   var lastInjections : Set[AnyRef] = Set.empty // the result of the last call to clean()
   
+  def debug : Boolean = DependencyInjectionCurrentStatus.debugDependencyInjections || associatedNode.info.debugDependencies
   /**
    * Compute all dependencies, and send modified kids dependencies to children. Return true if anything may have changed.
    */
@@ -381,7 +382,7 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
           }
         }
         dirty=false
-        if (DependencyInjectionCurrentStatus.debugDependencyInjections && !(lastGoodResolved.values.isEmpty && mustDo.isEmpty)) {
+        if (debug && !(lastGoodResolved.values.isEmpty && mustDo.isEmpty)) {
           println("Dependency Injection for "+parentObjectName)
           if (!lastGoodResolved.values.isEmpty) println(" Successfully resolved "+lastGoodResolved.values.map{_.function.name}.mkString(","))
           if (!mustDo.isEmpty) {
@@ -450,7 +451,7 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
       val (keepExisting,disposeExisting) = existingResolved.partition{_._2.function.survivesChange(oldObject,newObject)}
       existingResolved = keepExisting
       for ((_,d)<-disposeExisting) d.dispose()
-      if (DependencyInjectionCurrentStatus.debugDependencyInjections) println("Changed object "+makeNameSane(""+oldObject)+" to "+makeNameSane(""+newObject)+" saved "+existingResolved.size)
+      if (debug) println("Changed object "+makeNameSane(""+oldObject)+" to "+makeNameSane(""+newObject)+" saved "+existingResolved.size)
       //(new IllegalArgumentException).printStackTrace()
       makeDirty()
       parentMirror = if (newObject==null) null else scala.reflect.runtime.currentMirror.reflect(newObject)
@@ -469,7 +470,7 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
     }
   }
   def changedParentInjections(newInjectionsFromParent : Set[AnyRef]) {
-    if (DependencyInjectionCurrentStatus.debugDependencyInjections) println("Changed injections from parent for "+parentObjectName+" added "+(newInjectionsFromParent--injectedFromParent)+" removed "+(injectedFromParent--newInjectionsFromParent)+(newInjectionsFromParent.collect{case i:IndexInParentField => i}.mkString(",")))
+    if (debug) println("Changed injections from parent for "+parentObjectName+" added "+(newInjectionsFromParent--injectedFromParent)+" removed "+(injectedFromParent--newInjectionsFromParent))
     synchronized {
       if (newInjectionsFromParent != injectedFromParent) {
         injectedFromParent=newInjectionsFromParent;
@@ -482,7 +483,7 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
     synchronized {
       if (existingResolved.get(obsoleted.function)==Some(obsoleted)) {
         existingResolved-=obsoleted.function
-        if (DependencyInjectionCurrentStatus.debugDependencyInjections) println("Changed external resource for "+parentObject)
+        if (debug) println("Changed external resource for "+parentObject)
         makeDirty()
         associatedNode.xsedit.dependencyInjectionCleaningQueue.cleanReturningInstantlyIfSomeOtherThreadIsAlreadyCleaning()
       }
