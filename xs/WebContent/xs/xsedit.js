@@ -816,14 +816,14 @@ $(function() {
 				alert("Select a row or rows first.");
 			} else if (key=="copyExport") {
 				var cols = slickgrid.getColumns();
-				console.log(cols);
+				//console.log(cols);
 				var data = slickgrid.getData();
-				console.log(data);
+				//console.log(data);
 				var table = document.getElementById(dialogid+"_table");
 				var contents = "";
-				selected=selected.sort();
-				console.log(selected);
-				console.log(selected.sort());
+				selected=selected.sort(function(a,b){return a-b;});
+				//console.log(selected);
+				//console.log(selected.sort());
 				for (var i=0;i<selected.length;i++) {
 					var row = data.getItem(selected[i]);
 					contents+="<tr>";
