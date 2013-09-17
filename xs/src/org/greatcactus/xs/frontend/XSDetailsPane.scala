@@ -499,7 +499,7 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit,val executio
     override def humanEditedTrimInfo:Array[Option[TrimInfo]] = {
       synchronized {
         if (currentStringSetByUserCanonicalRepresentation.isDefined && !currentlyIsIllegalValue) {
-          val res:Array[Option[TrimInfo]] = if (field.field.isCollectionOrArrayButNotOption)  CollectionStringUtil.separateSemicolonListEscaped(currentlyShowing,false).map{s=>Some(TrimInfo(s))}
+          val res:Array[Option[TrimInfo]] = if (field.field.isCollectionOrArrayButNotOption) { if (currentlyShowing.isEmpty()) Array() else CollectionStringUtil.separateSemicolonListEscaped(currentlyShowing,false).map{s=>Some(TrimInfo(s))}}
           else Array(Some(TrimInfo(currentlyShowing)))
          // println(res.mkString(";"))
           res

@@ -250,11 +250,13 @@ class XSFieldInfo(val fieldSymbol:reflect.runtime.universe.Symbol,val index:Int,
             if (s.isEmpty) None    
             else Some(parser(s))
           } else if (isCollectionOrArray) {
-            val textreps : Array[String] =CollectionStringUtil.separateSemicolonListEscaped(stringrep) 
-            val buffer = new ArrayBuffer[AnyRef](textreps.length)
-            for (s<-textreps) {
-              val ts = if (shouldTrimStringrep) s.trim else s
-              buffer+= (if (ts.isEmpty) nullValue else parser(ts))
+            val buffer = new ArrayBuffer[AnyRef]
+            if (!stringrep.isEmpty()) {
+              val textreps : Array[String] =CollectionStringUtil.separateSemicolonListEscaped(stringrep) 
+              for (s<-textreps) {
+                val ts = if (shouldTrimStringrep) s.trim else s
+                buffer+= (if (ts.isEmpty) nullValue else parser(ts))
+              }
             }
             collectionOfBuffer(buffer)
           } else if (s.isEmpty && !baseClassIsPrimitive) null else parser(s)
