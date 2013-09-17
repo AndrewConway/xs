@@ -19,6 +19,7 @@ import org.greatcactus.xs.frontend.StatusForToolbar
 import org.greatcactus.xs.frontend.XSClipboardRequest
 import scala.concurrent.ExecutionContext
 import org.greatcactus.xs.frontend.XSClipBoard
+import org.greatcactus.xs.api.serialization.StringMapSerialize
 //import scala.concurrent.ExecutionContext.Implicits.global
 /**
  * The controller for communication with an HTML client. The details of the transport are not
@@ -90,6 +91,9 @@ class HTML5Client(val xsedit:XSEdit,val toolbar:Option[XSToolBar],val locale:Loc
   }
   val treePane : HTML5Tree[XSTreeNode] = new HTML5Tree(locale,transport,treeModel,xsedit.treeRoot,session.sessionPrefix,session.id,false,true) 
   addMessageProcessor(treePane.processMessages)
+  var storeWholeEditedObjectInURL : Boolean = false
+  var lastSentURL : String = null
+  
   private val treeListener : XSEditListener = new XSEditListener() {
       def apply(changes:TreeChange) { 
         //println("Got tree changes")
@@ -98,6 +102,13 @@ class HTML5Client(val xsedit:XSEdit,val toolbar:Option[XSToolBar],val locale:Loc
           for (sub<-e.sub) process(sub)          
         }
         for (e<-changes.elements) process(e)
+        if (storeWholeEditedObjectInURL) {
+          val newurl = StringMapSerialize.toURL(xsedit.currentObject)
+          if (lastSentURL!=newurl) {
+            lastSentURL=newurl
+            sendMessage(ClientMessage.changeURLQuery(lastSentURL))
+          }
+        }
         flushMessages()
       }
       def setCurrentlyEditing(node:Option[XSTreeNode]) { 

@@ -41,6 +41,14 @@ function xsProcessClientMessageFromServer(json,session) {
 			window.location.href=json.args[0];
 		} else if (json.cmd=="GotoURLNewTab") {
 			window.open(json.args[0],'_blank');
+		} else if (json.cmd=="NewURLQuery") {
+			if (window.history && window.history.replaceState) {
+			  var urlbase = document.URL;
+			  var queryStart = urlbase.indexOf("?");
+			  if (queryStart>=0) urlbase=urlbase.substring(0,queryStart);
+		      var newurl = urlbase+"?"+json.args[0];
+              window.history.replaceState({},null,newurl);				
+			}
 		} else if (json.cmd=="message") {
 			alert(json.args[0]);
 		} else if (json.cmd=="ToolbarStatus") {

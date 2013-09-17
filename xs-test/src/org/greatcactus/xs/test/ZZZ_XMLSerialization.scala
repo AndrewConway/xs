@@ -44,6 +44,17 @@ class ZZZ_Serialization {
   }
   
   @Test
+  def test1map {
+    val t = new Test1("Flintstone",List("Rubble"))
+    val expected = Map("type"->"Test1","fred"->"Flintstone","barney_len"->"1","barney_0"->"Rubble")
+    assertEquals(expected,StringMapSerialize.serialize(t))
+    val m2 = StringMapDeserialize.deserialize[Test1](expected)
+    assertEquals("Flintstone",m2.fred)
+    assertEquals(Seq("Rubble"),m2.barney)
+    assertEquals(expected,StringMapSerialize.serialize(m2))
+  }
+  
+  @Test
   def test1bson {
     val t = new Test1("Flintstone",List("Rubble"))
     val bson = MongoDBSerialize.serializeDBO(t)
@@ -80,6 +91,21 @@ class ZZZ_Serialization {
     assertEquals(3,m2.f3(2))
     assertEquals("""{"xsType":"Test2","f1":4,"f2":3.6,"f3":[5,4,3]}""",new String(JSONSerialize.serializeToByteArray(m2)))
   }
+  @Test
+  def test2map {
+    val t = new Test2(4,3.6,Array(5,4,3))
+    val expected = Map("type"->"Test2","f1"->"4","f2"->"3.6","f3_len"->"3","f3_0"->"5","f3_1"->"4","f3_2"->"3")
+    assertEquals(expected,StringMapSerialize.serialize(t))
+    val m2 = StringMapDeserialize.deserialize[Test2](expected)
+    assertEquals(4,m2.f1)
+    assertEquals(3.6,m2.f2,1e-10)
+    assertEquals(3,m2.f3.length)
+    assertEquals(5,m2.f3(0))
+    assertEquals(4,m2.f3(1))
+    assertEquals(3,m2.f3(2))
+    assertEquals(expected,StringMapSerialize.serialize(m2))
+  }
+    
     
   @Test
   def test3xml {
@@ -138,6 +164,10 @@ class ZZZ_Serialization {
     val m4 = MongoDBDeserialize.deserialize[T](bson)
     assertEquals(expectedJSON,new String(JSONSerialize.serializeToByteArray(m4)))
     assertEquals(expectedXML,new String(XMLSerialize.serializeToByteArray(m4)))
+    val map = StringMapSerialize.serialize(obj)
+    val unmap = StringMapDeserialize.deserialize(map)
+    assertEquals(map,StringMapSerialize.serialize(unmap))
+    assertEquals(expectedXML,new String(XMLSerialize.serializeToByteArray(unmap)))
   }
 
   @Test

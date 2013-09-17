@@ -247,6 +247,7 @@ object ClientMessage {
   def lostSession = new SimpleClientMessage("LostSession",Array())
   def ackMessage(ackid:String) = new SimpleClientMessage("ACK",Array(ackid))
   def run(command:String) = new SimpleClientMessage("Run",Array(command))
+  def changeURLQuery(urlQueryString:String) = new SimpleClientMessage("NewURLQuery",Array(urlQueryString)) // change the query part of the URL string without reloading.
   
   val defaultStartGridOptions = """[{"autoHeight":true, "editable":true, "enableAddRow":true, "enableCellNavigation":true, "fullWidthRows":true, "forceFitColumns":true}][0]""" // produces an error if I have l instead of [l][0]. I don't know why.
   val noAutoheightGridOptions = """[{"editable":true, "enableAddRow":true, "enableCellNavigation":true, "fullWidthRows":true, "forceFitColumns":true}][0]""" // produces an error if I have l instead of [l][0]. I don't know why.
