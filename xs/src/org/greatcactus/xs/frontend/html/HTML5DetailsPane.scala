@@ -22,6 +22,7 @@ import scala.xml.Node
 import scala.xml.transform.RuleTransformer
 import org.greatcactus.xs.api.command.EditCommandDescription
 import org.greatcactus.xs.api.command.EditCommandDescriptionMadeConcrete
+import java.net.URLEncoder
 
 /**
  * XSDetailsPane specialized for HTML5. This is not a complete implementation - it ignores transport.
@@ -212,6 +213,10 @@ class HTML5DetailsPane(val client:HTML5Client) extends XSDetailsPane[String](cli
   }
 
   def getCustom(f:DetailsPaneFieldCustom) : Option[CustomComponent[_,String]] = HTML5DetailsPane.getCustom(f)
+
+  override def storeSelectedOnClient(s:String) { 
+    message(ClientMessage.changeURLQuery(if (s==null || s.length>500) "" else "selected="+URLEncoder.encode(s,"UTF-8")))
+  }
 
 }
 

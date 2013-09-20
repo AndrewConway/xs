@@ -13,6 +13,7 @@ import org.greatcactus.xs.api.serialization.XMLDeserialize
 import java.util.Locale
 import java.io.ByteArrayInputStream
 import org.greatcactus.xs.impl.DependencyInjectionCleaningQueue
+import org.greatcactus.xs.impl.CollectionStringUtil
 
 /**
  * The master access for editing objects. 
@@ -334,6 +335,16 @@ class XSEdit(original:AnyRef) {
   
   def getTitle(locale:Locale) : Option[String] = treeRoot.info.textResources(locale).get("PageTitle")
 
+  /** Change what is selected via a permalink previously received by a NodeInfo */
+  def setSelectedViaPermalink(permalink:String) {
+    val elems = CollectionStringUtil.separateSemicolonListEscaped(permalink)
+    var node = treeRoot
+    for (e<-elems) {
+      node=node.getChildWithGivenPermalinkElement(e)
+      if (node==null) return;
+    }
+    changeCurrentlyEditing(node)
+  }
   /** 
    *  Provide extra information to the dependency injection system. This will be provided to the root node and any children (other unless blocked with @BlockDependencyInjection).
    *  Typically used for external information about the document (e.g. filename), path, user preferences.

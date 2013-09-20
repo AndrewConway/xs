@@ -22,6 +22,7 @@ import org.greatcactus.xs.api.errors.ResolvedXSError
 import org.greatcactus.xs.api.icon.ConcreteIcon
 import org.greatcactus.xs.impl.TrimInfo
 import org.greatcactus.xs.util.InvalidatableCache
+import org.greatcactus.xs.impl.CollectionStringUtil
 
 /**
  * Contain information about the hierarchical structure of an XS object, suitable for displaying in a JTree or similar.
@@ -324,7 +325,31 @@ class XSTreeNode(
       existing < n
   }
 
+  /** 
+   *  A string that has a reasonable chance of referring to the same element a day later. Consists of the concatenated toString methods of parents.
+   *  Useful for storing a node (eg in a URL) that can be referred to later (although it may be meaningless, depending on what happens to the edits).
+   **/
+  def somewhatPermalink = {
+    CollectionStringUtil.joinSemicolonListEscaped(somewhatPermalinkElements.reverse)
+  }
+  private def somewhatpermalinkElement(indexInParent:Int) : String = {
+    var base = indexInParent.toString;
+    if (obj==null) base 
+    else {
+      val str = ""+obj // need to check that it is sensible, not just Object.toString which is not useful as a permalink
+      if (str.length>100) base else {
+        val useless = obj.getClass().getName() + '@' + Integer.toHexString(obj.hashCode())
+        if (str == useless) base else base+"_"+str    
+      } 
+    }
+  }
+  private def somewhatPermalinkElements : List[String] = if (parent==null) Nil else somewhatpermalinkElement(parent.treeChildren.indexOf(this))::parent.somewhatPermalinkElements
   
+  /** get the child corresponging to a given element of the permalink. null if none */
+  def getChildWithGivenPermalinkElement(permalinkElement:String) : XSTreeNode = {
+    for ((n,i)<-treeChildren.zipWithIndex) if (n.somewhatpermalinkElement(i)==permalinkElement) return n
+    null
+  }
 
   def openChar : String = if (treeChildren.isEmpty) "." else if (isOpen) "-" else "+"
   def toFullTreeString(indent:Int,locale:Locale):String = {

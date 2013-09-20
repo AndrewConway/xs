@@ -62,6 +62,9 @@ class HTML5Client(val xsedit:XSEdit,val toolbar:Option[XSToolBar],val locale:Loc
   }
   val detailsPane : HTML5DetailsPane = new HTML5DetailsPane(this)
   xsedit.addDetailsPane(detailsPane)
+    /** If true, then modify the URL to store the currently selected element via a query string ?selected=xxxx */
+  var savePermalinkInURL = false
+
   val treeModel = new TreeModel[XSTreeNode] {
       def children(node:XSTreeNode) : Seq[XSTreeNode] = node.treeChildren
       def title(node:XSTreeNode) : RichLabel = node.label(locale)

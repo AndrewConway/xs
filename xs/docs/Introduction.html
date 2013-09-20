@@ -80,7 +80,16 @@ val deserialized : Complex = XMLDeserialize.deserialize[Complex](serializedData)
    <li>non-null object fields, or non-empty options, are serialized as a JSON object</li>
   </ul>
 
+  <h5>URL query string serialization</h5>
+  <p>This enables serialization to a URL query string. Of course, due to browser limitations, this is generally only useful for small data structures. It is
+  really slightly more general than URLs as it really serializes to key/value string pairs pairs (a scala Map). 
+  This is converted to a RUL query string in the natural way. See <code>StringMapSerialize</code> javadocs for format details. </p>
   
+  <p>To serialize, use <code>StringMapSerialize.serialize(obj)</code> to serialize to a map, and <code>StringMapSerialize.toURL(obj)</code> 
+  to serialize to a URL query string (without the leading <code>?</code>). To deserialize, use <code>StringMapDeserialize.deserialize(map)</code> 
+  or  <code>StringMapDeserialize.deserializeURL(string)</code>.
+  
+  <p>The field names should be valid URL query string characters. The field values will be url-escaped as UTF-8.</p> 
      
    <h2>Editing</h2>
          <aside>Refers to package <code>org.greatcactus.xs.api.edit</code></aside>
@@ -312,6 +321,16 @@ val deserialized : Complex = XMLDeserialize.deserialize[Complex](serializedData)
    server side process regularly checks the isCancelled method on the progress monitor. If your method throws a <code>CancelledThrowable</code> exception then
    the status shown on the client will be cancelled. If some other exception is thrown, a stack trace will be shown on the client (so catch them yourself and give a
    pretty status using <code>CommandResult</code>. 
+   
+   <h3>Updating URLs with status</h3>
+   <p>As a user edits a document, you may want the URL in the browser to change with it. There are two ways of doing this:</p>
+   <ul>
+     <li>Just the selected tree element : set <code>HTML5Client.detailsPane.shouldStoreSelectedOnClient=true</code> on your client. This will store
+         a somewhat-permalink representation of the currently selected element of the tree as the query string in the URL. To use an old permalink,
+         <code>HTML5Client.xsedit.setSelectedViaPermalink(s)</code>. </li>
+     <li>The whole document being edited : set <code>HTML5Client.storeWholeEditedObjectInURL=true</code> on your client. This will store the whole
+         object in the URL. Don't do this with big objects! To use this, use <code>StringMapDeserialize.deserializeURL</code>. </li>
+   </ul>
    
    <h2>Other ways of using it</h2>
    There are a variety of components in XS that are of use in their own right outside of XS

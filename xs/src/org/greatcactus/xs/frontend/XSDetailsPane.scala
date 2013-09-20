@@ -52,6 +52,11 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit,val executio
     }
   }
 
+  /** Whether you should store the currently selected element on the client. Typical case - in the URL or a browser */
+  var shouldStoreSelectedOnClient = false
+  /** Should be overwritten by a client that can store the token of the selected element on the client. Null means nothing. */
+  def storeSelectedOnClient(s:String) {}
+  
   /** Called by XSEdit when the thing currently being show has changed. */
   def setCurrentlyEditing(newnode:Option[XSTreeNode]) {
     synchronized {
@@ -73,6 +78,7 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit,val executio
             dispose()
             currentPane = None
         }
+        if (shouldStoreSelectedOnClient) storeSelectedOnClient(newnode.map{_.somewhatPermalink}.getOrElse(null))
         flushClientCommands()
       }
     }
