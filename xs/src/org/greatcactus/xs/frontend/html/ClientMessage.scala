@@ -250,6 +250,7 @@ object ClientMessage {
   def changeURLQuery(urlQueryString:String) = new SimpleClientMessage("NewURLQuery",Array(urlQueryString)) // change the query part of the URL string without reloading.
   
   val defaultStartGridOptions = """[{"autoHeight":true, "editable":true, "enableAddRow":true, "enableCellNavigation":true, "fullWidthRows":true, "forceFitColumns":true}][0]""" // produces an error if I have l instead of [l][0]. I don't know why.
+  val mayNotAddStartGridOptions = """[{"autoHeight":true, "editable":true, "enableAddRow":false, "enableCellNavigation":true, "fullWidthRows":true, "forceFitColumns":true}][0]""" // produces an error if I have l instead of [l][0]. I don't know why.
   val noAutoheightGridOptions = """[{"editable":true, "enableAddRow":true, "enableCellNavigation":true, "fullWidthRows":true, "forceFitColumns":true}][0]""" // produces an error if I have l instead of [l][0]. I don't know why.
   def startGrid(baseid:String,columns:String,onInputObj:String,options:String=defaultStartGridOptions) = new SimpleClientMessage("StartGrid",Array(baseid,columns,onInputObj,options))
   def stopGrid(baseid:String) = new SimpleClientMessage("StopGrid",Array(baseid))

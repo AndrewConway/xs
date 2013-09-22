@@ -55,7 +55,7 @@ object DetailsPaneFields {
     val text = t.textResources(locale)
     val fields = new ListBuffer[EditPaneElem]
     for (f<-t.fields) { 
-      if (f.isIndividuallyEditable || f.isInlineEditable) { // put in all the "adds"
+      if ((f.isIndividuallyEditable || f.isInlineEditable)&& !f.mayNotAddChildren) { // put in all the "adds"
         if (!f.mayNotAddChildren) for (sub<-f.xsinfo.get.transitiveSubclasses) if (!sub.mayNotAddChildren) {
           val subt = sub.textResources(locale)
           val title = text.get(f.name+".Add_"+sub.name).orElse(text.get(f.name+".Add")).orElse(subt.get("Add")).getOrElse("Add "+sub.name)

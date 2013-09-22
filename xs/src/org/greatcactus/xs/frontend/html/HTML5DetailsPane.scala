@@ -461,6 +461,8 @@ class GUICreatorHTML5(pane:HTML5DetailsPane,inlineParentDivId:Option[String]) ex
             }
           case b:DetailsPaneFieldBoolean =>
             ("xs.grid.SlickGridBooleanFormatter",if (b.readonly) null else "xs.grid.SlickGridBooleanEditor")
+          case e:DetailsPaneFieldShowText =>
+            ("xs.grid.SlickGridPTFFormatter",null)
           case _ => throw new IllegalArgumentException("Invalid grid field "+c)
         }
         g.writeStringField("name",c.label)
@@ -478,7 +480,8 @@ class GUICreatorHTML5(pane:HTML5DetailsPane,inlineParentDivId:Option[String]) ex
       }
     })
     postCreationJavascript+=new SetRows(id,initialValue,field.columnExtractors.names);
-    postCreationJavascript+=ClientMessage.startGrid(id,columns,sessionPrefixNoTrailingPeriod)
+    val mayNotAdd = field.field.mayNotAddChildren || field.field.xsinfo.map{_.mayNotAddChildren}.getOrElse(false)
+    postCreationJavascript+=ClientMessage.startGrid(id,columns,sessionPrefixNoTrailingPeriod,if (mayNotAdd) ClientMessage.mayNotAddStartGridOptions else ClientMessage.defaultStartGridOptions)
     //run(varid+"=new Slick.Grid('#"+id+"_ui',"+baseVarID+"_rows,"+columns+",{autoHeight:true,editable:true,enableAddRow:true,enableCellNavigation:true,fullWidthRows:true})")
     //postCreationJavascript+=ClientMessage.run(varid+".setSelectionModel(new Slick.CellSelectionModel())")
     //postCreationJavascript+=ClientMessage.run(varid+".render()")

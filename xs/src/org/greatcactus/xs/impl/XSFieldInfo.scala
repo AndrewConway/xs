@@ -322,6 +322,9 @@ class XSFieldInfo(val fieldSymbol:reflect.runtime.universe.Symbol,val index:Int,
     
     val resolveNetworkReferences : Boolean = hasAnnotation(typeResolveNetworkReferences)
     val mayNotAddChildren = hasAnnotation(typeMayNotAddChildren)
+    val mayNotRemoveChildren = hasAnnotation(typeMayNotRemoveChildren)
+    def mayNotAddChildrenComplete = mayNotAddChildren || xsinfo.map{_.mayNotAddChildren}.getOrElse(false)
+    def mayNotRemoveChildrenComplete = mayNotRemoveChildren || xsinfo.map{_.mayNotRemoveChildren}.getOrElse(false)
 
     if (isBooleanEditable && (isCollectionOrArray || baseClass!=java.lang.Boolean.TYPE)) error("Boolean editable field should be boolean")
     if (isIndividuallyEditable && !xsinfo.isDefined) error("Individually editable field should be of an @XSE class")

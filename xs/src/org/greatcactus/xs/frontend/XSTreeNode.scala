@@ -23,6 +23,8 @@ import org.greatcactus.xs.api.icon.ConcreteIcon
 import org.greatcactus.xs.impl.TrimInfo
 import org.greatcactus.xs.util.InvalidatableCache
 import org.greatcactus.xs.impl.CollectionStringUtil
+import org.greatcactus.xs.api.edit.UpdateField
+import org.greatcactus.xs.impl.XSDeserializationError
 
 /**
  * Contain information about the hierarchical structure of an XS object, suitable for displaying in a JTree or similar.
@@ -314,7 +316,7 @@ class XSTreeNode(
   
   def getTableFields(extractor:ColumnExtractors) : IndexedSeq[String] = tableFieldsCache.getOrElseUpdate(extractor,extractor.extract(this))
   
-  def mayDelete = parent!=null && fieldInParent.isCollectionOrArray
+  def mayDelete = parent!=null && fieldInParent.isCollectionOrArray && (!info.mayNotRemoveChildren) && !fieldInParent.mayNotRemoveChildren
   def isEnabled(field:String) = dependencyInjection.isEnabled(field,this)
   def isVisible(field:String) = dependencyInjection.isVisible(field,this)
   def canAdd(field:XSFieldInfo) = field.maxChildren match {
@@ -323,6 +325,20 @@ class XSTreeNode(
       val existing = field.getAllFieldElements(getObject).size
       // println("canAdd: Field "+field.name+" n="+n+" existing="+existing)
       existing < n
+  }
+  def updateField(update:UpdateField) {
+    println("Updating field via UpdateField fieldname "+update.fieldname)
+    if (update==null) { // update whole shebang
+      xsedit.changeNode(this,update.newvalue.asInstanceOf[AnyRef],None,"Auto")
+    } else { // just update a single field
+      try {
+        val field = info.getField(update.fieldname)
+        xsedit.setField(this, field,update.newvalue.asInstanceOf[AnyRef],None)
+      } catch {
+        case e:XSDeserializationError => println("Error - UpdateField tried to update field "+update.fieldname+" on class "+info.clazz)
+      }
+    }
+    //println("Ending update Field "+update.fieldname)
   }
 
   /** 

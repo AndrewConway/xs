@@ -867,23 +867,31 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit,val executio
       val validrows = rowsToBeMoved.sorted.collect{case r:Int if r>=0 && r<allnodes.length => allnodes(r)}
       parent.xsedit.dragData(parent,validrows,if (insertBefore<allnodes.length) Some(allnodes(insertBefore)) else None)
     }
-    def uiTableContextMenu(parent:XSTreeNode,command:String,selectedRows:Seq[Int]) {
+    /** Returns true if worked, false if illegal. TODO This return value is not used anywhere, so no warning is given (apart from it visually not working). */
+    def uiTableContextMenu(parent:XSTreeNode,command:String,selectedRows:Seq[Int]) : Boolean = {
       val allnodes = field.getNodes(parent)
       val nodes = selectedRows.sorted.collect{case r:Int if r>=0 && r<allnodes.length => allnodes(r)}
         command match { // TODO make copy and paste tabular data
           case "copy" => setClipboard(xsedit.copyData(nodes))
-          case "cut" => setClipboard(xsedit.copyData(nodes)); xsedit.deleteTreeNodes(nodes,"cut")
+          case "cut" =>
+            if (field.field.mayNotRemoveChildrenComplete) return false
+            else { setClipboard(xsedit.copyData(nodes)); xsedit.deleteTreeNodes(nodes,"cut") }
           case "paste" => //for (c<-clipboard) xsedit.pasteData(parent, c, nodes.headOption)
             getClipboard(XSClipboardRequest.xsSerializedData).onSuccess { case c =>  xsedit.pasteData(parent, c, nodes.headOption) }(executionContext)
-          case "erase" => xsedit.deleteTreeNodes(nodes,"erase")
+          case "erase" => 
+            if (field.field.mayNotRemoveChildrenComplete) return false
+            else xsedit.deleteTreeNodes(nodes,"erase")
           case "insert" => 
-            val newRow = for (i<-0 until field.columnExtractors.length) yield ""
-            val baseelem = field.field.newSingleElement()
-            parent.xsedit.addField(parent,nodes.headOption,field.field,baseelem,None,"insert row")
-
+            if (field.field.mayNotAddChildrenComplete) return false else {
+              val newRow = for (i<-0 until field.columnExtractors.length) yield ""
+              val baseelem = field.field.newSingleElement()
+              parent.xsedit.addField(parent,nodes.headOption,field.field,baseelem,None,"insert row")
+            }
         }
+        true
     }
     override def toString = field.label+":"+currentlyShowing
+    
   }
 
   class UIFieldImage(val field:DetailsPaneFieldImage,val gui:T,var currently:CurrentFieldState,var currentlyShowing:String) extends UIFieldIsStringOrCollectionOfStrings {

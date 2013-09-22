@@ -313,6 +313,17 @@ val deserialized : Complex = XMLDeserialize.deserialize[Complex](serializedData)
    As with the fully custom component, when using the standard HTML5 client, it should actually implement <code>org.greatcactus.xs.frontend.html.HTMLCustomPopupComponent</code>,
    and should be registered with <code>org.greatcactus.xs.frontend.HTML5DetailsPane.addCustom</code>. See Javadocs for details.</p>
    
+   <h4>UpdateField</h4>
+   <p>Sometimes XS is not quite sufficient, but a custom editor is very similar to something XS already provides.
+   E.g. A document A refers to some external document B containing a list of questions. The document A should contain an
+   array of answers to these questions, of length equal to the number of questions in document B. You would like to use
+   the standard XS table editor for these questions, but need to impose a length condition. Such constraints can be imposed
+   by having a <code>@DependencyInjection</code> function return an element of type <code>UpdateField</code>. This will
+   cause the currently-being-edited node to be updated. See javadocs for details. Note that this is very dangerous and should be
+   avoided if possible - it is easy to end up with type errors or infinite loops that are hard to detect and debug.
+   Note that you may also want to use the <code>@MayNotAddChildren</code> and <code>@MayNotRemoveChildren</code> annotations
+   in the example above.</p> 
+   
    <h3>Commands</h3>
    <p>If you annotate a method with <code>@XSCommand</code> then it becomes an action button that will be executed (server side, of course) when the user clicks on it.
    The method can take arguments from the dependency injection list, as well as a <code>ProgressMonitor</code> (expected work 1.0) or <code>ProgressMonitorSource</code>, 

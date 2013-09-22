@@ -9,11 +9,11 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * If on an {@link IndividuallyEditable} or {@link TableEditable} field, then the user may not add elements to this field.
- * If on a class, then an  {@link IndividuallyEditable} or {@link TableEditable} field may not add members of this class.
+ * If on an {@link IndividuallyEditable} or {@link TableEditable} field, then the user may not delete element from this field.
+ * If on a class, then an  {@link IndividuallyEditable} or {@link TableEditable} field may not delete members of this class.
  * 
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.FIELD,ElementType.METHOD,ElementType.TYPE})
-public @interface MayNotAddChildren {
+public @interface MayNotRemoveChildren {
 }

@@ -32,6 +32,7 @@ import org.greatcactus.xs.frontend.html.SessionManagement
 import org.greatcactus.xs.util.InterruptableFuture
 import org.greatcactus.xs.util.ObsoletableAndInterruptableFuture
 import org.greatcactus.xs.api.dependency.IndexInParentField
+import org.greatcactus.xs.api.edit.UpdateField
 
 
 /** 
@@ -134,8 +135,40 @@ class FunctionEvaluationStatus(val function:DependencyInjectionFunction,val args
     }
   } catch { case e:Exception => e.printStackTrace(); None}
   
+  private[this] val completedFutureSync = new Object
   private[this] var completedFuture : Option[AnyRef] = rawres
+  private[this] var updateOnFutureGUI : Set[XSTreeNode] = Set.empty
+  private[this] var updateOnFutureGUIincludingErrorLevels: Set[XSTreeNode] = Set.empty
+  private[this] var updateOnFutureGUIIncludingTableFieldsCache : Set[XSTreeNode] = Set.empty
+  private[this] var updateOnFutureDirtyable : Set[DependencyInjectionCurrentStatus] = Set.empty
   
+  private[this] def dealWithFuture(f:Future[_]) {
+    f.onSuccess{
+      case newres => 
+        if (holder.debug) println("Function "+function.name+" resolved as a future to "+newres)
+        completedFutureSync.synchronized {
+          completedFuture = Some(newres.asInstanceOf[AnyRef])
+          for (n<-updateOnFutureGUI) n.updateGUI()
+          updateOnFutureGUI=Set.empty   
+          for (n<-updateOnFutureGUIincludingErrorLevels) n.updateGUIincludingErrorLevels()
+          updateOnFutureGUIincludingErrorLevels=Set.empty   
+          for (n<-updateOnFutureGUIIncludingTableFieldsCache) n.updateGUIIncludingTableFieldsCache()
+          updateOnFutureGUIIncludingTableFieldsCache=Set.empty   
+          for (dirtyable<-updateOnFutureDirtyable) {
+            if (holder.debug) println("Recomputing dependency injections as future resolved for "+function.name)
+            dirtyable.makeDirty()
+            dirtyable.associatedNode.xsedit.dependencyInjectionCleaningQueue.cleanReturningInstantlyIfSomeOtherThreadIsAlreadyCleaning()
+          }
+          updateOnFutureDirtyable=Set.empty   
+        }
+    }(XSExecutionContext.context)
+  }
+  rawres match {
+    case Some(p:Future[_]) => completedFuture=None; dealWithFuture(p) 
+    case Some(p:InterruptableFuture[_]) => completedFuture=None; dealWithFuture(p.future) 
+    case _ =>
+  }
+/*  
   private[this] def onFuture(code: Future[_] => Unit) {
     rawres match {
       case Some(p:Future[_]) => code(p) 
@@ -152,42 +185,49 @@ class FunctionEvaluationStatus(val function:DependencyInjectionFunction,val args
       completedFuture=None
       f.onSuccess { case newres => completedFuture = Some(newres.asInstanceOf[AnyRef]) }(XSExecutionContext.context)
   }
-  
+  */
   
   def currentlyAwaitingFuture : Boolean = completedFuture.isEmpty && rawres.isDefined
   
   
+  
   /** Get a result. If it may change later due to a future being completed, then call node.updateGUI() when that happens */
   def resForSimpleGUI(node:XSTreeNode) = {
-    if (currentlyAwaitingFuture) onFutureSuccess{node.updateGUI()}
-    completedFuture
+    completedFutureSync.synchronized {
+      if (currentlyAwaitingFuture) updateOnFutureGUI+=node
+      completedFuture  
+    }
   }
   /** Get a result. If it may change later due to a future being completed, then call node.updateGUIincludingErrorLevels() when that happens */
   def resForErrors(node:XSTreeNode) = {
-    if (currentlyAwaitingFuture) onFutureSuccess{node.updateGUIincludingErrorLevels()}
-    completedFuture
+    completedFutureSync.synchronized {
+      if (currentlyAwaitingFuture) updateOnFutureGUIincludingErrorLevels+=node
+      completedFuture  
+    }
   }
   /** Get a result. If it may change later due to a future being completed, then call node.updateGUIIncludingTableFieldsCache() when that happens */
   def resForGUIAndTableFields(node:XSTreeNode) = {
-    if (currentlyAwaitingFuture) onFutureSuccess{node.updateGUIIncludingTableFieldsCache()}
-    completedFuture
+    completedFutureSync.synchronized {
+      if (currentlyAwaitingFuture) updateOnFutureGUIIncludingTableFieldsCache+=node
+      completedFuture  
+    }
   }
   
   /** Get a result. If it may change later due to a future being completed, then call node.updateGUIIncludingTableFieldsCache() when that happens */
   def resAsListForGUIAndTableFields(node:XSTreeNode) : List[AnyRef] = {
-    if (currentlyAwaitingFuture) onFutureSuccess{node.updateGUIIncludingTableFieldsCache()}
-    flattenCollections(completedFuture)
+    completedFutureSync.synchronized {
+      if (currentlyAwaitingFuture) updateOnFutureGUIIncludingTableFieldsCache+=node
+      flattenCollections(completedFuture)
+    }
   }
   
   //def res : Option[AnyRef] = completedFuture
   
   def resAsList(dirtyable:DependencyInjectionCurrentStatus) : List[AnyRef] = {
-    if (currentlyAwaitingFuture) onFutureSuccess{
-      if (holder.debug) println("Recomputing dependency injections as future resolved")
-      dirtyable.makeDirty()
-      dirtyable.associatedNode.xsedit.dependencyInjectionCleaningQueue.cleanReturningInstantlyIfSomeOtherThreadIsAlreadyCleaning()
+    completedFutureSync.synchronized {
+      if (currentlyAwaitingFuture) updateOnFutureDirtyable+=dirtyable
+      flattenCollections(completedFuture)
     }
-    flattenCollections(completedFuture)
   }
   
   def flattenCollections(x:Any) : List[AnyRef] = x match {
@@ -242,8 +282,8 @@ object DependencyInjectionCurrentStatus {
  * be changed subsequently; see DependencyInjectionCleaningQueue for details.
  */
 class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,val associatedNode:XSTreeNode) {
-  private var dirty = true
-  private var dirtySimpleErrorChecks = true
+  //private var dirty = true
+  //private var dirtySimpleErrorChecks = true
   private var injectedFromParent : Set[AnyRef] = associatedNode.injectionNodesFromParent;
   private var existingResolved : Map[DependencyInjectionFunction,FunctionEvaluationStatus] = Map.empty
   private var lastGoodResolved : Map[DependencyInjectionFunction,FunctionEvaluationStatus] = Map.empty
@@ -311,7 +351,7 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
 
   def changedUniquenessValues(ftc:FieldsToCheckForUniqueness) {
     synchronized {
-      dirtySimpleErrorChecks=true
+      dirtyStatus.makeSimpleErrorChecksDirty()
       worstErrorCache=None
       for (c<-ftc.classes;field<-c.fields) errorListCache-=field.name 
       simpleErrorCheckResults=None
@@ -331,6 +371,22 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
       for ((_,oldvalue)<-existingResolved) oldvalue.dispose()
     }    
   }
+  
+  class DirtyHolder {
+      private var dirty = true
+      private var dirtySimpleErrorChecks = true
+      private var hasBecomeDirtyDuringClean = false
+      
+      def isDirty = synchronized { dirty }
+      /** Clear dirty error checks, returning the value prior to clearing */
+      def clearErrorChecksDirtiness() = synchronized { val old = dirtySimpleErrorChecks; dirtySimpleErrorChecks=false; old }
+      def clean() { synchronized { dirty=false; dirtySimpleErrorChecks=false } }
+      def makeDirty() = synchronized { dirty=true; }
+      def makeSimpleErrorChecksDirty() = synchronized { dirtySimpleErrorChecks=true; }
+  }
+  
+  val dirtyStatus =new DirtyHolder
+  
   /** Result of the last call to clean(). You usually do NOT want to use this. */
   var lastInjections : Set[AnyRef] = Set.empty // the result of the last call to clean()
   
@@ -338,10 +394,12 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
   /**
    * Compute all dependencies, and send modified kids dependencies to children. Return true if anything may have changed.
    */
-  def clean() = {
+  def clean() : Boolean = {
     synchronized {
-      if (dirty && parentMirror!=null) {
-        var resInjections = injectedFromParent+XSExecutionContext.context
+      if (!dirtyStatus.isDirty) return dirtyStatus.clearErrorChecksDirtiness()
+      dirtyStatus.clean()
+      if (parentMirror!=null) {
+        var resInjections : Set[AnyRef] = injectedFromParent+XSExecutionContext.context
         var resResolved : Map[DependencyInjectionFunction,FunctionEvaluationStatus] = Map.empty
         var mustDo = info.allDIFunctions
         def addResolved(resolution:FunctionEvaluationStatus) {
@@ -381,7 +439,7 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
             c.dependencyInjection.changedParentInjections(sendToChildren.get(c.info.dependencyInjectionInfo.fromParentDependencyInfo,indexInParentField))
           }
         }
-        dirty=false
+        //dirty=false
         if (debug && !(lastGoodResolved.values.isEmpty && mustDo.isEmpty)) {
           println("Dependency Injection for "+parentObjectName)
           if (!lastGoodResolved.values.isEmpty) println(" Successfully resolved "+lastGoodResolved.values.map{_.function.name}.mkString(","))
@@ -391,13 +449,14 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
           }
         }
         lastInjections=resInjections
-        dirtySimpleErrorChecks=false
+        //dirtySimpleErrorChecks=false
+        for (dep<-resInjections) dep match {
+          case changeField:UpdateField =>
+            associatedNode.updateField(changeField)
+          case _ =>
+        }
         true
-      } else if (dirtySimpleErrorChecks) {
-        dirtySimpleErrorChecks=false
-        true
-      }
-      else false
+      } else false
     }
   }
   
@@ -462,12 +521,10 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
   
   def makeNameSane(s:String) = if (s==null) "" else s.replaceAll("[\r\n]+[\\s\\S]*","...")
   def parentObjectName = makeNameSane(parentObject.toString)
-  private[impl] def makeDirty() {
+  private[impl] def makeDirty() { // cannot be synchronized as can lead to thread deadlocks.
     //println("Set to dirty")
-    if (!dirty) {
-      dirty=true
-      associatedNode.xsedit.dependencyInjectionCleaningQueue.add(associatedNode)
-    }
+    dirtyStatus.makeDirty()
+    associatedNode.xsedit.dependencyInjectionCleaningQueue.add(associatedNode)
   }
   def changedParentInjections(newInjectionsFromParent : Set[AnyRef]) {
     if (debug) println("Changed injections from parent for "+parentObjectName+" added "+(newInjectionsFromParent--injectedFromParent)+" removed "+(injectedFromParent--newInjectionsFromParent))
