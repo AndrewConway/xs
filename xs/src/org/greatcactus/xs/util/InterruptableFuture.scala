@@ -12,6 +12,9 @@ import java.lang.InterruptedException
 import scala.util.Try
 import scala.collection.mutable.ListBuffer
 import org.greatcactus.xs.api.command.ProgressMonitor
+import scala.collection.generic.CanBuildFrom
+import scala.language.higherKinds
+import java.util.concurrent.ExecutionException
 
 /**
  * Make a future that can be interrupted. Generally behaves like a future, except
@@ -144,6 +147,7 @@ class InterruptablePromise[T] { ipthis =>
   def completeCode(code: =>T) {
     promise complete {
         try Success(executeInAnInterruptableManner(code)) catch {
+          case e : ExecutionException if e.getCause.isInstanceOf[InterruptedException] => Failure(e.getCause)
           case e : InterruptedException => Failure(e)
           case NonFatal(e) => Failure(e)
           case other : Throwable => other.printStackTrace(); throw other
@@ -185,6 +189,15 @@ object InterruptableFuture {
     p.success(value)
     p.future
   }
+  
+  
+  /** Analog of Future.sequence. Transforms a `TraversableOnce[InterruptableFuture[A]]` into a `InterruptableFuture[TraversableOnce[A]]`. */
+  def sequence[A, M[_] <: TraversableOnce[_]](in: M[InterruptableFuture[A]])(implicit cbf: CanBuildFrom[M[InterruptableFuture[A]], A, M[A]], executor: ExecutionContext): InterruptableFuture[M[A]] = {
+    in.foldLeft(eager(cbf(in))) {
+      (fr, fa) => for (r <- fr; a <- fa.asInstanceOf[InterruptableFuture[A]]) yield (r += a)
+    } map (_.result)
+  }
+
 }
 
 
@@ -331,6 +344,15 @@ class ObsoletableAndInterruptableFuture[+T](val future:InterruptableFuture[T],va
 object ObsoletableAndInterruptableFuture {
 //  def eager[T](value:T) = new ObsoletableAndInterruptableFuture(InterruptableFuture.eager(value),new Obsoletable)
   def eager[T](value:T) = new ObsoletableAndInterruptableFuture(InterruptableFuture.eager(value),Nil)
+  
+  /** Analog of Future.sequence. Transforms a `TraversableOnce[InterruptableFuture[A]]` into a `InterruptableFuture[TraversableOnce[A]]`. */
+  def sequence[A, M[_] <: TraversableOnce[_]](in: M[ObsoletableAndInterruptableFuture[A]])(implicit cbf: CanBuildFrom[M[ObsoletableAndInterruptableFuture[A]], A, M[A]], executor: ExecutionContext): ObsoletableAndInterruptableFuture[M[A]] = {
+    in.foldLeft(eager(cbf(in))) {
+      (fr, fa) => for (r <- fr; a <- fa.asInstanceOf[ObsoletableAndInterruptableFuture[A]]) yield (r += a)
+    } map (_.result)
+  }
+
+
 }
 
 
