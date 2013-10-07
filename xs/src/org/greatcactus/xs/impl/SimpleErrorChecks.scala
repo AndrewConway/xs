@@ -47,6 +47,7 @@ class SimpleErrorChecksBuffer {
   def addErrorIfNotUnique(field:XSFieldInfo,key:UniquenessClass,getBadness:XSTreeNode=>NonuniqueElements,severity:Option[String]) { add(field.name,new PseudoDIErrorIfNotUnique(field,key,getBadness,sev(severity)))} 
   def addErrorIfNotNumber(field:XSFieldInfo,integer:Boolean,min:Double,max:Double,severity:Option[String]) { add(field.name,new PseudoDIErrorIfNotNumber(field,integer,min,max,sev(severity)))}
   def addErrorIfNegative(field:XSFieldInfo,severity:Option[String]) { add(field.name,new PseudoDIErrorIfNegative(field,sev(severity)))}
+  def addErrorIfZero(field:XSFieldInfo,severity:Option[String]) { add(field.name,new PseudoDIErrorIfZero(field,sev(severity)))}
   def get = new SimpleErrorChecks(map)
 }
 /**
@@ -134,9 +135,19 @@ class PseudoDIErrorIfNegative(val field:XSFieldInfo,val severity:Severity) exten
   def isOK(s:String) : Boolean = {
     try {
       s.toDouble >= 0
-    } catch { case _:NumberFormatException => false }
+    } catch { case _:NumberFormatException => true }
   }
 }
+
+class PseudoDIErrorIfZero(val field:XSFieldInfo,val severity:Severity) extends SimpleTextErrorCheck {
+  def localizationKey = "ErrorIfZero"
+  def isOK(s:String) : Boolean = {
+    try {
+      s.toDouble != 0
+    } catch { case _:NumberFormatException => true }
+  }
+}
+     
      
 
 object SimpleErrorMessageSource extends TextLocalizationSource {

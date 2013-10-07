@@ -189,7 +189,15 @@ object InterruptableFuture {
     p.success(value)
     p.future
   }
+
+    /** Create an interruptable future from an exception, computed now rather than later. Slightly more efficient than using future above, but otherwise the same */
+  def eagerFailure[T](t: Throwable) : InterruptableFuture[T] = {
+    val p = new InterruptablePromise[T]
+    p.failure(t)
+    p.future
+  }
   
+
   
   /** Analog of Future.sequence. Transforms a `TraversableOnce[InterruptableFuture[A]]` into a `InterruptableFuture[TraversableOnce[A]]`. */
   def sequence[A, M[_] <: TraversableOnce[_]](in: M[InterruptableFuture[A]])(implicit cbf: CanBuildFrom[M[InterruptableFuture[A]], A, M[A]], executor: ExecutionContext): InterruptableFuture[M[A]] = {
@@ -344,6 +352,7 @@ class ObsoletableAndInterruptableFuture[+T](val future:InterruptableFuture[T],va
 object ObsoletableAndInterruptableFuture {
 //  def eager[T](value:T) = new ObsoletableAndInterruptableFuture(InterruptableFuture.eager(value),new Obsoletable)
   def eager[T](value:T) = new ObsoletableAndInterruptableFuture(InterruptableFuture.eager(value),Nil)
+  def eagerFailure[T](t: Throwable) = new ObsoletableAndInterruptableFuture(InterruptableFuture.eagerFailure(t),Nil)
   
   /** Analog of Future.sequence. Transforms a `TraversableOnce[InterruptableFuture[A]]` into a `InterruptableFuture[TraversableOnce[A]]`. */
   def sequence[A, M[_] <: TraversableOnce[_]](in: M[ObsoletableAndInterruptableFuture[A]])(implicit cbf: CanBuildFrom[M[ObsoletableAndInterruptableFuture[A]], A, M[A]], executor: ExecutionContext): ObsoletableAndInterruptableFuture[M[A]] = {
