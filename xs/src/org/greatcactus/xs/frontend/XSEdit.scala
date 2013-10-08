@@ -105,9 +105,11 @@ class XSEdit(original:AnyRef) {
         }
       }
       checkParentsOpen(newNode)
-      currentlyEditing = newNode
-      for (p<-detailsPanes) p.setCurrentlyEditing(Some(newNode))
-      for (t<-treeListeners) t.setCurrentlyEditing(Some(newNode))
+      if (currentlyEditing!=newNode) {
+        currentlyEditing = newNode
+        for (p<-detailsPanes) p.setCurrentlyEditing(Some(newNode))
+        for (t<-treeListeners) t.setCurrentlyEditing(Some(newNode))
+      }
     }
   } 
   
