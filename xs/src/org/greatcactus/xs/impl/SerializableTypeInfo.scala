@@ -280,6 +280,8 @@ class SerializableTypeInfo[T <: AnyRef] private (val clazz : java.lang.Class[T])
   
   def deserializeError(cause:String) = throw new XSDeserializationError(clazz,cause)
   
+  val ignoreFieldNamed : Set[String] = getOptionalArrayStrings(classSymbol,typeXSIgnorableNames).map{_.toSet}.getOrElse(Set.empty)
+  
   /** Get the field expected when an tag with a given name is found, plus (if it is serializable and not a wrapper) deserialization help, plus a boolean as to if this is just a wrapper. */
   def getBlockField(name:String) : (XSFieldInfo,Option[SerializableTypeInfo[_ <: AnyRef]],Boolean) = constructor.flatMap{_.blockFieldsFromNames.get(name)}.getOrElse(deserializeError("Unexpected attribute "+name))
   /** Get the field expected when an attribute with a given name is found */
@@ -460,6 +462,7 @@ object SerializableTypeInfo {
   private[impl] val typeXSWrapper = universe.typeOf[XSWrapper]
   private[impl] val typeXSConstructor = universe.typeOf[XSConstructor]
   private[impl] val typeXSObsoleteName = universe.typeOf[XSObsoleteName]
+  private[impl] val typeXSIgnorableNames = universe.typeOf[XSIgnorableNames]
   private[impl] val typeXSSerializable = universe.typeOf[XS]
   private[impl] val typeXSSerializeAsBlock = universe.typeOf[XSSerializeAsBlock]
   private[impl] val typeXSSerializeAsAttribute = universe.typeOf[XSSerializeAsAttribute]

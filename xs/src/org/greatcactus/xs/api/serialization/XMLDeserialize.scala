@@ -114,7 +114,7 @@ object XMLDeserialize {
       for (i<-0 until reader.getAttributeCount) {
         val name = reader.getAttributeLocalName(i)
         if (name==XMLSerialize.CopiedDataOpenTag) hadOpenTag=true
-        else {
+        else if (!helper.ignoreFieldNamed(name)){
           val field = helper.getAttributeField(name)
           val value = reader.getAttributeValue(i)
           field.parseStringPossiblyMultipleSafe(value) match {
