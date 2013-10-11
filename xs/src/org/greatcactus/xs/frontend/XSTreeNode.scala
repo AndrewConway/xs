@@ -59,7 +59,13 @@ class XSTreeNode(
   @volatile private[this] var disposed=false
   var isOpen : Boolean = if (fieldInParent==null) true else fieldInParent.isExpandOnFirstDisplay
   
+  /** Means this node connected to the root */
   def isStillBeingEdited : Boolean = isRoot || (parent.isStillBeingEdited && parent.treeChildren.contains(this))
+  
+  /** See if this node is currently in the display pane. This could be because it is the selected node, or it could be in an @InlineEditable field or a @TableEditable field. */
+  def isCurrentlyBeingEdited : Boolean =
+    if (fieldInParent!=null && fieldInParent.isTableOrInlineEditable && parent!=null) parent.isCurrentlyBeingEdited
+    else xsedit.currentlyEditing == this 
   
   def isRoot = parent==null
   val depth:Int = if (parent==null) 0 else 1+parent.depth
@@ -235,6 +241,15 @@ class XSTreeNode(
       for (c<-allChildren) c.addToDependencyInjectionCleaningQueueRecursivelyOnChildren()
     }    
   }
+  /** Add self, and inline and table elements to the cleaning queue. Called when something is selected and we need to redo these to get tooltips, etc. */
+  def addToDependencyInjectionCleaningQueueAsHasJustBecomeSelected() {
+    // println("addToDependencyInjectionCleaningQueueAsHasJustBecomeSelected on "+getObject)
+    synchronized {
+      xsedit.dependencyInjectionCleaningQueue.add(this)
+      for ((_,l)<-tableAndInlineChildren;c<-l) xsedit.dependencyInjectionCleaningQueue.add(c)
+    }  
+    xsedit.dependencyInjectionCleaningQueue.cleanReturningInstantlyIfSomeOtherThreadIsAlreadyCleaning()
+  }
   
   def updateGUIincludingErrorLevels() {
       worstErrorLevelCache.invalidate()
@@ -370,7 +385,7 @@ class XSTreeNode(
 
   def openChar : String = if (treeChildren.isEmpty) "." else if (isOpen) "-" else "+"
   def toFullTreeString(indent:Int,locale:Locale):String = {
-    val self = " "*indent+openChar+" "+label(locale).text  // TODO include tooltip(locale)
+    val self = " "*indent+openChar+" "+label(locale).text  
     val kids = treeChildren.map{_.toFullTreeString(indent+1,locale)}
     (self::kids.toList).mkString("\n")
   } 

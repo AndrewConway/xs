@@ -87,6 +87,8 @@ class DependencyInjectionInformation(
   val commands:List[CommandMethod]
   ) {
   val allDIFunctions : Seq[DependencyInjectionFunction] = providers++(iconProviders.map{_.function})++(labelProviders.map{_.function})++(tooltipProviders.map{_.function})++(extraText.map{_.function})++(editCommands.map{_.function})++(customFields.map{_.function})++(enabledControllers.map{_.function})++(visibilityControllers.map{_.function})++(errorChecks.map{_.function})
+  private def classfns(l:Seq[FunctionForField]) = l.filter{_.field.isEmpty}.map{_.function}
+  val allDIFunctionsNeededEvenIfNotVisible : Seq[DependencyInjectionFunction] = providers++classfns(iconProviders)++classfns(labelProviders)++classfns(tooltipProviders)++(errorChecks.map{_.function}) 
   val allFunctions = allDIFunctions++(commands.map{_.function})
   val classLabelProvider : Option[DependencyInjectionFunction] = labelProviders.find{_.field==None}.map{_.function}
   val classTooltipProvider : Option[DependencyInjectionFunction] = tooltipProviders.find{_.field==None}.map{_.function}
@@ -177,24 +179,7 @@ class FunctionEvaluationStatus(val function:DependencyInjectionFunction,val args
     case Some(p:InterruptableFuture[_]) => completedFuture=None; dealWithFuture(p.future) 
     case _ =>
   }
-/*  
-  private[this] def onFuture(code: Future[_] => Unit) {
-    rawres match {
-      case Some(p:Future[_]) => code(p) 
-      case Some(p:InterruptableFuture[_]) => code(p.future) 
-      case _ =>
-    }
-  }
 
-  def onFutureSuccess(code : => Unit) {
-    onFuture{_.onSuccess{case _ => code}(XSExecutionContext.context)}
-  }
-
-  onFuture{f=>
-      completedFuture=None
-      f.onSuccess { case newres => completedFuture = Some(newres.asInstanceOf[AnyRef]) }(XSExecutionContext.context)
-  }
-  */
   
   def currentlyAwaitingFuture : Boolean = completedFuture.isEmpty && rawres.isDefined
   
@@ -315,17 +300,17 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
     val programmatic = for (f<-info.fieldTooltipProvider.get(fieldname);fr<-lastGoodResolved.get(f); res <- fr.resForSimpleGUI(node) ) yield res
     programmatic.orElse{
       // see if there are other ways of making a tooltip
-     println("Trying localizations for "+fieldname)
+      //println("Trying localizations for "+fieldname)
       associatedNode.info.getOptionalField(fieldname).flatMap{field=>
         // if the field is an enumeration, see if there are tooltips in the localization information
         for (options<-field.fixedOptions; cl<-options.classForLocalizationResources) {
-          println("Found fixed options "+fieldname)
+          //println("Found fixed options "+fieldname)
           return Some(new Localizable{
             override def localize(locale:Locale) : String = {
               val text = TextLocalizationResources.getCached(locale, cl)
               val fieldValue = field.getFieldAsString(node.getObject)
               val res = if (fieldValue==null) null else text.get(fieldValue+".tooltip").getOrElse(null)
-              println("Trying localizations for "+fieldValue+" of type "+field.baseClassName+" found "+res)
+              //println("Trying localizations for "+fieldValue+" of type "+field.baseClassName+" found "+res)
               res
             }
           })
@@ -405,14 +390,15 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
   
   class DirtyHolder {
       private var dirty = true
+      private var dirtyThingsOnlyNeededOnSelectedObject = true
       private var dirtySimpleErrorChecks = true
       private var hasBecomeDirtyDuringClean = false
       
-      def isDirty = synchronized { dirty }
+      def isDirty(allNeeded:Boolean) = synchronized { if (allNeeded) dirtyThingsOnlyNeededOnSelectedObject else dirty }
       /** Clear dirty error checks, returning the value prior to clearing */
       def clearErrorChecksDirtiness() = synchronized { val old = dirtySimpleErrorChecks; dirtySimpleErrorChecks=false; old }
-      def clean() { synchronized { dirty=false; dirtySimpleErrorChecks=false } }
-      def makeDirty() = synchronized { dirty=true; }
+      def clean(doneAll:Boolean) { synchronized { dirty=false; dirtySimpleErrorChecks=false; if (doneAll) dirtyThingsOnlyNeededOnSelectedObject=false  } }
+      def makeDirty() = synchronized { dirty=true; dirtyThingsOnlyNeededOnSelectedObject=true }
       def makeSimpleErrorChecksDirty() = synchronized { dirtySimpleErrorChecks=true; }
   }
   
@@ -427,12 +413,13 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
    */
   def clean() : Boolean = {
     synchronized {
-      if (!dirtyStatus.isDirty) return dirtyStatus.clearErrorChecksDirtiness()
-      dirtyStatus.clean()
+      val shouldDoAll = associatedNode.isCurrentlyBeingEdited
+      if (!dirtyStatus.isDirty(shouldDoAll)) return dirtyStatus.clearErrorChecksDirtiness()
+      dirtyStatus.clean(shouldDoAll)
       if (parentMirror!=null) {
         var resInjections : Set[AnyRef] = injectedFromParent+XSExecutionContext.context
         var resResolved : Map[DependencyInjectionFunction,FunctionEvaluationStatus] = Map.empty
-        var mustDo = info.allDIFunctions
+        var mustDo = if (shouldDoAll) info.allDIFunctions else info.allDIFunctionsNeededEvenIfNotVisible
         def addResolved(resolution:FunctionEvaluationStatus) {
           if (resolution.function.isLocallyInjected) resInjections++=resolution.resAsList(this)
           resResolved+=resolution.function->resolution
@@ -609,4 +596,5 @@ class DependencyInjectionFunction(
   val name:String = method.name.decoded
   def usesParentObject = argTypes.contains(classOf[Parent[_]])
   def usesIndexInParentField = argTypes.contains(classOf[IndexInParentField])
+  override def couldHaveImplicitTooltip = false
 }

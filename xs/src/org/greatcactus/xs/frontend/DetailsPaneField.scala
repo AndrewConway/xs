@@ -164,11 +164,14 @@ sealed abstract class DetailsPaneField {
   /** None if this type of field is not valid in a table. Otherwise either a field or a dependency function */
   def columnExtractor : Option[GeneralizedField] 
   def validInTable : Boolean = columnExtractor.isDefined
+  
+  def couldHaveImplicitTooltip : Boolean
 }
 
-trait DetailsPaneFieldBasedOnSimpleField {
+trait DetailsPaneFieldBasedOnSimpleField  {
   def field:XSFieldInfo
   def name=field.name
+  def couldHaveImplicitTooltip : Boolean = field.fixedOptions.isDefined
 }
 
 class DetailsPaneFieldSection(
@@ -184,6 +187,7 @@ class DetailsPaneFieldSection(
   val couldContainErrorIcon : Boolean = fieldsThatCouldHaveErrors.contains(name)
   override def columnExtractor =None
   override def toString = title.getOrElse(name)
+  override def couldHaveImplicitTooltip = false
 }
 
  trait ProgressMonitorInfo {
@@ -200,6 +204,7 @@ sealed abstract class DetailsPaneFieldAction extends DetailsPaneField {
   override def toString = label
   def couldContainErrorIcon : Boolean = false
   override def columnExtractor =None
+  override def couldHaveImplicitTooltip = true
 }
 // class SimpleAction(val description:String,val tooltip:Option[String]) extends PaneField
 
@@ -253,6 +258,7 @@ class DetailsPaneFieldEditCommands(
   def couldContainErrorIcon : Boolean = false
   override def columnExtractor =None
   override def multiline = false
+  override def couldHaveImplicitTooltip = false
 }
 
 
@@ -272,6 +278,7 @@ class DetailsPaneFieldShowText(val function:DependencyInjectionFunction,val labe
   override def toString = label
   val couldContainErrorIcon : Boolean = fieldsThatCouldHaveErrors.contains(name)
   override def columnExtractor = Some(function)
+  override def couldHaveImplicitTooltip = false
 }
 
 class DetailsPaneFieldCustom(val function:DependencyInjectionFunction,val label:String,val tooltip:Option[String],val icon:Option[Icon],val multiline:Boolean,val hideName:Boolean,val wholeLine:Boolean,fieldsThatCouldHaveErrors:Set[String],val customComponentName:String) extends DetailsPaneFieldLabeled {
@@ -280,6 +287,7 @@ class DetailsPaneFieldCustom(val function:DependencyInjectionFunction,val label:
   override def toString = label
   val couldContainErrorIcon : Boolean = fieldsThatCouldHaveErrors.contains(name)
   override def columnExtractor = Some(function)
+  override def couldHaveImplicitTooltip = false
 }
 
 

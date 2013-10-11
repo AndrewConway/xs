@@ -363,6 +363,8 @@ class XSFieldInfo(val fieldSymbol:reflect.runtime.universe.Symbol,val index:Int,
     // println(" param "+name+" type "+ptype+" isScalaCollection="+isScalaCollection+" isArray="+isArray+"  base type="+baseType)
       
     def textResources(locale:Locale) : TextLocalizationResources = new PrefixedTextLocalizationResources(parentInfo.textResources(locale),name+".")
+    
+    def couldHaveImplicitTooltip : Boolean = fixedOptions.isDefined
   }
 
 class FieldDisplayOptions(val field:reflect.runtime.universe.Symbol,iconSource:IconManifests) {
@@ -403,4 +405,5 @@ class EnumeratedOptions(
 
 trait GeneralizedField {
   def name:String
+  def couldHaveImplicitTooltip : Boolean
 }

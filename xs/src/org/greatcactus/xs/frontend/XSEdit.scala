@@ -107,6 +107,7 @@ class XSEdit(original:AnyRef) {
       checkParentsOpen(newNode)
       if (currentlyEditing!=newNode) {
         currentlyEditing = newNode
+        newNode.addToDependencyInjectionCleaningQueueAsHasJustBecomeSelected()
         for (p<-detailsPanes) p.setCurrentlyEditing(Some(newNode))
         for (t<-treeListeners) t.setCurrentlyEditing(Some(newNode))
       }
