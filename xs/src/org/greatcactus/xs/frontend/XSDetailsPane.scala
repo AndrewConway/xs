@@ -278,7 +278,8 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit,val executio
         val label = tree.specialLabelForField(field.name,locale)
         val tooltip = tree.tooltipForField(field.name,locale)
         val canHaveSpecialLabel = tree.info.dependencyInjectionInfo.fieldLabelProvider.contains(field.name)
-        val canHaveTooltip = tree.info.dependencyInjectionInfo.fieldTooltipProvider.contains(field.name)
+        val canHaveTooltip = tree.info.dependencyInjectionInfo.fieldTooltipProvider.contains(field.name) || 
+          { field match { case fi:DetailsPaneFieldBasedOnSimpleField => fi.field.fixedOptions.isDefined ; case _ => false} }
         new CurrentFieldState(enabled,visible,icon,label,tooltip,canHaveSpecialIcon,canHaveSpecialLabel,canHaveTooltip)              
     }
     val headingState = getState(pane.field)
@@ -792,7 +793,7 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit,val executio
              changeGridErrors(gui,linenumber,colnumber,colfield,errors)
            }
         }
-        val couldContainTooltip = field.field.xsinfo.get.dependencyInjectionInfo.fieldTooltipProvider.contains(colfield.name)
+        val couldContainTooltip = field.field.xsinfo.get.dependencyInjectionInfo.fieldTooltipProvider.contains(colfield.name) // TODO consider making this broader for enumerations? Potentially slower.
         if (couldContainTooltip) {
            val tooltip : Option[RichLabel] = line.tooltipForField(colfield.name,locale)
            val key = (linenumber,colnumber)

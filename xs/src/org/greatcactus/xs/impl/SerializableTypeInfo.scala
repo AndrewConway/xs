@@ -287,7 +287,8 @@ class SerializableTypeInfo[T <: AnyRef] private (val clazz : java.lang.Class[T])
   /** Get the field expected when an attribute with a given name is found */
   def getAttributeField(name:String) : XSFieldInfo = constructor.flatMap{_.attributeFieldsFromNames.get(name)}.
           orElse(blockFieldAsAttributeField(name)).getOrElse(deserializeError("Unexpected tag "+name))
-  def getField(name:String) : XSFieldInfo = constructor.flatMap{_.allFieldsFromNames.get(name)}.getOrElse(deserializeError("Unexpected field "+name))
+  def getOptionalField(name:String) : Option[XSFieldInfo] = constructor.flatMap{_.allFieldsFromNames.get(name)}
+  def getField(name:String) : XSFieldInfo = getOptionalField(name).getOrElse(deserializeError("Unexpected field "+name))
   // found an attribute that should really be a block, but can still read safely.
   def blockFieldAsAttributeField(name:String) : Option[XSFieldInfo] = constructor.flatMap{_.blockFieldsFromNames.get(name).map{_._1}}.filter{_.couldBeAttribute}
           

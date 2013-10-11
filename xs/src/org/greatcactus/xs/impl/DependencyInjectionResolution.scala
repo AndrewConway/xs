@@ -33,6 +33,9 @@ import org.greatcactus.xs.util.InterruptableFuture
 import org.greatcactus.xs.util.ObsoletableAndInterruptableFuture
 import org.greatcactus.xs.api.dependency.IndexInParentField
 import org.greatcactus.xs.api.edit.UpdateField
+import org.greatcactus.xs.api.display.Localizable
+import java.util.Locale
+import org.greatcactus.xs.api.display.TextLocalizationResources
 
 
 /** 
@@ -61,7 +64,13 @@ class FunctionForField(val function:DependencyInjectionFunction,val field:Option
   def fieldOrElseWhole : String = field.getOrElse(DetailsPaneFields.wholeFormAsFieldName)
 }
 
-/** Information on all the possible dependency injection functions, and all error functions. This is static, one instance per class */ 
+/** 
+ *  Information on all the possible dependency injection functions, and all error functions. This is static, one instance per class
+ *  
+ *  Some of these need to computed all the time - e.g. error checks.
+ *  Some of these need to only be computed when the particular object is being displayed - e.g. labelProviders (except for class which goes into the tree)
+ *  Some of these may also need to only be computed if a descendent is being displayed, but there is no way to express this at the moment.
+ **/ 
 class DependencyInjectionInformation(
   val providers : Seq[DependencyInjectionFunction],
   val iconProviders : Seq[FunctionForField],
@@ -302,7 +311,29 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
   def getLabel(node:XSTreeNode) : Option[AnyRef] = for (f<-info.classLabelProvider;fr<-lastGoodResolved.get(f); res <- fr.resForSimpleGUI(node) ) yield res
   def getLabelForField(fieldname:String,node:XSTreeNode) : Option[AnyRef] = for (f<-info.fieldLabelProvider.get(fieldname);fr<-lastGoodResolved.get(f); res <- fr.resForSimpleGUI(node) ) yield res
   def getTooltip(node:XSTreeNode) : Option[AnyRef] = for (f<-info.classTooltipProvider;fr<-lastGoodResolved.get(f); res <- fr.resForSimpleGUI(node) ) yield res
-  def getTooltipForField(fieldname:String,node:XSTreeNode) : Option[AnyRef] = for (f<-info.fieldTooltipProvider.get(fieldname);fr<-lastGoodResolved.get(f); res <- fr.resForSimpleGUI(node) ) yield res
+  def getTooltipForField(fieldname:String,node:XSTreeNode) : Option[AnyRef] = {
+    val programmatic = for (f<-info.fieldTooltipProvider.get(fieldname);fr<-lastGoodResolved.get(f); res <- fr.resForSimpleGUI(node) ) yield res
+    programmatic.orElse{
+      // see if there are other ways of making a tooltip
+     println("Trying localizations for "+fieldname)
+      associatedNode.info.getOptionalField(fieldname).flatMap{field=>
+        // if the field is an enumeration, see if there are tooltips in the localization information
+        for (options<-field.fixedOptions; cl<-options.classForLocalizationResources) {
+          println("Found fixed options "+fieldname)
+          return Some(new Localizable{
+            override def localize(locale:Locale) : String = {
+              val text = TextLocalizationResources.getCached(locale, cl)
+              val fieldValue = field.getFieldAsString(node.getObject)
+              val res = if (fieldValue==null) null else text.get(fieldValue+".tooltip").getOrElse(null)
+              println("Trying localizations for "+fieldValue+" of type "+field.baseClassName+" found "+res)
+              res
+            }
+          })
+        }
+        None
+      }
+    }
+  }
   
   def isEnabled(fieldname:String,node:XSTreeNode) : Boolean = (for (f<-info.fieldEnabledController.get(fieldname);fr<-lastGoodResolved.get(f); res <-fr.resForSimpleGUI(node) if res==false) yield false).getOrElse(true)
   def isVisible(fieldname:String,node:XSTreeNode) : Boolean = (for (f<-info.fieldVisibilityController.get(fieldname);fr<-lastGoodResolved.get(f); res <-fr.resForSimpleGUI(node) if res==false) yield false).getOrElse(true)

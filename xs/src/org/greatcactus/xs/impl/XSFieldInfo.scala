@@ -81,7 +81,6 @@ class XSFieldInfo(val fieldSymbol:reflect.runtime.universe.Symbol,val index:Int,
     }
     val baseClassIsPrimitive = baseClass.isPrimitive()
     
-   
     val fixedOptions : Option[EnumeratedOptions] = {
       val sco = baseClass.getAnnotation(classOf[SuggestedOptions])
       val rco = baseClass.getAnnotation(classOf[RequiredOptions])
