@@ -405,7 +405,7 @@ class GUICreatorHTML5(pane:HTML5DetailsPane,inlineParentDivId:Option[String]) ex
           }
         }</select>
       case _ => // TODO use info like placeholder, etc. */
-        val ptf = <div id={id+"_ui"} contenteditable="true" class="xsPseudoTextField" spellcheck="false" oninput="xsPTF.input(event)" onkeyup="xsPTF.inputSurrogate(event)" onblur="xsPTF.inputSurrogate(event)" onpaste="xsPTF.inputSurrogate(event)" oncut="xsPTF.inputSurrogate(event)" data-onInputObj={sessionPrefixNoTrailingPeriod} data-xsSuppressNL={(!field.multiline).toString}></div>
+        val ptf = <div id={id+"_ui"} contenteditable={(!field.readonly).toString} class="xsPseudoTextField" spellcheck="false" oninput="xsPTF.input(event)" onkeyup="xsPTF.inputSurrogate(event)" onblur="xsPTF.inputSurrogate(event)" onpaste="xsPTF.inputSurrogate(event)" oncut="xsPTF.inputSurrogate(event)" data-onInputObj={sessionPrefixNoTrailingPeriod} data-xsSuppressNL={(!field.multiline).toString}></div>
         //println("Post creation set "+id+" to "+initialValue)
         postCreationJavascript+=ClientMessage.setValueID(id+"_ui",initialValue)
         ptf
