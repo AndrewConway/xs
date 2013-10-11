@@ -349,12 +349,13 @@ class XSTreeNode(
     CollectionStringUtil.joinSemicolonListEscaped(somewhatPermalinkElements.reverse)
   }
   private def somewhatpermalinkElement(indexInParent:Int) : String = {
-    var base = indexInParent.toString;
-    if (obj==null) base 
+    var base : String = indexInParent.toString;
+    val vo = obj
+    if (vo==null) base 
     else {
-      val str = ""+obj // need to check that it is sensible, not just Object.toString which is not useful as a permalink
-      if (str.length>100) base else {
-        val useless = obj.getClass().getName() + '@' + Integer.toHexString(obj.hashCode())
+      val str = vo.toString // need to check that it is sensible, not just Object.toString which is not useful as a permalink
+      if (str==null || str.length>100) base else {
+        val useless = vo.getClass().getName() + '@' + Integer.toHexString(vo.hashCode())
         if (str == useless) base else base+"_"+str    
       } 
     }

@@ -214,8 +214,17 @@ class HTML5DetailsPane(val client:HTML5Client) extends XSDetailsPane[String](cli
 
   def getCustom(f:DetailsPaneFieldCustom) : Option[CustomComponent[_,String]] = HTML5DetailsPane.getCustom(f)
 
-  override def storeSelectedOnClient(s:String) { 
-    message(ClientMessage.changeURLQuery(if (s==null || s.length>500) "" else "selected="+URLEncoder.encode(s,"UTF-8")))
+  var currentlyURLQueryOnClient : Option[String] = None
+  
+  override def storeSelectedOnClient(s:String) {
+    val urlstr = if (s==null || s.length>500) "" else "selected="+URLEncoder.encode(s,"UTF-8")
+    synchronized {
+      val someurlstr = Some(urlstr)
+      if (currentlyURLQueryOnClient!=someurlstr) {
+        message(ClientMessage.changeURLQuery(urlstr))
+        currentlyURLQueryOnClient=someurlstr
+      }
+    }
   }
 
 }
