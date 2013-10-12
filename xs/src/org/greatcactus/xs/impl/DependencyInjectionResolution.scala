@@ -109,7 +109,7 @@ class DependencyInjectionInformation(
 }
 
 
-class FunctionEvaluationStatus(val function:DependencyInjectionFunction,val args:Seq[AnyRef],holder:DependencyInjectionCurrentStatus,obj:reflect.runtime.universe.InstanceMirror) {
+class FunctionEvaluationStatus(val function:DependencyInjectionFunction,val args:Seq[AnyRef],holder:DependencyInjectionCurrentStatus,obj:reflect.runtime.universe.InstanceMirror) { festhis =>
   private[this] var callbackOnDispose : Option[()=>Unit] = None
   private[this] var isExternallyChanged = false
 
@@ -173,6 +173,8 @@ class FunctionEvaluationStatus(val function:DependencyInjectionFunction,val args
           updateOnFutureDirtyable=Set.empty   
         }
     }(XSExecutionContext.context)
+    holder.associatedNode.xsedit.dependencyInjectionCleaningQueue.addPendingFuture(festhis)
+    f.onComplete{case _ => holder.associatedNode.xsedit.dependencyInjectionCleaningQueue.removePendingFuture(festhis)}(XSExecutionContext.context)
   }
   rawres match {
     case Some(p:Future[_]) => completedFuture=None; dealWithFuture(p) 

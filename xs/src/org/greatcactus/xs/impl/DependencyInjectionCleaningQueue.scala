@@ -49,6 +49,7 @@ class DependencyInjectionCleaningQueue {
       nodesNeedingCleaning+=node  
       //println("nodesNeedingCleaning length = "+nodesNeedingCleaning.length)
     }
+    checkFullness()
   }
   
   private[this] val someThreadIsAlreadyCleaning = new Semaphore(1)
@@ -77,6 +78,63 @@ class DependencyInjectionCleaningQueue {
       someThreadIsAlreadyCleaning.release()
     }
     if (!isEmpty) cleanWaitingUntilAllClean() // deal with the (unusual) race condition where some other thread both adds a node to the queue, and calls cleanReturningInstantlyIfSomeOtherThreadIsAlreadyCleaning(), in between the empty check and the release of the semaphore.
+    checkFullness()
   }
    
+  // keep track of futures left to compute
+  
+  private[this] var pendingFutures : Set[FunctionEvaluationStatus] = Set.empty
+  
+  //
+  // 2 functions below are called when dependenciy injections produce futures which are in progress / finished
+  //
+  def addPendingFuture(f:FunctionEvaluationStatus) {
+    synchronized { pendingFutures+=f }
+    checkFullness()
+  }
+  def removePendingFuture(f:FunctionEvaluationStatus) {
+    synchronized { pendingFutures-=f }
+    checkFullness()
+  }
+  
+  private[this] var wasEmptyAtLastFullnessCheck = false;
+  private[this] var emptinessChangingSequenceNumber = 0L
+  private[this] def getFullStatus = new QueueEmptyStatus(isEmpty,emptinessChangingSequenceNumber)
+  private[this] var queueFullListeners : Set[QueueEmptyStatusListener] = Set.empty
+  private[this] def checkFullness() {
+    val work : Option[()=>Unit] = synchronized { // very fast
+      val isEmpty = pendingFutures.isEmpty && nodesNeedingCleaning.isEmpty && someThreadIsAlreadyCleaning.availablePermits==1
+      if (isEmpty!=wasEmptyAtLastFullnessCheck) {
+        wasEmptyAtLastFullnessCheck=isEmpty
+        emptinessChangingSequenceNumber+=1
+        Some(() => {
+          val status = getFullStatus
+          for (l<-queueFullListeners) l.queueEmptyStatusChanged(status)
+        })
+      } else None
+    }
+    // now send out notifications if needed outside of the synchronized loop
+    for (f<-work) f()
+  }
+  
+  def addQueueEmptyListener(l:QueueEmptyStatusListener) { 
+    synchronized {
+      queueFullListeners+=l
+      l.queueEmptyStatusChanged(getFullStatus)
+    }
+  }
+  def removeQueueEmptyListener(l:QueueEmptyStatusListener) { synchronized {queueFullListeners-=l}}
+  
 }
+
+/** If you care about knowing whether the queue is empty or not, then register one of these with addQueueFullListener. */
+trait QueueEmptyStatusListener {
+  def queueEmptyStatusChanged(status:QueueEmptyStatus)
+}
+
+/** New status. To make sure that events do not get transposed, ignore any events with a smaller sequence number than the last one you have processed. */ 
+class QueueEmptyStatus(val isNowEmpty:Boolean,val sequenceNumber:Long)
+
+
+
+

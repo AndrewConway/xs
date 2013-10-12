@@ -49,6 +49,8 @@ function xsProcessClientMessageFromServer(json,session) {
 		      var newurl = urlbase+"?"+json.args[0];
               window.history.replaceState({},null,newurl);				
 			}
+		} else if (json.cmd=="ServerStatus") {
+			session.setServerStatus(json.args[0]=="true",parseInt(json.args[1]));
 		} else if (json.cmd=="message") {
 			alert(json.args[0]);
 		} else if (json.cmd=="ToolbarStatus") {
@@ -56,7 +58,7 @@ function xsProcessClientMessageFromServer(json,session) {
 			elem.disabled = json.args[1]=='false';
 			elem.innerHTML=json.args[2];
 		} else if (json.cmd=="Run") {
-			console.log("Got to Run with "+json.args[0]);
+			// console.log("Got to Run with "+json.args[0]);
 			try { eval(json.args[0]);} catch(err) { console.log(err);}
 		} else if (json.cmd=="Show") {
 			$(json.args[0]).show();
@@ -263,6 +265,25 @@ function xsProcessClientMessageFromServer(json,session) {
 
 var xs = {
 	
+  busycount : 0, // if non-zero, then the server is doing computation
+  
+  addBusyness : function() {
+	  //console.log("addBusyness "+xs.busycount);
+	  if (xs.busycount==0) {
+		  var spinner = document.getElementById("XSServerInUse");
+		  if (spinner) spinner.style.cssText="position:absolute;";
+	  }
+	  xs.busycount++;
+  },
+  removeBusyness : function() {
+	  //console.log("removeBusyness "+xs.busycount);
+	  xs.busycount--;
+	  if (xs.busycount==0) {
+		  var spinner = document.getElementById("XSServerInUse");
+		  if (spinner) spinner.style.cssText="display:none;";
+	  }
+  },
+  
   /** Make the .xsEdit div take up all space other than that in the otherselectors variable (default ".xsToolbar").  */
   makeXSEditUseAllVerticalSpace : function(otherselectors) {
 	if (!otherselectors) otherselectors = ".xsToolbar";
@@ -384,6 +405,7 @@ var xs = {
 		  
 	  };
 	  var sendBuffer = [];
+	  var acksPending = false;
 	  var gotAcks = function(numberAcked,nextExpected,largestReceived) {
 		  //console.log("Before acks "+sendBuffer.length);
 		  sendBuffer = sendBuffer.filter(function(cmd) {
@@ -392,12 +414,17 @@ var xs = {
 			if (n<nextExpected) return false; // received in the past
 			return true;
 		  });
+		  
 		  if (sendBuffer.length>0) {
 			  var head = sendBuffer[0];
 			  if (head.index < numberAcked) considerResending(500,head.index);
+		  } else if (acksPending) {
+			  acksPending=false;
+			  xs.removeBusyness();
 		  }
 		  //console.log("After acks "+sendBuffer.length);
 	  };
+	  
 	  /** If there has not been an ACK for the given sequeuence index after delay ms from now, then resend it. */
       var considerResending = function(delay,index) {
     	  setTimeout(function(){
@@ -412,12 +439,32 @@ var xs = {
       };	  
 	  
 	  this.sendToServer = function (message,isSynchronous) {
+		  if (!acksPending) {
+			  acksPending=true;
+			  xs.addBusyness();
+		  }
 		  var cmd = { index : this.sentMessageCount, "message" : message };
 		  this.sentMessageCount++;
 		  sendBuffer.push(cmd);
 		  sendCmd(cmd,isSynchronous);
 		  considerResending(10000,cmd.index);
 	  };
+	  
+	  var serverIsFinishedComputing = true;
+	  var lastServerStillComputingSequenceNumber = -1; // the last number from the server giving current status.
+	  
+	  this.setServerStatus = function(isFinished,sequenceno) {
+		  // console.log("isFinished = "+isFinished+"  seq="+sequenceno)
+		  if (sequenceno-lastServerStillComputingSequenceNumber>0) {
+			  lastServerStillComputingSequenceNumber=sequenceno;
+			  if (serverIsFinishedComputing!=isFinished) {
+				  serverIsFinishedComputing=isFinished;
+				  if (isFinished) xs.removeBusyness(); else xs.addBusyness();
+			  }
+		  }
+	  };
+
+	  
 	  /** Called by a client action - eg clicking on a "new X" action */
 	  this.action = function(id,subindex) {
 		  if (!subindex) subindex=0;
@@ -676,7 +723,7 @@ var xs = {
 	  };
 	  
 	  this.treeContextMenu = function(subtype,treeID) {
-		  console.log(treeID);
+		  // console.log(treeID);
 		  xsthis.sendToServer({cmd:"TreeContextMenu",args:[treeID,subtype,xsthis.getSelectedTreeNodes(treeID).toString()]});
 	  };
 	  
@@ -687,7 +734,7 @@ var xs = {
 	  var xsthis = this;
 		
 	  this.imageFromBlob = function(id,elem,blob) {
-		  console.log(blob);
+		  // console.log(blob);
 		  var reader = new FileReader();
 		  reader.onload = function (event) {
 			elem.src = event.target.result;
@@ -714,9 +761,9 @@ var xs = {
 		  if (file && file!=null) {
 			  this.imageFromBlob(id,target,file);
 		  } else {
-			  console.log(ev.dataTransfer);
+			  // console.log(ev.dataTransfer);
 			  var url =  ev.dataTransfer.getData("text/uri-list")|| ev.dataTransfer.getData("url");
-			  console.log(url);
+			  // console.log(url);
 			  if (url) {
 				  if (target.getAttribute("data-ResolveNetworkReferences")=="true" && !url.indexOf("data:")==0) {
 					  this.loadURLAsBlob(url,function(blob) { xsthis.imageFromBlob(id,target,blob);});					  

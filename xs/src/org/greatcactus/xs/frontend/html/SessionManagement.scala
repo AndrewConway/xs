@@ -97,6 +97,7 @@ class HTTPSession(val worker:HTTPSessionWorker) {
 
   /** A better way to do comet calls - via futures. */
   def cometCallFuture : Future[Option[ClientMessage]] = {
+    // println("Pre synchronized block in cometCallFuture")
     synchronized {
       println("Starting cometCallFuture for session "+id)
       pendingResponse match {
@@ -132,11 +133,19 @@ class HTTPSession(val worker:HTTPSessionWorker) {
   def cometCallShouldReturnImmediately() : Option[ClientMessage] = {
     keepAlive()
     val buffer = new ClientMessageBuffer
+    var busyness : SimpleClientMessage = null // optimization - ignore all client busy messages other than the current one. This variable stores the most current one in thw queue so far.
     def hasAvailable() = {
       val head = pendingSendToClient.poll()
-      if (head==null) false else { buffer+=head; true; }
+      head match {
+        case null => false
+        case m:SimpleClientMessage if m.command=="ServerStatus" => // optimization - ignore all client busy messages other than the current one.
+          if (busyness==null || busyness.args(1).toLong < m.args(1).toLong) busyness=m
+          true 
+        case _ => buffer+=head; true
+      }
     }
     while (hasAvailable()) {}
+    if (busyness!=null) buffer+=busyness
     buffer.get
   }
   

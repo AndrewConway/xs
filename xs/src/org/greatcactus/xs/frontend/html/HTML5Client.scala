@@ -20,6 +20,8 @@ import org.greatcactus.xs.frontend.XSClipboardRequest
 import scala.concurrent.ExecutionContext
 import org.greatcactus.xs.frontend.XSClipBoard
 import org.greatcactus.xs.api.serialization.StringMapSerialize
+import org.greatcactus.xs.impl.QueueEmptyStatusListener
+import org.greatcactus.xs.impl.QueueEmptyStatus
 //import scala.concurrent.ExecutionContext.Implicits.global
 /**
  * The controller for communication with an HTML client. The details of the transport are not
@@ -47,6 +49,7 @@ class HTML5Client(val xsedit:XSEdit,val toolbar:Option[XSToolBar],val locale:Loc
     override def dispose() {
       xsedit.removeDetailsPane(detailsPane)
       xsedit.removeTreeListener(treeListener)
+      xsedit.dependencyInjectionCleaningQueue.removeQueueEmptyListener(queueEmptyListener)
       xsedit.unregisterActiveEditor()
     }
     override def getDraggedElement(subid:String) : Option[XSClipBoard] = {
@@ -62,6 +65,14 @@ class HTML5Client(val xsedit:XSEdit,val toolbar:Option[XSToolBar],val locale:Loc
   }
   val detailsPane : HTML5DetailsPane = new HTML5DetailsPane(this)
   xsedit.addDetailsPane(detailsPane)
+  
+  val queueEmptyListener : QueueEmptyStatusListener = new QueueEmptyStatusListener {
+    override def queueEmptyStatusChanged(status:QueueEmptyStatus) {
+      session.addMessage(ClientMessage.workQueueStatus(status.isNowEmpty,status.sequenceNumber))
+    }
+  }
+  xsedit.dependencyInjectionCleaningQueue.addQueueEmptyListener(queueEmptyListener)
+
     /** If true, then modify the URL to store the currently selected element via a query string ?selected=xxxx */
   var savePermalinkInURL = false
 

@@ -269,6 +269,7 @@ object ClientMessage {
   def showCustomPopup(id:String,okJSFunction:String,resultJSFunction:String) = new SimpleClientMessage("ShowCustomPopup",Array(id,okJSFunction,resultJSFunction))
   def disposeCustomPopup(id:String) = new SimpleClientMessage("DisposeCustomPopup",Array(id))
   
+  def workQueueStatus(isEmpty:Boolean,sequenceNumber:Long) = new SimpleClientMessage("ServerStatus",Array(isEmpty.toString,sequenceNumber.toString))
   
   /** Paste data is converted into a 1D array, starting at index 4, with each row prepended by the length of the row */
   def unmungePasteGrid(args:Array[String]) : Array[Array[String]] = {

@@ -344,6 +344,18 @@ val deserialized : Complex = XMLDeserialize.deserialize[Complex](serializedData)
          object in the URL. Don't do this with big objects! To use this, use <code>StringMapDeserialize.deserializeURL</code>. </li>
    </ul>
    
+   <h3>Busy notification</h3>
+   <p>An image with id <code>XSServerInUse</code> will have its css style set to <code>position:absolute</code> when the server is in use, and <code>display:none</code> otherwise.
+   The server is considered in use when:</p>
+   <ul>
+     <li>The user has performed some action, and the client has not yet received an acknowledgement from the server</li>
+     <li>The server is still processing dependency injection etc functions</li>
+     <li>A <code>Future</code> or <code>InterruptibleFuture</code> or <code>ObsoleteableInteruptableFuture</code> returned from a dependency injection function has not completed yet.</li>
+   </ul>
+   
+   <p>A typical use is to have HTML like <code>&lt;span style="position:relative;height:2em;"&rt;&lt;img width="16px" height="16px" id="XSServerInUse" style="display:none;" src="Spinner2.gif"/&rt;&lt;/span&rt;</code> 
+   somewhere on the page.A suitable Spinner.gif is provided.</p>
+   
    <h2>Other ways of using it</h2>
    There are a variety of components in XS that are of use in their own right outside of XS
    <h3>HTML Tree Browser</h3>
