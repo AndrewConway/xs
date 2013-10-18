@@ -341,7 +341,7 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit,val executio
   
   def refresh() {
     synchronized {
-      storeSelectedOnClient(currentlyShowing.map{_.somewhatPermalink}.getOrElse(null))
+      if (shouldStoreSelectedOnClient) storeSelectedOnClient(currentlyShowing.map{_.somewhatPermalink}.getOrElse(null))
       for (uifields<-currentUIElements; node<-currentlyShowing; uifield<-uifields.elems) uifield.refresh(node)
       flushClientCommands()
     }
