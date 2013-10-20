@@ -59,7 +59,10 @@ function xsProcessClientMessageFromServer(json,session) {
 			elem.innerHTML=json.args[2];
 		} else if (json.cmd=="Run") {
 			// console.log("Got to Run with "+json.args[0]);
-			try { eval(json.args[0]);} catch(err) { console.log(err);}
+			try { eval(json.args[0]);} catch(err) { 
+				console.log(err);
+				console.log(json.args[0]);
+				}
 		} else if (json.cmd=="Show") {
 			$(json.args[0]).show();
 		} else if (json.cmd=="Hide") {
@@ -306,24 +309,24 @@ var xs = {
    * Resizing the grid is more complex than one might think. The width has to be specified explitly (slick grid requirement). 
    * Making it bigger is not too bad - if the area is expanded, the table is made wider, and extra slop goes into the wide cell because of the CSS width=99%. You get the width of the div it is in, and resize to that size (although it creates a scrollbar if there is not a 1-2 pixel slop - see to do below)
    *
-   * Making it smaller is harder - the td it is in will not shrink as it contains a wide grid. We can't make the table layout algorithm ignore its with
+   * Making it smaller is harder - the td it is in will not shrink as it contains a wide grid. We can't make the table layout algorithm ignore its width
    * without also ignoring its height... So look at parents and adjust.
+   * 
+   * TODO There is a currently unfixed bug in Chrome that stuffs this up if it is in a table inside a table. 
    */
   resizeSlickGrid : function(tableHolderElem) {
-	//console.log("width = "+tableHolderElem.clientWidth);  
-	//console.log("width = "+tableHolderElem.offsetWidth);  
+	//console.log("Start resizeSlickGrid, tableHolder clientWidth = "+tableHolderElem.clientWidth+" offsetWidth = "+tableHolderElem.offsetWidth);  
 	var td = xs.getParentTD(tableHolderElem);
-//	console.log(td);
+	//console.log("td clientWidth = "+td.clientWidth+" offsetWidth = "+td.offsetWidth);  
+	//console.log(td);
 	if (!td) return;
 	var tr = td.parentNode;
-//	console.log(tr);
+	//console.log(tr);
 	if (!tr) return;
-	//console.log("tr.width = "+tr.clientWidth);  
-	//console.log("tr.width = "+tr.offsetWidth);  
+	//console.log("tr clientWidth = "+tr.clientWidth+" offsetWidth = "+tr.offsetWidth);  
 	var pdiv = xs.getParentDiv(tr);
 	if (!pdiv) return;
-	//console.log("pdiv.width = "+pdiv.clientWidth);  
-	//console.log("pdiv.width = "+pdiv.offsetWidth);  
+	//console.log("pdiv.clientWidth = "+pdiv.clientWidth+"  offsetWidth = "+pdiv.offsetWidth);  
 	var toowide = tr.offsetWidth-pdiv.clientWidth+4;  // TODO get this pixel perfect. The +4 works on most size clients, with a little slop
 	var w=tableHolderElem.clientWidth-2; // TODO get this pixel perfect. Again there is a little slop here
 	if (toowide>0) w=w-toowide;
@@ -332,7 +335,9 @@ var xs = {
 	tableHolderElem.dataCurrentWidth = w;
 	var slickgrid = tableHolderElem.dataxs_sg;
     $(tableHolderElem).children('.xsTableGrid').css({'width':""+w+'px'});
+	//console.log("Resized children, tableHolder clientWidth = "+tableHolderElem.clientWidth+" offsetWidth = "+tableHolderElem.offsetWidth);  
     slickgrid.resizeCanvas();
+	//console.log("End resizeSlickGrid, tableHolder clientWidth = "+tableHolderElem.clientWidth+" offsetWidth = "+tableHolderElem.offsetWidth);  
   },
   
   saveSlickGridEditor : function(grid) {

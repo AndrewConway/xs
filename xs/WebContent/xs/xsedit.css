@@ -35,6 +35,7 @@ div.xsTreeNodeCompleteNode {
 }
 .xsForm .xsColLabel {
 	white-space: nowrap;
+	width: 1%;
 }
 
 .xsInlineFieldBorder > .xsFormWrapper {
