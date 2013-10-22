@@ -103,15 +103,13 @@ abstract class InterruptableFuture[+T] {
 
     p.future
   }
+  def isCompleted = future.isCompleted
 
 }
 
-class InterruptablePromise[T] { ipthis =>
-  val promise = concurrent.promise[T]
+trait Interruptable {
   private[this] var cancelled = false;
-  private[this] var executingThread : Thread = null // is not null iff the computation is currently ongoing. Border cases are synchronized.
   private[this] val cancelFunctions = new ListBuffer[() => Unit]
-  
   def onCancel(f: ()=>Unit) {
     synchronized {
       if (cancelled) f()
@@ -124,16 +122,27 @@ class InterruptablePromise[T] { ipthis =>
     synchronized {
       if (!cancelled) {
         cancelled = true
-        if (executingThread!=null) executingThread.interrupt()
+        
         for (f<-cancelFunctions) f()
         cancelFunctions.clear()
       }
     }
   }
+
+  def isCancelled = cancelled
+  
+}
+
+class InterruptablePromise[T] extends Interruptable { ipthis =>
+  
+  onCancel( () => {if (executingThread!=null) executingThread.interrupt()} )
+  
+  val promise = concurrent.promise[T]
+  private[this] var executingThread : Thread = null // is not null iff the computation is currently ongoing. Border cases are synchronized.
   
   def executeInAnInterruptableManner[S](code: => S) : S = {
       ipthis.synchronized {
-        if (cancelled) throw new InterruptedException
+        if (isCancelled) throw new InterruptedException
         Thread.interrupted() // if the thread is already interrupted, that is by something else.
         executingThread = Thread.currentThread()      
       }
@@ -206,8 +215,12 @@ object InterruptableFuture {
     } map (_.result)
   }
 
+  def apply[T](future:Future[T]) : InterruptableFuture[T] = new SimpleInterruptableFuture(future)
+
 }
 
+class SimpleInterruptableFuture[T](override val future:Future[T]) extends InterruptableFuture[T] with Interruptable 
+  
 
 /**
  * When a function returns a result that may become obsolete at some future time, it can also return a ChangeHandle. This allows
@@ -360,9 +373,21 @@ object ObsoletableAndInterruptableFuture {
       (fr, fa) => for (r <- fr; a <- fa.asInstanceOf[ObsoletableAndInterruptableFuture[A]]) yield (r += a)
     } map (_.result)
   }
+  
+  val alreadyObsoleteHandle = new ChangeHandle{ def dispose() {}}
+  alreadyObsoleteHandle.change()
 
+  val alreadyObsolete :ObsoletableAndInterruptableFuture[Nothing]  = new ObsoletableAndInterruptableFuture(InterruptableFuture.eagerFailure(new IsObsoleteException),List(alreadyObsoleteHandle))
 
+  val blank :ObsoletableAndInterruptableFuture[Null]  = new ObsoletableAndInterruptableFuture(InterruptableFuture.eager(null),Nil)
+  
+  /** Create a future that produces the result, except running said code itself as a future event */
+  def future[T](code: => ObsoletableAndInterruptableFuture[T])(implicit executor: ExecutionContext) : ObsoletableAndInterruptableFuture[T] = blank.flatMap{_ => code}
+    
+  
 }
+
+class IsObsoleteException extends Exception
 
 
 
