@@ -173,6 +173,10 @@ class FunctionEvaluationStatus(val function:DependencyInjectionFunction,val args
           updateOnFutureDirtyable=Set.empty   
         }
     }(XSExecutionContext.context)
+    f.onFailure{
+      case can:CancelledThrowable => 
+      case e:Throwable => println("Error in future "); e.printStackTrace()
+    }(XSExecutionContext.context)
     holder.associatedNode.xsedit.dependencyInjectionCleaningQueue.addPendingFuture(festhis)
     f.onComplete{case _ => holder.associatedNode.xsedit.dependencyInjectionCleaningQueue.removePendingFuture(festhis)}(XSExecutionContext.context)
   }

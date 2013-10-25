@@ -125,6 +125,7 @@ class DependencyInjectionCleaningQueue {
   }
   def removeQueueEmptyListener(l:QueueEmptyStatusListener) { synchronized {queueFullListeners-=l}}
   
+  def status : String = (if (isEmpty) "Current" else "Queue length "+nodesNeedingCleaning.length)+(if (someThreadIsAlreadyCleaning.availablePermits==1) "" else "Working")
 }
 
 /** If you care about knowing whether the queue is empty or not, then register one of these with addQueueFullListener. */

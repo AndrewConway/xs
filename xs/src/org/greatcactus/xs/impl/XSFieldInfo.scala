@@ -358,7 +358,7 @@ class XSFieldInfo(val fieldSymbol:reflect.runtime.universe.Symbol,val index:Int,
     
     val namesOfExpectedFields : Seq[String] = 
       if (isIndividuallyEditable) xsinfo.get.transitiveSubclasses.map{"add."+_.name}
-      else if (isStringEditable || isBooleanEditable) List(name)
+      else if (isStringEditable || isBooleanEditable || isInlineEditable) List(name)
       else Nil
     // println(" param "+name+" type "+ptype+" isScalaCollection="+isScalaCollection+" isArray="+isArray+"  base type="+baseType)
       
