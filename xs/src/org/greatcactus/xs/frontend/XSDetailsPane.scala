@@ -444,6 +444,7 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit,val executio
         changeUIenabledness(gui,shouldBeEnabled)
       }    
       val shouldBeVisible = field.shouldBeVisible(node)
+      if (field.name=="editedSubsection") println("Field "+field.name+" id "+gui+" shouldBeVisible="+shouldBeVisible+" currently="+currently.visible)
       if (shouldBeVisible!=currently.visible) {
         currently.visible=shouldBeVisible
         changeUIvisibility(gui,shouldBeVisible)

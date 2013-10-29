@@ -193,7 +193,8 @@ val deserialized : Complex = XMLDeserialize.deserialize[Complex](serializedData)
    (<code>line:abc</code> if you want it prewrapped in a table). If you want your field (label) wrapped in an inline-block, you can
    use <code>fieldib:abc</code> (<code>labelib:abc</code>) - either of which can take an attribute <code>width</code> with an
    approriate css value. <code>xs:pack</code> is a utility which will process the contents of the node, dropping trailing whitespace,
-   and make the contents into a line with the last child taking up the rest of the line.</p> 
+   and make the contents into a line with the last child taking up the rest of the line. A node called <code>visibility:fieldName</code>
+   will wrap its children in a <code>span</code> which is shown when the corresponding field should be visible.</p> 
    
    <h3>Errors</h3>
       <aside>Refers to package <code>org.greatcactus.xs.api.errors</code></aside>

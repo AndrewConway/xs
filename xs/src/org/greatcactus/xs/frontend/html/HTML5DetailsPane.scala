@@ -134,7 +134,10 @@ class HTML5DetailsPane(val client:HTML5Client) extends XSDetailsPane[String](cli
   def changeUIBooleanField(id:String,shouldBe:Boolean) { client.queueMessage(ClientMessage.setCheckedID(id+"_ui",shouldBe)) }
   def changeUIShowText(id:String,shouldBe:RichLabel) { jsSetHTML(id+"_ui",shouldBe)}
 
-  def changeUIvisibility(id:String,visible:Boolean) { client.queueMessage(ClientMessage.setVisibleID(id+"_all", visible)) } // hidden does not work on IE. jsSetAttribute(id+"_all","hidden",if (visible) null else "hidden") }
+  def changeUIvisibility(id:String,visible:Boolean) {
+    // println("Set visibility "+id+" to "+visible)
+    client.queueMessage(ClientMessage.setVisibleID(id+"_all", visible)) 
+  } // hidden does not work on IE. jsSetAttribute(id+"_all","hidden",if (visible) null else "hidden") }
   def changeUIenabledness(id:String,enabled:Boolean)  { /* client.queueMessage(ClientMessage.setEnabledID(id+"_ui", enabled))} */ jsSetAttribute(id+"_ui","disabled",if (enabled) null else "disabled") }
   def changeUILabelText(id:String,shouldBe:RichLabel) { jsSetHTML(id+"_labeltext",shouldBe) }
   def changeUILabelIcon(id:String,shouldBe:Option[Icon]) { jsSetHTML(id+"_labelicon",GUICreatorHTML5.rawicon(shouldBe)) }
@@ -284,9 +287,9 @@ class GUICreatorHTML5(pane:HTML5DetailsPane,inlineParentDivId:Option[String]) ex
   val postCreationJavascript = new ListBuffer[ClientMessage]
   
   override def getExecutionContext = pane.client.executionContext
-  private def addRow(row:xml.Elem,visible:Boolean,fieldName:String,field:NodeSeq,label:NodeSeq) { 
+  private def addRow(row:xml.Elem,visible:Boolean,fieldName:String,field:NodeSeq,label:NodeSeq,id:String) { 
     val withvisibility = XSHTMLUtil.possiblySetNoDisplay(row,visible)
-    for (t<-template) t.add(fieldName,field,label,withvisibility)
+    for (t<-template) t.add(fieldName,field,label,withvisibility,id,visible)
     //println("Adding row "+row)
     rowBuffer+=withvisibility 
   }
@@ -377,7 +380,7 @@ class GUICreatorHTML5(pane:HTML5DetailsPane,inlineParentDivId:Option[String]) ex
     val link = addTitle(<a id={id+"_ui"} href="javascript:void(0)" onclick={sessionprefix+"action('"+id+"');false"}>{iconlabel(field.icon,currently,id)}{textlabel(field.label,currently,id)}</a>,field.tooltip)
     val withenabled = addEnabled(link,currently.enabled)
     val inrow = <tr id={id+"_all"}><td colspan="2">{withenabled}</td></tr>
-    addRow(inrow,currently.visible,field.name,withenabled,NodeSeq.Empty)
+    addRow(inrow,currently.visible,field.name,withenabled,NodeSeq.Empty,id)
     id
   }
   override def createProgressMonitor(id:String) : ()=>ProgressMonitor = () => {
@@ -538,7 +541,7 @@ class GUICreatorHTML5(pane:HTML5DetailsPane,inlineParentDivId:Option[String]) ex
         else <tr id={id+"_all"}><td class="xsColLabel">{label}</td>{mainTD(1)}</tr>
       }
     }
-    addRow(inrow,currently.visible,field.name,fieldHTML,label) 
+    addRow(inrow,currently.visible,field.name,fieldHTML,label,id) 
   }
   
   def createBooleanField(field:DetailsPaneFieldBoolean,currently:CurrentFieldState,initialValue:Boolean) : String = {
@@ -572,11 +575,15 @@ class FillInTemplate(val template:Node) {
   var fields : Map[String,NodeSeq] = Map.empty
   var labels : Map[String,NodeSeq] = Map.empty
   var trs : Map[String,NodeSeq] = Map.empty
+  var ids : Map[String,String] = Map.empty
+  var visible : Set[String] = Set.empty
 
-  def add(name:String,field:NodeSeq,label:NodeSeq,tr:NodeSeq) {
+  def add(name:String,field:NodeSeq,label:NodeSeq,tr:NodeSeq,id:String,isVisible:Boolean) {
     fields+=name->field
     labels+=name->label
     trs+=name->tr
+    ids+=name->id
+    if (isVisible) visible+=name
   }
   
   def get : NodeSeq = {
@@ -608,6 +615,12 @@ class FillInTemplate(val template:Node) {
           }
           case Elem("tr",fieldName, attribs, scope, children @ _*) => trs.get(fieldName).getOrElse(NodeSeq.Empty)
           case Elem("line",fieldName, attribs, scope, children @ _*) => <table class="xsForm">{trs.get(fieldName).getOrElse(NodeSeq.Empty)}</table>
+          case Elem("visibility",fieldName, attribs, scope, children @ _*) => ids.get(fieldName) match {
+            case Some(id) =>
+              val style = if (visible(fieldName)) "" else "display:none;"
+              <span id={id+"_all"} style={style}>{children flatMap (this.transform)}</span>
+            case None => Text("Invalid field name "+fieldName)
+          }
           case elem: Elem =>
             //println("Other elem : prefix = "+elem.prefix+" namespace = "+elem.namespace+" name="+elem.label)
             elem copy (child = elem.child flatMap (this.transform))

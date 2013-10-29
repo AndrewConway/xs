@@ -36,6 +36,7 @@ import org.greatcactus.xs.api.edit.UpdateField
 import org.greatcactus.xs.api.display.Localizable
 import java.util.Locale
 import org.greatcactus.xs.api.display.TextLocalizationResources
+import java.util.concurrent.ExecutionException
 
 
 /** 
@@ -175,6 +176,8 @@ class FunctionEvaluationStatus(val function:DependencyInjectionFunction,val args
     }(XSExecutionContext.context)
     f.onFailure{
       case can:CancelledThrowable => 
+      case _ : InterruptedException =>
+      case e : ExecutionException if e.getCause().isInstanceOf[InterruptedException] =>
       case e:Throwable => println("Error in future "); e.printStackTrace()
     }(XSExecutionContext.context)
     holder.associatedNode.xsedit.dependencyInjectionCleaningQueue.addPendingFuture(festhis)
