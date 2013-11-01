@@ -384,11 +384,100 @@ object ObsoletableAndInterruptableFuture {
   /** Create a future that produces the result, except running said code itself as a future event */
   def future[T](code: => ObsoletableAndInterruptableFuture[T])(implicit executor: ExecutionContext) : ObsoletableAndInterruptableFuture[T] = blank.flatMap{_ => code}
     
-  
 }
 
 class IsObsoleteException extends Exception
 
+/**
+ * OIFs are not immutable, as they can be cancelled and the obsolete listeners can be disposed.
+ * In particular, this means you can't return the same OIF to two different places, which makes
+ * caching difficult. This class helps here.
+ * 
+ * The basic idea: you make an instance of this class out of an OIF. You can then get as many
+ * OIFs from it as you like.
+ * 
+ * Semantics:
+ *   (1) A record is kept of the number of listeners using the Obsoleteable portion
+ *   (2) cancel called on one of the OIFs will not cancel the original OIF unless it is the only remaining client OIF, in which case the original OIF will be cancelled.
+ *   (3) When all client OIFs are disposed, the parent OIF will be disposed [ this can be overridden ]
+ *   (4) If a client OIF is requested after the cache is no longer valid (original OIF disposed or cancelled, or gave obsolete message), then an already obsolete result will be produced.
+ * 
+ */
+class ObsoletableAndInterruptableFutureCache[T](original:ObsoletableAndInterruptableFuture[T],implicit val executor:ExecutionContext) {
+  private[this] var disposed = false
+  private[this] var clients : Set[ObsoletableAndInterruptableFutureCacheClient[T]] = Set.empty
+  private[this] var finishedResult : Option[Try[T]] = None
+  
+  def dispose() {
+    synchronized {
+      if (!disposed) {
+        original.dispose()
+        for (c<-clients) c.invalidate()
+      }
+    }
+  }
+  
+  original.addChangeListener(() => dispose())
+  
+  private def completed(res:Try[T]) {
+    synchronized {
+      finishedResult = Some(res)
+      for (c<-clients) c.completed(res)
+    }
+  }
+  
+  original.future.future.onComplete{completed _}
+  
+  /** Called when the number of client OIFs has reduced to zero. Can override it if you want to preserve */
+  def reachedZeroClients() { original.future.cancel(); dispose() }
+  
+  def get() : ObsoletableAndInterruptableFuture[T] = {
+    synchronized {
+      if (disposed) {
+        ObsoletableAndInterruptableFuture.alreadyObsolete // invalid result
+      } else {
+        val client = new ObsoletableAndInterruptableFutureCacheClient(this)
+        clients+=client
+        for (res<-finishedResult) client.completed(res)
+        client.get  
+      }
+    }
+  }
+  
+  /** Mostly for debugging purposes. */
+  def numClients : Int = synchronized { clients.size}
+  
+  def childDispose(client:ObsoletableAndInterruptableFutureCacheClient[T]) {
+    synchronized {
+      clients-=client
+      if (clients.isEmpty) reachedZeroClients()
+    }
+  }
+  
+  def childCancel(client:ObsoletableAndInterruptableFutureCacheClient[T]) {
+    synchronized {
+      clients-=client
+      if (clients.isEmpty) reachedZeroClients()
+    }
+  }
+  
+}
 
-
-
+private class ObsoletableAndInterruptableFutureCacheClient[T](cache:ObsoletableAndInterruptableFutureCache[T]) { clientthis=>
+  
+  val obsolete = new ConventionalChangeHandle
+  val promise = new InterruptablePromise[T]
+  val future = promise.future
+  
+  obsolete.addDisposalFunction{()=> cache.childDispose(clientthis) }
+  future.onCancel{() => cache.childCancel(clientthis)}
+  
+  def dispose() { obsolete.dispose() }
+  def invalidate() { obsolete.change() }
+  
+  def get : ObsoletableAndInterruptableFuture[T] = new ObsoletableAndInterruptableFuture(future,List(obsolete))
+  // extends ConventionalChangeHandle
+  
+  def completed(res:Try[T]) { promise.complete(res) }
+  
+}
