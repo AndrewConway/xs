@@ -115,14 +115,15 @@ class FunctionEvaluationStatus(val function:DependencyInjectionFunction,val args
   private[this] var isExternallyChanged = false
 
   def onExternalChange() {
-    synchronized {
+    val notifyHolder = synchronized {
       if (!isExternallyChanged) {
         isExternallyChanged=true
         for (f<-callbackOnDispose) f()
         callbackOnDispose=None // not really necessary, but could help GC
-        holder.changedExternalResource(this)    
-      }
+        true
+      } else false
     }
+    if (notifyHolder) holder.changedExternalResource(this)    
   }
   def setCallbackOnDispose(f:()=>Unit) {
     synchronized {
@@ -158,21 +159,23 @@ class FunctionEvaluationStatus(val function:DependencyInjectionFunction,val args
     f.onSuccess{
       case newres => 
         if (holder.debug) println("Function "+function.name+" resolved as a future to "+newres)
+        val todoOutsideOfSynchronized = new ListBuffer[() => Unit] // to prevent deadlock
         completedFutureSync.synchronized {
           completedFuture = Some(newres.asInstanceOf[AnyRef])
-          for (n<-updateOnFutureGUI) n.updateGUI()
+          for (n<-updateOnFutureGUI) todoOutsideOfSynchronized+= n.updateGUI
           updateOnFutureGUI=Set.empty   
-          for (n<-updateOnFutureGUIincludingErrorLevels) n.updateGUIincludingErrorLevels()
+          for (n<-updateOnFutureGUIincludingErrorLevels) todoOutsideOfSynchronized+= n.updateGUIincludingErrorLevels
           updateOnFutureGUIincludingErrorLevels=Set.empty   
-          for (n<-updateOnFutureGUIIncludingTableFieldsCache) n.updateGUIIncludingTableFieldsCache()
+          for (n<-updateOnFutureGUIIncludingTableFieldsCache) todoOutsideOfSynchronized+= n.updateGUIIncludingTableFieldsCache
           updateOnFutureGUIIncludingTableFieldsCache=Set.empty   
           for (dirtyable<-updateOnFutureDirtyable) {
             if (holder.debug) println("Recomputing dependency injections as future resolved for "+function.name)
-            dirtyable.makeDirty()
-            dirtyable.associatedNode.xsedit.dependencyInjectionCleaningQueue.cleanReturningInstantlyIfSomeOtherThreadIsAlreadyCleaning()
+            todoOutsideOfSynchronized+= dirtyable.makeDirty
+            todoOutsideOfSynchronized+= dirtyable.associatedNode.xsedit.dependencyInjectionCleaningQueue.cleanReturningInstantlyIfSomeOtherThreadIsAlreadyCleaning
           }
           updateOnFutureDirtyable=Set.empty   
         }
+        XSExecutionContext.context.execute(new Runnable() {override def run() {for (todo<-todoOutsideOfSynchronized) todo()}}) // done in a separate thread in case the thing calling this has lots of locks.
     }(XSExecutionContext.context)
     f.onFailure{
       case can:CancelledThrowable => 
@@ -564,14 +567,15 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
   }
   
   def changedExternalResource(obsoleted:FunctionEvaluationStatus) {
-    synchronized {
+    val needclean = synchronized {
       if (existingResolved.get(obsoleted.function)==Some(obsoleted)) {
         existingResolved-=obsoleted.function
         if (debug) println("Changed external resource for "+parentObject)
         makeDirty()
-        associatedNode.xsedit.dependencyInjectionCleaningQueue.cleanReturningInstantlyIfSomeOtherThreadIsAlreadyCleaning()
-      }
+        true
+      } else false
     }
+    if (needclean) associatedNode.xsedit.dependencyInjectionCleaningQueue.cleanReturningInstantlyIfSomeOtherThreadIsAlreadyCleaning()
   }
   
 }

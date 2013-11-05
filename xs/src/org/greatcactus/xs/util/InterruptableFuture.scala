@@ -245,14 +245,18 @@ trait ChangeHandle {
   def dispose()
   
   /** Call when a change actually happens */
-  def change() { synchronized { 
+  def change() {
     //println("ChangeHandle "+this+" change()")
-    if (!hadChange) {
-      hadChange = true
-      for (l<-changeListeners) l()
-      changeListeners=Nil
+    val tonotify : List[()=>Unit] = synchronized { 
+      if (!hadChange) {
+        hadChange = true
+        val res = changeListeners
+        changeListeners=Nil
+        res
+      } else Nil
     }
-  }}
+    for (l<-tonotify) l()
+  }
 }
 
 /**
@@ -314,6 +318,73 @@ class ChangeHandleBuffer extends ChangeHandle {
       }
     }
   }
+}
+
+
+
+
+/**
+ * Helpful utility - maintains a list of things that care about some change. Like ChangeHandleBuffer, except multiple use.
+ * Useful when you have some global resource (e.g. a file system file) that may change multiple times. Each time
+ * it changes, call callAndClear(). This will call change() on all the obsolete handles previously associated with this
+ * list.
+ */
+class OnObsoleteList(val name:String=null) {
+  @volatile private[this] var handles : Set[ChangeHandleForObsoleteList] = Set.empty
+  
+  private[this] var callbackOnEmpty : Set[()=>Unit] = Set.empty // for functions that want to know when something has become empty.
+  
+  def remove(h:ChangeHandleForObsoleteList) { 
+    val gotToZero = synchronized { handles-=h; handles.isEmpty }
+    if (gotToZero) for (h<-callbackOnEmpty) h()
+  }
+  def add(h:ChangeHandleForObsoleteList) { synchronized { handles+=h }}
+
+  
+  def removeCallbackOnEmpty(h:()=>Unit) { synchronized { callbackOnEmpty-=h }}
+  /** add a function that will be called whenever the handle count gets down to zero. */
+  def addCallbackOnEmpty(h:()=>Unit) { synchronized { callbackOnEmpty+=h }}
+
+  def callAndClear() {
+    val backupHandles = synchronized {
+      //println("Clearing handles"+handles.mkString(","))
+      val backupHandles = handles
+      handles=Set.empty
+      backupHandles
+    }
+    for (h<-backupHandles) h.change()
+  }
+
+  /** Like callAndClear, except doesn't actually do the work of calling. Instead returns a set of work to do. This can be done in a separate thread if desired. Returns None in the common case of no work to do. This can be better than just calling callAndClear in a separate thread as fewer runnables will be scheduled */
+  def callAndClearReturningWork() : Option[()=>Unit] = {
+    val backupHandles = synchronized {
+      //println("Clearing handles"+handles.mkString(","))
+      val backupHandles = handles
+      handles=Set.empty
+      backupHandles
+    }
+    if (backupHandles.isEmpty) None else Some({()=>for (h<-backupHandles) h.change()})
+  }
+  
+  /** For status / debugging */
+  def length : Int = handles.size
+  def status : String = length.toString+"\n"+handles.mkString("\n")
+  def isUsed : Boolean = synchronized { !handles.isEmpty }
+  
+  def getChangeHandle() : ChangeHandle = new ChangeHandleForObsoleteList(this)
+}
+
+/**
+ * Change handle associated with an OnObsoleteList
+ * 
+ */
+
+class ChangeHandleForObsoleteList(ool:OnObsoleteList) extends ChangeHandle {
+  override def dispose() { 
+     //println("ChangeHandleBuffer "+this+" dispose()")
+       ool.remove(this) 
+  }
+  ool.add(this)
 }
 
 

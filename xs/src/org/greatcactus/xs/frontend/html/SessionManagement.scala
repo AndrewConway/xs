@@ -98,7 +98,7 @@ class HTTPSession(val worker:HTTPSessionWorker) {
   /** A better way to do comet calls - via futures. */
   def cometCallFuture : Future[Option[ClientMessage]] = {
     // println("Pre synchronized block in cometCallFuture")
-    synchronized {
+    outgoingSyncObject.synchronized {
       println("Starting cometCallFuture for session "+id)
       pendingResponse match {
         case Some(p) => p.success(None); pendingResponse=None // may happen if the server goes to sleep for a long time.
@@ -122,7 +122,7 @@ class HTTPSession(val worker:HTTPSessionWorker) {
   
   /** force a promise to timeout if it is still the current one */
   private def timeoutPromise(promise:Promise[Option[ClientMessage]]) {
-    synchronized {
+    outgoingSyncObject.synchronized {
       pendingResponse match {
         case Some(p) if p eq promise => pendingResponse=None; promise.success(None)
         case None =>
@@ -156,7 +156,7 @@ class HTTPSession(val worker:HTTPSessionWorker) {
   }
   
   def addMessage(message:ClientMessage) {
-    synchronized {
+    outgoingSyncObject.synchronized {
       pendingResponse match {
         case None => pendingSendToClient.add(message)
         case Some(promise) =>
@@ -167,6 +167,8 @@ class HTTPSession(val worker:HTTPSessionWorker) {
     }  
   }
   
+  val incomingSyncObject = new Object
+  val outgoingSyncObject = new Object
   var numProcessedFromClientMessage = 0L
   var largestFromClientMessage = -1L
   class SavedClientMessage(val count:Long,val message:ClientMessage) extends Ordered[SavedClientMessage] {
@@ -188,7 +190,7 @@ class HTTPSession(val worker:HTTPSessionWorker) {
    * then it means that some earlier messages have possibly been lost, and they will be resent.
    */
   def receivedPossiblyUnorderedMessage(message:ClientMessage,messageCount:Long) : SimpleClientMessage = {
-    synchronized {
+    incomingSyncObject.synchronized {
       if (messageCount==numProcessedFromClientMessage) {
         numProcessedFromClientMessage+=1
         receivedOrderedMessage(message)
