@@ -37,6 +37,9 @@ function xsProcessClientMessageFromServer(json,session) {
 			$(json.args[0]).addClass(json.args[1]);
 		} else if (json.cmd=="RemoveClass") {
 			$(json.args[0]).removeClass(json.args[1]);
+		} else if (json.cmd=="Ping") { // do nothing
+		} else if (json.cmd=="WSAck") {
+			session.receivedWSAck(parseInt(json.args[0]));
 		} else if (json.cmd=="GotoURL") {
 			window.location.href=json.args[0];
 		} else if (json.cmd=="GotoURLNewTab") {
@@ -389,10 +392,34 @@ var xs = {
   
   
   Session : function(sessionid) {
+	  var xsthis = this;
+
 	  this.sessionClosed = false;
 	  this.id = sessionid;
 	  this.sentMessageCount = 0;
 	  this.currentlyEditing = "";
+	  this.usesWebsockets = window.WebSocket && xs.wsURL;
+	  this.websocket = this.usesWebsockets? new WebSocket(xs.wsURL+"?xsSessionID="+sessionid) : null;
+	  
+	  var ackExpectedFromWS = 0;
+	  this.errorInServerConnection = function(cause) {
+		  if (!xsthis.sessionClosed) { 
+			  if (xsthis.sentMessageCount>0) alert("reloading from server"); 
+			  else $("body").hide();
+			  location.reload(true); 
+		  }
+	  };
+
+	  if (this.usesWebsockets) {
+		  //console.log("Using web sockets");
+		  this.websocket.onerror = function(e) { xsthis.errorInServerConnection("Could not connect to server by websockets");};
+		  this.websocket.onclose = function(e) { xsthis.errorInServerConnection("Lost Session");};
+		  this.websocket.onmessage = function(e) {
+			  //console.log("Received message "+e.data);
+			  xsProcessClientMessageFromServer(JSON.parse(e.data),xsthis); 
+		  };
+	  }
+
 	  /** Actually do the sending of a command. This is a low level interface - you would normally use this.sendToServer */
 	  var sendCmd = function(cmd,isSynchronous) {
 			$.ajax({
@@ -443,16 +470,32 @@ var xs = {
     	  },delay);
       };	  
 	  
+      this.receivedWSAck = function(count) {
+    	  //console.log("Received ack "+count+" waiting for "+ackExpectedFromWS);
+    	  if (acksPending && count==ackExpectedFromWS) {
+			  acksPending=false;
+			  xs.removeBusyness();    		  
+    	  }
+      };
+      
 	  this.sendToServer = function (message,isSynchronous) {
-		  if (!acksPending) {
-			  acksPending=true;
-			  xs.addBusyness();
-		  }
+	    if (!acksPending) {
+		  acksPending=true;
+		  xs.addBusyness();
+		}
+	    if (this.usesWebsockets) {
+	      //console.log("Sending message "+message);
+		  this.websocket.send(JSON.stringify(message));	  
+		  this.websocket.send(JSON.stringify({cmd:"ReqWSAck",args:[""+this.sentMessageCount]})); // sent for the sole purpose of wait cursor
+		  ackExpectedFromWS=this.sentMessageCount;
+		  //console.log("Waiting for ack "+ackExpectedFromWS);
+		} else { 
 		  var cmd = { index : this.sentMessageCount, "message" : message };
-		  this.sentMessageCount++;
 		  sendBuffer.push(cmd);
 		  sendCmd(cmd,isSynchronous);
 		  considerResending(10000,cmd.index);
+		}
+        this.sentMessageCount++;
 	  };
 	  
 	  var serverIsFinishedComputing = true;
@@ -736,7 +779,6 @@ var xs = {
 		  xsthis.sendToServer({cmd:"TableContextMenu",args:[tableid,subtype,selectedrows.toString(),xsthis.currentlyEditing]});
 	  };
 	  
-	  var xsthis = this;
 		
 	  this.imageFromBlob = function(id,elem,blob) {
 		  // console.log(blob);
@@ -792,7 +834,7 @@ var xs = {
 		  try { ev.dataTransfer.effectAllowed='copy'; } catch (err) {} // causes exception on IE9
 	  };
 	  
-	  window.addEventListener("beforeunload", function( event ) {
+	  if (!this.usesWebsockets) window.addEventListener("beforeunload", function( event ) {
 		  if (!xsthis.sessionClosed) {
 			  xsthis.sessionClosed = true;
 			  $("body").hide();
@@ -802,13 +844,6 @@ var xs = {
       });
 
 
-	  this.errorInServerConnection = function(cause) {
-		  if (!xsthis.sessionClosed) { 
-			  if (xsthis.sentMessageCount>0) alert("reloading from server"); 
-			  else $("body").hide();
-			  location.reload(true); 
-		  }
-	  };
 	  this.cometCall = function() {
 		  $.ajax({
 			  cache : false,
@@ -831,9 +866,11 @@ var xs = {
 		  });
 		  
 	  };
-	  $(document).ready(function(){
-		  xsthis.cometCall();
-      });
+	  if (!this.usesWebsockets) {
+		  $(document).ready(function(){
+			  xsthis.cometCall();
+	      });		  
+	  }
 	  
 	  
   }, // end session definition

@@ -207,15 +207,20 @@ class HTTPSession(val worker:HTTPSessionWorker) {
   }
   
   def receivedOrderedMessage(message:ClientMessage) {
+   try {
      message match {
       case sm:SimpleClientMessage =>
+        //println("Received message "+sm.command)
         if (sm.command=="CloseConnection") {
            println("closed connection for "+id)
            dispose()
+        } else if (sm.command=="ReqWSAck" && sm.args.length==1) {
+           addMessage(ClientMessage.websocketAckMessage(sm.args(0)))
         } else worker.receivedMessage(sm)
       case mm:MultipleClientMessage => for (sub<-mm.commands) receivedOrderedMessage(sub)
       case _ => throw new IllegalArgumentException(message.toString)
     }
+   } catch { case e:Exception => e.printStackTrace(); }
   }
   
   //SessionManagement.addSession(this)

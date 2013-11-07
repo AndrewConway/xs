@@ -17,6 +17,7 @@ import org.greatcactus.xs.api.errors.ResolvedXSError
 import org.greatcactus.xs.api.display.RichLabel
 import java.io.StringWriter
 import org.greatcactus.xs.frontend.ColumnExtractors
+import java.io.ByteArrayOutputStream
 
 /**
  * Wrapper for commands sent to/from a HTML client, typically over HTTP or websockets.
@@ -30,6 +31,20 @@ sealed abstract class ClientMessage {
     serialize(g)
     g.close()
   }
+  
+  def serializeToByteArray() : Array[Byte] = {
+    val out = new ByteArrayOutputStream
+    serialize(out)
+    out.toByteArray()
+  }
+  def serializeToString() : String = {
+    val sw = new StringWriter
+    val g = ClientMessage.jsonFactory.createJsonGenerator(sw)
+    serialize(g)
+    g.close()
+    sw.toString()
+  }
+  override def toString = serializeToString
 }
 
 case class SimpleClientMessage(val command:String,val args:Array[String]) extends ClientMessage {
@@ -245,6 +260,8 @@ object ClientMessage {
   def setFieldIllegalContentsID(id:String,isIllegal:Boolean) = addClass("#"+id,"xsTotallyIllegal",isIllegal)
   def setGridTooltip(id:String,html:NodeSeq,gridID:String) = new SimpleClientMessage("SetGridTooltip",Array(id,html.toString,gridID))
   def lostSession = new SimpleClientMessage("LostSession",Array())
+  def ping = new SimpleClientMessage("Ping",Array()) // just keep a websocket connection alive.
+  def websocketAckMessage(ackid:String) = new SimpleClientMessage("WSAck",Array(ackid))
   def ackMessage(ackid:String) = new SimpleClientMessage("ACK",Array(ackid))
   def run(command:String) = new SimpleClientMessage("Run",Array(command))
   def changeURLQuery(urlQueryString:String) = new SimpleClientMessage("NewURLQuery",Array(urlQueryString)) // change the query part of the URL string without reloading.

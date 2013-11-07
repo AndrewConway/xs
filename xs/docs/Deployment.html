@@ -94,15 +94,23 @@
   
   <h3>Information Channel</h3>
   
-  <p>The information channel really consists of two independent channels, one for sending data to the server and one for sending data
-  to the client. (future feature - support websockets). These need URLs obviously; the default is to use the current web
+  <p>There are two possibilities for the infomation channel between the browser and the server:</p>
+  <ul>
+    <li>Websockets. These will be used where supported by the browser, and where xs.wsURL is set as described below. They have efficiency advantages, and allow more windows to the open at once, and deal well with the browser closing.</li>
+    <li>If websockets are not available, comet is used. The information channel really consists of two independent channels, one for sending data to the server and one for sending data
+  to the client.
+  </ul>
+  
+  <p> These need URLs obviously; the default is to use the current web
   page with a different query string - see the servlet example - but they can be overwritten to custom URLs by including a script
   such as the following (from the Play example) in the main web page:</p>
   <pre>
              xs.cometURL = '/xsComet';
              xs.userURL = '/xsUser'; 
+             xs.wsURL = 'ws://localhost:9000/websocket';
   </pre>
-  <p>Both calls will contain a query string containing a session identifier which is used to work out which
+  <p>The first two are for the Comet approach; the last is for websockets.
+  All calls will contain a query string containing a session identifier which is used to work out which
   client is being spoken to. This string can be decoded via <code>SessionManagement.get(sessionID)</code>.</p>
   
   
@@ -117,7 +125,26 @@
   the deserialized message and <code>messageCount</code> comes from the URL query string. See the demos for details.
   A return acknowledgement should be sent of the result from <code>session.receivedPossiblyUnorderedMessage(message, messageCount)</code>.</p>
   
-
+  <h3>Use of Websockets in Play</h3>
+  <p>You will want some code like:</p>
+<pre>
+  implicit val formatter : FrameFormatter[ClientMessage] = FrameFormatter.stringFrame.transform(_.serializeToString,ClientMessage.deserialize(_))
+  
+  def websocket(xsSessionID:String) = WebSocket.using[ClientMessage] { request => 
+    // println("Starting websocket "+xsSessionID)
+    SessionManagement.get(xsSessionID) match {
+      case None =>  // invalid session  
+        val in = Iteratee.foreach[ClientMessage]{_ => ()}  // discard input
+        val out = Enumerator[ClientMessage](ClientMessage.lostSession).andThen(Enumerator.eof)
+        (in, out)
+      case Some(session) =>
+        // println("Valid session")
+        val in = Iteratee.foreach[ClientMessage]{data=>/*  println(data); */ session.receivedOrderedMessage(data)}.mapDone { _ => session.dispose() }
+        val out = Enumerator.repeatM(session.cometCallFuture.map{_.getOrElse(ClientMessage.ping)})// .map{d=> println(d); d}
+        (in, out)
+    }
+  }
+</pre>
 
   
 </body>
