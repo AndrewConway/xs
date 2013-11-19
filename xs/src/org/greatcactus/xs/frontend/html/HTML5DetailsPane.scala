@@ -242,8 +242,9 @@ class HTML5DetailsPane(val client:HTML5ClientBase) extends XSDetailsPane[String]
 
   val detailsPaneProcessMessages : PartialFunction[SimpleClientMessage,Unit] = {
     case SimpleClientMessage("Action",Array(cmd,Int(context),Current(ok))) => if (ok) uiActivated(cmd,context)
-    case SimpleClientMessage("Change",Array(id,newValue,Current(ok))) => if (ok) uiChangedTextField(id,newValue,true)
-    case SimpleClientMessage("Change",Array(id,newValue,Current(ok),Int(row),columnName)) => 
+    case SimpleClientMessage("Change",Array(id,newValue,Current(ok))) => 
+    case SimpleClientMessage("Change",Array(id,newValue,Current(ok),"",_)) => if (ok) uiChangedTextField(id,newValue,true)
+    case SimpleClientMessage("Change",Array(id,newValue,Current(ok),Int(row),columnName)) =>
       val gridInd = id.lastIndexOf("_grid")
       if (ok && gridInd!= -1) uiChangeGrid(id.substring(0,gridInd),row,columnName,newValue)
     case SimpleClientMessage("ChangeCB",Array(id,Bool(newValue),Current(ok))) => if (ok) uiChangedBooleanField(id,newValue)
