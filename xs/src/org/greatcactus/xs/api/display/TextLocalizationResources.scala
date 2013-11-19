@@ -7,6 +7,7 @@ import java.util.ResourceBundle
 import java.util.Locale
 import java.util.MissingResourceException
 import scala.collection.mutable.ListBuffer
+import java.text.MessageFormat
 
 /**
  * For each class, provides the text localization information for it.
@@ -14,12 +15,19 @@ import scala.collection.mutable.ListBuffer
 
 trait TextLocalizationResources {
   /** The main API. Get (if present) the resource corresponding to a given key. */
+  def locale:Locale
   def get(key:String) : Option[String]
   def missing(key:String)
-  def apply(key:String) : String = get(key).getOrElse{missing(key); key}  
+  def apply(key:String) : String = get(key).getOrElse{missing(key); key}
+  
+  def format(key:String,args:Any*) : String = {
+    val formatter = new MessageFormat(apply(key))
+    formatter.setLocale(locale)
+    formatter.format(args.toArray)
+  }
 }
 
-class TextLocalizationResourcesAsSeq(files:Seq[TextLocalizationSingleFile]) extends TextLocalizationResources {
+class TextLocalizationResourcesAsSeq(files:Seq[TextLocalizationSingleFile],val locale:Locale) extends TextLocalizationResources {
 
   def get(key:String) : Option[String] = {
     for (f<-files;v<-f.get(key)) return Some(v)
@@ -32,6 +40,7 @@ class TextLocalizationResourcesAsSeq(files:Seq[TextLocalizationSingleFile]) exte
 }
 
 class PrefixedTextLocalizationResources(base:TextLocalizationResources,prefix:String) extends TextLocalizationResources {
+  override def locale = base.locale
   override def get(key:String) = base.get(prefix+key)
   override def missing(key:String) = base.missing(key)
 }
@@ -55,7 +64,7 @@ object TextLocalizationResources {
       c=c.getSuperclass
     }
     // also look at interfaces
-    new TextLocalizationResourcesAsSeq(res.toList)
+    new TextLocalizationResourcesAsSeq(res.toList,locale)
   }
   private def getTopLevelClass(clazz:Class[_]) : Class[_] = {
     val cc = clazz.getDeclaringClass()

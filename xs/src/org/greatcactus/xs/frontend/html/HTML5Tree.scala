@@ -24,13 +24,13 @@ import org.greatcactus.xs.frontend.XSClipBoard
  *   5) Include appropriate Javascript and CSS files (xsedit.js and xsedit.css)
  *   6) When a node changes in any way (open/closed, label, icon, children), call the refresh() function with that node.
  */
-class HTML5Tree[T <: AnyRef](val locale:Locale,val transport:HTMLTransport,val model:TreeModel[T],val root:T,val sessionprefix:String,val treeID:String,val allowMultipleSelection:Boolean,val allowDragging:Boolean) {
+class HTML5Tree[T <: AnyRef](val locale:Locale,val transport:HTMLTransport,val model:TreeModel[T],val root:T,val sessionprefix:String,val treeID:String,val allowMultipleSelection:Boolean,val allowDragging:Boolean,val initialSelection:Option[T]=None) {
 
   val treeDivID = "xsTree"+treeID
   val treePrefix = "xsTreeNode"+treeID+"_"  // tree ID added to make unique in page. This is often the session ID.
   def sessionprefixNoTrailingPeriod = sessionprefix.substring(0,sessionprefix.length-1)
     
-  var currentlySelected : Option[T] = Some(root)
+  var currentlySelected : Option[T] = initialSelection.orElse(Some(root))
   var alsoSelected : List[T] = Nil
 
   def getAllSelected : List[T] = currentlySelected match {
@@ -43,7 +43,8 @@ class HTML5Tree[T <: AnyRef](val locale:Locale,val transport:HTMLTransport,val m
   def newHTML(node:T,clicksAwayFromVisible:Int,postCreationJavascript:ListBuffer[String]) : (NodeSeq,OnClientTreeNode) = {
     val id = treePrefix+model.uniqueID(node)
     val isOpen = model.isOpen(node)
-    val isOpenString = if (model.children(node).isEmpty) "" else if (isOpen) "▼" else "►"
+    val children = model.children(node)
+    val isOpenString = if (children.isEmpty) "" else if (isOpen) "▼" else "►"
     //println("isOpenString = "+isOpenString+" length="+isOpenString.length)
     val opener = <span id={id+"_opener"} class="xsOpener" onclick={sessionprefix+"treeOpen('"+id+"'); return false"}>{isOpenString}</span>
     val iconURL = model.icon(node)
@@ -56,7 +57,7 @@ class HTML5Tree[T <: AnyRef](val locale:Locale,val transport:HTMLTransport,val m
     postCreationJavascript++=labelS.postCreationJavascript
     val childrenClicksAwayFromVisible = clicksAwayFromVisible+(if (isOpen) 0 else 1)
     val (kidsHTML,kidsLocal) = 
-      if (childrenClicksAwayFromVisible<=clicksAwayFromVisibleCutoff) model.children(node).map{newHTML(_,childrenClicksAwayFromVisible,postCreationJavascript)}.unzip
+      if (childrenClicksAwayFromVisible<=clicksAwayFromVisibleCutoff) children.map{newHTML(_,childrenClicksAwayFromVisible,postCreationJavascript)}.unzip
       else (Nil,Nil)
     val subsVisUnchecked = <ul id={id+"_subs"}>{kidsHTML.toList}</ul>
     val subs = XSHTMLUtil.possiblySetNoDisplay(subsVisUnchecked, isOpen)

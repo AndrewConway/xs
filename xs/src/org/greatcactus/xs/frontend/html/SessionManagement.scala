@@ -65,7 +65,8 @@ object SessionManagement {
   val scheduler:ScheduledExecutorService = Executors.newScheduledThreadPool(1) 
 }
 
-
+/** Used for dependency injection. Not added by default as there could be multiple session prefixes in a given dependency injection tree. */
+class HTTPSessionPrefix(val prefix:String)
 
 class HTTPSession(val worker:HTTPSessionWorker) {
   val id:String = SessionManagement.newID(this)

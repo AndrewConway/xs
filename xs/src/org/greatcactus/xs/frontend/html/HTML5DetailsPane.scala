@@ -29,7 +29,7 @@ import java.net.URLEncoder
  *
  * The type of a GUI object is a string representing the base of the identifier for the corresponding gui object.
  */
-class HTML5DetailsPane(val client:HTML5Client) extends XSDetailsPane[String](client.locale,client.xsedit,client.executionContext) {
+class HTML5DetailsPane(val client:HTML5ClientBase) extends XSDetailsPane[String](client.locale,client.xsedit,client.executionContext) {
   
   val detailsPaneID = "xsDP_"+client.session.jsSessionID // the ID of the main div holding all the details pane.
   
@@ -229,8 +229,46 @@ class HTML5DetailsPane(val client:HTML5Client) extends XSDetailsPane[String](cli
       }
     }
   }
+  
+  object Bool {
+    def unapply(arg:String) : Option[Boolean] = Some(arg.toBoolean)
+  }
+  object Int {
+    def unapply(arg:String) : Option[Int] = Some(arg.toInt)
+  }
+  object Current {
+    def unapply(arg:String) : Option[Boolean] = Some(arg==nodeIDCurrentlyBeingEdited)
+  }
+
+  val detailsPaneProcessMessages : PartialFunction[SimpleClientMessage,Unit] = {
+    case SimpleClientMessage("Action",Array(cmd,Int(context),Current(ok))) => if (ok) uiActivated(cmd,context)
+    case SimpleClientMessage("Change",Array(id,newValue,Current(ok))) => if (ok) uiChangedTextField(id,newValue,true)
+    case SimpleClientMessage("Change",Array(id,newValue,Current(ok),Int(row),columnName)) => 
+      val gridInd = id.lastIndexOf("_grid")
+      if (ok && gridInd!= -1) uiChangeGrid(id.substring(0,gridInd),row,columnName,newValue)
+    case SimpleClientMessage("ChangeCB",Array(id,Bool(newValue),Current(ok))) => if (ok) uiChangedBooleanField(id,newValue)
+    case SimpleClientMessage("KeyPress",Array(id,newValue,Current(ok))) => if (ok) uiChangedTextField(id,newValue,false) 
+    case SimpleClientMessage("GridDnD",Array(id,rows,Int(insertBefore),Current(ok))) => if (ok) uiDragGridRows(id,rows.split(',').map{_.toInt},insertBefore)
+    case SimpleClientMessage("TableContextMenu",Array(id,command,rows,Current(ok))) => if (ok) uiTableContextMenu(id,command,rows.split(',').map{_.toInt})
+    case SimpleClientMessage("Edited",Array(id,newValue)) => uiChangedTextField(id,newValue,true)
+    case SimpleClientMessage("PartialEdit",Array(id,newValue)) => uiChangedTextField(id,newValue,false)
+    case SimpleClientMessage("NewRowOnGrid",Array(id,columnName,newValue,Current(ok))) => if (ok) uiNewRowOnGrid(id,columnName,newValue)
+    case SimpleClientMessage("ChangeGrid",Array(id,Int(rowNumber),columnName,newValue,Current(ok))) => if (ok) uiChangeGrid(id,rowNumber,columnName,newValue)
+    case SimpleClientMessage("PasteTable",args)  => args.take(4) match {
+      case Array(id,Current(ok),Int(rowNumber),columnName) => 
+        val gridInd = id.lastIndexOf("_grid")
+        if (ok&&gridInd!= -1) uiPasteGrid(id.substring(0,gridInd),rowNumber,columnName,ClientMessage.unmungePasteGrid(args))
+      case _ =>
+    }
+    case SimpleClientMessage("CancelJob",Array(id,Current(ok))) => if (ok) uiCancelJob(id)
+    case SimpleClientMessage("InitiatePopup",Array(id,Current(ok))) => if (ok) uiInitiatePopup(id)
+    case SimpleClientMessage("ClosedPopup",Array(id,Current(ok))) => if (ok) uiClosedPopup(id)
+    case SimpleClientMessage("PopupSetField",Array(id,Current(ok),newValue)) => if (ok) uiPopupSetField(id,popupMungeOutput(newValue))
+  }
+
 
 }
+
 
 object HTML5DetailsPane extends CustomComponentStore[String]
 
