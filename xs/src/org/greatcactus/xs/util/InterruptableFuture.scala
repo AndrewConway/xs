@@ -369,6 +369,7 @@ class OnObsoleteList(val name:String=null) {
   /** For status / debugging */
   def length : Int = handles.size
   def status : String = length.toString+"\n"+handles.mkString("\n")
+  def shortStatus : String = if (length==0) "" else length.toString
   def isUsed : Boolean = synchronized { !handles.isEmpty }
   
   def getChangeHandle() : ChangeHandle = new ChangeHandleForObsoleteList(this)
