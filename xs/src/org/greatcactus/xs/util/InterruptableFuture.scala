@@ -333,17 +333,25 @@ class OnObsoleteList(val name:String=null) {
   @volatile private[this] var handles : Set[ChangeHandleForObsoleteList] = Set.empty
   
   private[this] var callbackOnEmpty : Set[()=>Unit] = Set.empty // for functions that want to know when something has become empty.
+  private[this] var callbackOnNonEmpty : Set[()=>Unit] = Set.empty // for functions that want to know when something has become non-empty.
   
   def remove(h:ChangeHandleForObsoleteList) { 
     val gotToZero = synchronized { handles-=h; handles.isEmpty }
     if (gotToZero) for (h<-callbackOnEmpty) h()
   }
-  def add(h:ChangeHandleForObsoleteList) { synchronized { handles+=h }}
+  def add(h:ChangeHandleForObsoleteList) { 
+    val wasEmpty = synchronized { val wasEmpty = handles.isEmpty; handles+=h; wasEmpty }
+    if (wasEmpty) for (h<-callbackOnNonEmpty) h()
+  }
 
   
   def removeCallbackOnEmpty(h:()=>Unit) { synchronized { callbackOnEmpty-=h }}
   /** add a function that will be called whenever the handle count gets down to zero. */
   def addCallbackOnEmpty(h:()=>Unit) { synchronized { callbackOnEmpty+=h }}
+
+  def removeCallbackOnNonEmpty(h:()=>Unit) { synchronized { callbackOnNonEmpty-=h }}
+  /** add a function that will be called whenever the handle count gets down to zero. */
+  def addCallbackOnNonEmpty(h:()=>Unit) { synchronized { callbackOnNonEmpty+=h }}
 
   def callAndClear() {
     val backupHandles = synchronized {
