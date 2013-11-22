@@ -332,8 +332,14 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
     }
   }
   
-  def isEnabled(fieldname:String,node:XSTreeNode) : Boolean = (for (f<-info.fieldEnabledController.get(fieldname);fr<-lastGoodResolved.get(f); res <-fr.resForSimpleGUI(node) if res==false) yield false).getOrElse(true)
-  def isVisible(fieldname:String,node:XSTreeNode) : Boolean = (for (f<-info.fieldVisibilityController.get(fieldname);fr<-lastGoodResolved.get(f); res <-fr.resForSimpleGUI(node) if res==false) yield false).getOrElse(true)
+  def isEnabled(fieldname:String,node:XSTreeNode) : Boolean = info.fieldEnabledController.get(fieldname) match {
+    case Some(f) => (for (fr<-lastGoodResolved.get(f); res <-fr.resForSimpleGUI(node) if res==true) yield true).getOrElse(false)
+    case None => true
+  }
+  def isVisible(fieldname:String,node:XSTreeNode) : Boolean = info.fieldVisibilityController.get(fieldname) match {
+    case Some(f) => (for (fr<-lastGoodResolved.get(f); res <-fr.resForSimpleGUI(node) if res==true) yield true).getOrElse(false)
+    case None => true
+  }
   
   def processErrorResults(result:Any,found: XSError=>Unit,function:DependencyInjectionFunction) { result match {
           case null =>
