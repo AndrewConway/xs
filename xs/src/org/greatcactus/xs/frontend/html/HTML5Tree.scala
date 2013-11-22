@@ -63,11 +63,13 @@ class HTML5Tree[T <: AnyRef](val locale:Locale,val transport:HTMLTransport,val m
     val subs = XSHTMLUtil.possiblySetNoDisplay(subsVisUnchecked, isOpen)
     val errorlevel = model.errorLevel(node)
     val erroricon = <span id={id+"_erroricon"} class={"xsErrorIcon xsErrorIcon"+errorlevel}></span>
-    val selectableNoSelection = <span id={id+"_selectable"} class="xsTreeSelectable" onclick={sessionprefix+"treeSelect(event,'"+id+"'); return false"} oncontextmenu={sessionprefix+"treeSelect(event,'"+id+"'); return true"}>{erroricon}{icon}{label}</span>
     val isCurrentlySelected = getAllSelected.contains(node)
-    val selectable = if (isCurrentlySelected) selectableNoSelection%Attribute(None,"class",Text("xsTreeSelectable xsSelected"),scala.xml.Null)  else selectableNoSelection
+    val isCurrentlyGhosted = model.isGhosted(node)
+    val selectableClass : String = "xsTreeSelectable"+(if (isCurrentlySelected) " xsSelected" else "")+(if (isCurrentlyGhosted) " xsGhosted" else "")
+    val selectable = <span id={id+"_selectable"} class={selectableClass} onclick={sessionprefix+"treeSelect(event,'"+id+"'); return false"} oncontextmenu={sessionprefix+"treeSelect(event,'"+id+"'); return true"}>{erroricon}{icon}{label}</span>
+    //val selectable = if (isCurrentlySelected) selectableNoSelection%Attribute(None,"class",Text("xsTreeSelectable xsSelected"),scala.xml.Null)  else selectableNoSelection
     val html = <div id={id+"_all"} draggable={allowDragging.toString} class="xsTreeNodeCompleteNode">{opener}{selectable}{subs}</div>
-    val localnode = new OnClientTreeNode(iconURL,labelS,isOpenString,kidsLocal,clicksAwayFromVisible,!isOpen,isCurrentlySelected,errorlevel,node,id)
+    val localnode = new OnClientTreeNode(iconURL,labelS,isOpenString,kidsLocal,clicksAwayFromVisible,!isOpen,isCurrentlySelected,isCurrentlyGhosted,errorlevel,node,id)
     clientNodes+=id->localnode
     (html,localnode)
   }
@@ -138,6 +140,7 @@ class HTML5Tree[T <: AnyRef](val locale:Locale,val transport:HTMLTransport,val m
       cn.setLabel(model.title(node))
       cn.setIsOpen()
       cn.setIsSelected()
+      cn.setIsGhosted()
       cn.setErrorLevel(model.errorLevel(node))
     }
   }
@@ -167,7 +170,7 @@ class HTML5Tree[T <: AnyRef](val locale:Locale,val transport:HTMLTransport,val m
   /** Children nodes are maintained on the client (for snappy response) if the number of clicks needed to see them is this or less. Small numbers (eg 0) mean low bandwidth; large numbers (eg 1,2) mean low latency */
   val clicksAwayFromVisibleCutoff = 1
   
-  class OnClientTreeNode(var iconURL:Option[String],var label:RichLabel,var isOpenString:String,var children:Seq[OnClientTreeNode],var clicksAwayFromVisible:Int,var childrenCurrentlyHidden:Boolean,var isCurrentlySelected:Boolean,var currentErrorLevel:Int,val node:T,val id:String) {
+  class OnClientTreeNode(var iconURL:Option[String],var label:RichLabel,var isOpenString:String,var children:Seq[OnClientTreeNode],var clicksAwayFromVisible:Int,var childrenCurrentlyHidden:Boolean,var isCurrentlySelected:Boolean,var isCurrentlyGhosted:Boolean,var currentErrorLevel:Int,val node:T,val id:String) {
     def setIcon(newURL:Option[String]) {
       //println("Set icon "+newURL)
       if (newURL!=iconURL) {
@@ -196,6 +199,13 @@ class HTML5Tree[T <: AnyRef](val locale:Locale,val transport:HTMLTransport,val m
       if (shouldBeSelected!=isCurrentlySelected) {
         isCurrentlySelected=shouldBeSelected
         transport.sendMessage(ClientMessage.addClass("#"+id+"_all > span:nth-child(2)","xsSelected",shouldBeSelected))
+      }
+    }
+    def setIsGhosted() {
+      val shouldBeGhosted = model.isGhosted(node)
+      if (shouldBeGhosted!=isCurrentlyGhosted) {
+        isCurrentlyGhosted=shouldBeGhosted
+        transport.sendMessage(ClientMessage.addClass("#"+id+"_all > span:nth-child(2)","xsGhosted",shouldBeGhosted))
       }
     }
     def isOpenOnClient = isOpenString=="▼"
@@ -283,6 +293,7 @@ abstract class TreeModel[T] {
   /** Return a string unique amongst all nodes */
   def uniqueID(node:T) : String
   def isOpen(node:T) : Boolean
+  def isGhosted(node:T) : Boolean
     /** Called by the client when one node is dragged onto another. isAbove is true if wants to be above the given node instead of on it. */
   def dragLocal(source:T,dest:T,isAbove:Boolean)
     /** The user has chosen a context menu with particular nodes selected. */

@@ -625,7 +625,7 @@ var xs = {
 		  ev.target.style.opacity = '0.4';
 		  ev.dataTransfer.setData("text/plain",ev.target.textContent);
 		  ev.dataTransfer.setData(xsthis.treeDragMimeType,ev.target.id);
-		  this.current_dragging_div = ev.target;
+		  this.current_dragging_div = xs.getParentDiv(ev.target);
 		  return true;
 	  };
 	  
@@ -733,7 +733,9 @@ var xs = {
 	      $(div).removeClass('xs-dragover');
 		  ev.preventDefault();
 		  ev.stopPropagation();
-		  if (xsthis.containsType(ev,"Files")) xsthis.uploadFilesOrDirectories(div.id.slice(0,-4),ev.dataTransfer);
+		  if (this.current_dragging_div!=null) {
+		    xsthis.sendToServer({cmd:"TreeDragLocal",args:[this.current_dragging_div.id.slice(0,-4),div.id.slice(0,-4),this.dragOverAtTop]});			    	
+		  } else if (xsthis.containsType(ev,"Files")) xsthis.uploadFilesOrDirectories(div.id.slice(0,-4),ev.dataTransfer);
 		  /*
 		  if (ev.dataTransfer.files && ev.dataTransfer.files!=null && ev.dataTransfer.files[0]) {
 			xsthis.uploadFilesOrDirectories(ev.dataTransfer);
@@ -750,9 +752,7 @@ var xs = {
 			  };
 			  reader.readAsDataURL(file);
 			}
-		  }*/ else if (this.current_dragging_div!=null) {
-		    xsthis.sendToServer({cmd:"TreeDragLocal",args:[this.current_dragging_div.id.slice(0,-4),div.id.slice(0,-4),this.dragOverAtTop]});			    	
-		  } else { // non local drag
+		  }*/ else  { // non local drag
 			var fromid = ev.dataTransfer.getData(xsthis.treeDragMimeType);
 			if (fromid) xsthis.sendToServer({cmd:"TreeDragNonLocal",args:[fromid,div.id.slice(0,-4),this.dragOverAtTop]});			    	
 		  }

@@ -230,6 +230,7 @@ class HTML5Client(val xsedit:XSEdit,val toolbar:Option[XSToolBar],val locale:Loc
       def userSelected(node:XSTreeNode) { xsedit.changeCurrentlyEditing(node); }
       def uniqueID(node:XSTreeNode) : String = node.uid.toString
       def isOpen(node:XSTreeNode) : Boolean = node.isOpen
+      def isGhosted(node:XSTreeNode) : Boolean = false
       def dragLocal(source:XSTreeNode,dest:XSTreeNode,isAbove:Boolean) {
         val above = isAbove && dest.parent!=null
         xsedit.dragData(if (above) dest.parent else dest,List(source),if (above) Some(dest) else None)

@@ -226,6 +226,10 @@ table.xsNoPadding {
 .xsErrorIconHolder { position:relative; }
 .xsTreeSelectable { position:relative; }
 
+.xsGhosted {
+	opacity : 0.5;
+}
+
 .xsErrorIcon {
 	position: absolute;
 	cursor: help;
