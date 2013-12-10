@@ -535,7 +535,15 @@ object SerializableTypeInfo {
     res
   }
   
-  def getWithoutCheckingValidity[T](clazz:Class[T]) : Option[SerializableTypeInfo[_]] = cache.getOrElseUpdate(clazz,{try { Some(new SerializableTypeInfo(clazz.asInstanceOf[Class[_ <: AnyRef]]))} catch { case _ : NotSerializableException => None }})
+  def getWithoutCheckingValidity[T](clazz:Class[T]) : Option[SerializableTypeInfo[_]] = {
+    synchronized { // needs to be synchronized both to stop cache issues and also to stop thread deadlocks inside the scala mirror library.
+      cache.getOrElseUpdate(clazz,{
+        try { 
+          Some(new SerializableTypeInfo(clazz.asInstanceOf[Class[_ <: AnyRef]]))
+        } catch { case _ : NotSerializableException => None }
+      })
+    }
+  }
 
     /** If there is an annotation of the specified type, get the value of the field called "value" which is a string. Return Some(null) if the annotation exists, but does not have the stated field. */
   def annotationField(symbol:reflect.runtime.universe.Symbol,annotation:reflect.runtime.universe.Type,fieldName:String) : Option[Any] = {
