@@ -594,8 +594,14 @@ class DependencyInjectionFunction(
     val isInjectedToKids:Boolean,
     val onlyAffectedByFields:Option[Seq[XSFieldInfo]]
     ) extends GeneralizedField {
-  def apply(obj:reflect.runtime.universe.InstanceMirror,args:Seq[Any]) : AnyRef = {
-    obj.reflectMethod(method).apply(args :_*).asInstanceOf[AnyRef]
+  
+  val javaMethod = DependencyInjectionFunction.javaMethod(method)
+  
+  def apply(obj:reflect.runtime.universe.InstanceMirror,args:Seq[AnyRef]) : AnyRef = {
+    // reflection is not thread safe in scala 2.10. I think it is fixed in 2.11. So we need to wrap this is a global synchronized object :-(. 
+    // obj.reflectMethod(method).apply(args :_*).asInstanceOf[AnyRef]
+    // so use java reflection instead.
+    javaMethod.invoke(obj.instance,args.toArray :_*)
   }
   
   def survivesChange(oldObject:AnyRef,newObject:AnyRef) = onlyAffectedByFields match {
@@ -616,4 +622,20 @@ class DependencyInjectionFunction(
   def usesParentObject = argTypes.contains(classOf[Parent[_]])
   def usesIndexInParentField = argTypes.contains(classOf[IndexInParentField])
   override def couldHaveImplicitTooltip = false
+}
+
+object DependencyInjectionFunction {
+  // method of converting from scala reflection method to java method. This is an internal hack as there is no public api for it. It is important as the scala reflection API is not thread safe in 2.10, and putting a global sync could kill scalability.
+  val cmx = scala.reflect.runtime.currentMirror.asInstanceOf[{
+    def methodToJava(sym: scala.reflect.internal.Symbols#MethodSymbol): java.lang.reflect.Method
+  }]
+  
+  import scala.language.reflectiveCalls
+  def javaMethod(foo:scala.reflect.runtime.universe.MethodSymbol): java.lang.reflect.Method = {
+    val res = cmx.methodToJava(foo.asInstanceOf[scala.reflect.internal.Symbols#MethodSymbol])
+    res.setAccessible(true);
+    res
+  } 
+  
+  
 }
