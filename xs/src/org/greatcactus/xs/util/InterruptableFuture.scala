@@ -48,6 +48,13 @@ abstract class InterruptableFuture[+T] {
       p.future
    }
    
+  /**
+   * Like Future.flatmap, except with cancellation.
+   * Note that if :
+   *   f3 = f1.flatMap{_ =>f2}
+   * where f1 and f2 are both InterruptableFutures (as is f3), then cancelling f3 will cancel f1, but will not cancel f2 unless the function has completed, which will not happen until after f1 is completed.
+   * This can lead to unexpected lack of cancellation. 
+   */
   def flatMap[S](function: T => InterruptableFuture[S])(implicit executor: ExecutionContext): InterruptableFuture[S] = {
     val p = new InterruptablePromise[S]
     p.onCancel(()=> cancel())
@@ -90,6 +97,9 @@ abstract class InterruptableFuture[+T] {
     future.onComplete { case tr => p.complete(tr recover pf) }(executor)
 
     p.future
+  }
+  def onComplete[U](func: Try[T] => U)(implicit executor: ExecutionContext) {
+    future.onComplete(func)
   }
   
   /** Note that the code executed will not check for interruptions */
@@ -381,6 +391,7 @@ class OnObsoleteList(val name:String=null) {
   def isUsed : Boolean = synchronized { !handles.isEmpty }
   
   def getChangeHandle() : ChangeHandle = new ChangeHandleForObsoleteList(this)
+  
 }
 
 /**
@@ -439,6 +450,10 @@ class ObsoletableAndInterruptableFuture[+T](val future:InterruptableFuture[T],va
   def disposeOnComplete()(implicit executor: ExecutionContext) {
     future.future.onComplete{case _ => this.dispose() } 
   }
+  def onComplete[U](func: Try[T] => U)(implicit executor: ExecutionContext) {
+    future.onComplete(func)
+  }
+  def cancel() { future.cancel() }
 
 }
 
