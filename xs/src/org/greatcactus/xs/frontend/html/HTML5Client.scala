@@ -162,15 +162,18 @@ abstract class HTML5ClientBase { hbthis =>
             sendMessage(ClientMessage.setToolbarStatus(toolbarIDprefix+"redo",status.redoDesc.isDefined,status.redoDesc match { case Some(s) if s!=null => "Redo "+s; case _ => "Redo" }))
           }
         }
-        if (saveEnabledCurrentValue!=status.dirty) {
-          saveEnabledCurrentValue=status.dirty
-          sendMessage(ClientMessage.setToolbarStatus(toolbarIDprefix+"save",status.dirty,"Save"))
+        if (t.useSave) {
+          if (saveEnabledCurrentValue!=status.dirty) {
+            saveEnabledCurrentValue=status.dirty
+            sendMessage(ClientMessage.setToolbarStatus(toolbarIDprefix+"save",status.dirty,"Save"))
+          }
         }
-        
-        if (revertEnabledCurrentValue!=status.dirty) {
-          revertEnabledCurrentValue=status.dirty
-          sendMessage(ClientMessage.setToolbarStatus(toolbarIDprefix+"revert",status.dirty,"Revert"))
-        }
+        if (t.useRevert) {
+          if (revertEnabledCurrentValue!=status.dirty) {
+            revertEnabledCurrentValue=status.dirty
+            sendMessage(ClientMessage.setToolbarStatus(toolbarIDprefix+"revert",status.dirty,"Revert"))
+          }
+        }        
         if (staleCurrentValue!=status.stale) {
           staleCurrentValue=status.stale
           sendMessage(ClientMessage.setToolbarStatus(toolbarIDprefix+"stale",status.stale,if (status.stale) (<em>While you were editing, the file was changed elsewhere.</em>).toString else ""))
