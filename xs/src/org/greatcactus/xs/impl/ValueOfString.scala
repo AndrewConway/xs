@@ -1,5 +1,5 @@
 /**
- * Copyright Andrew Conway 2012. All rights reserved.
+ * Copyright Andrew Conway 2012-2014. All rights reserved.
  */
 package org.greatcactus.xs.impl
 
@@ -106,9 +106,9 @@ object ValueOfString {
           val symbol = moduleMirror.symbol // is this the same as moduleSymbol???
           if (symbol.moduleClass.isClass) {
             //println("Found companion "+symbol)
-            val applyMethods = symbol.moduleClass.asClass.toType.member(universe.newTermName(desiredName))
+            val applyMethods = symbol.moduleClass.asClass.toType.member(universe.TermName(desiredName))
             //println("Found apply method(s) "+applyMethods)
-            if (applyMethods!=null && applyMethods.isTerm) for (applyMethod<-applyMethods.asTerm.alternatives;params <- applyMethod.asMethod.paramss.headOption.orElse(Some(List()))) {
+            if (applyMethods!=null && applyMethods.isTerm) for (applyMethod<-applyMethods.asTerm.alternatives;params <- applyMethod.asMethod.paramLists.headOption.orElse(Some(List()))) {
               // check to see if takes a string
               val actualParams : List[String] = params.map{_.typeSignature.typeSymbol.fullName}.toList
               if (actualParams==desiredParams) {

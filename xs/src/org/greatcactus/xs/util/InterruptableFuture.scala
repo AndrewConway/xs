@@ -1,5 +1,5 @@
 /**
- * Copyright 2013 Andrew Conway. All rights reserved.
+ * Copyright 2013-2014 Andrew Conway. All rights reserved.
  */
 package org.greatcactus.xs.util
 
@@ -147,7 +147,7 @@ class InterruptablePromise[T] extends Interruptable { ipthis =>
   
   onCancel( () => {if (executingThread!=null) executingThread.interrupt()} )
   
-  val promise = concurrent.promise[T]
+  val promise = concurrent.Promise[T]
   private[this] var executingThread : Thread = null // is not null iff the computation is currently ongoing. Border cases are synchronized.
   
   def executeInAnInterruptableManner[S](code: => S) : S = {

@@ -1,5 +1,5 @@
 /**
- * Copyright Andrew Conway 2012-2013. All rights reserved.
+ * Copyright Andrew Conway 2012-2014. All rights reserved.
  */
 
 package org.greatcactus.xs.impl
@@ -27,12 +27,12 @@ import org.greatcactus.xs.api.edit.FiniteOptionListWithIcons
  */
 class XSFieldInfo(val fieldSymbol:reflect.runtime.universe.Symbol,val index:Int,parentType:universe.Type,parentInfo:SerializableTypeInfo[_],iconSource:IconManifests) extends TextLocalizationSource with GeneralizedField {
     def parentClass = parentInfo.clazz
-    val originalName = fieldSymbol.name.decoded
+    val originalName = fieldSymbol.name.decodedName.toString
     
     val overridingName = getOptionalValue(fieldSymbol,typeXSName).map{n=>if (n==null || n.isEmpty) originalName else n}
     val wrapperName = getOptionalValue(fieldSymbol,typeXSWrapper).map{n=>if (n==null || n.isEmpty) originalName else n}
     
-    val name = overridingName.getOrElse(fieldSymbol.name.decoded)
+    val name = overridingName.getOrElse(fieldSymbol.name.decodedName.toString)
     val nullElementName = "null-"+name
     
     val ftype = fieldSymbol.typeSignature
@@ -130,12 +130,12 @@ class XSFieldInfo(val fieldSymbol:reflect.runtime.universe.Symbol,val index:Int,
     val isBlock = xsinfo.isDefined || isAssertedAsBlock || wrapperName.isDefined || (baseClassName=="java.lang.String" && !isAssertedAsAttribute)
     
     val getMethod = {
-      val m = parentType.member(universe.newTermName(originalName))
+      val m = parentType.member(universe.TermName(originalName))
       if (m == universe.NoSymbol) error("No method "+originalName)
       else if (m.isMethod) {
         val mm = m.asMethod
         if (mm.isOverloaded) error("Method "+originalName+" is overloaded")
-        else if (!mm.paramss.isEmpty) error("Method "+originalName+" takes parameters")
+        else if (!mm.paramLists.isEmpty) error("Method "+originalName+" takes parameters")
         else if (!(mm.returnType =:= ftype )) error("Method "+originalName+" has the wrong return type")
         else mm
       } else error("Problem with accessing method "+originalName+" - possibly you need to make it a val in the constructor definition or remove other methods with the same name.")

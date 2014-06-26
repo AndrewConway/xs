@@ -1,5 +1,5 @@
 /**
- * Copyright Andrew Conway 2012-2013. All rights reserved.
+ * Copyright Andrew Conway 2012-2014. All rights reserved.
  */
 package org.greatcactus.xs.frontend
 
@@ -253,7 +253,7 @@ abstract class XSDetailsPane[T](val locale:Locale,val xsedit:XSEdit,val executio
   
   private var localClipboard : Option[XSClipBoard] = None 
     
-  def getClipboard(param:XSClipboardRequest) : Future[XSClipBoard] = future { localClipboard.get }(executionContext)
+  def getClipboard(param:XSClipboardRequest) : Future[XSClipBoard] = Future { localClipboard.get }(executionContext)
   def setClipboard(data:XSClipBoard) {
     localClipboard=Some(data)
   }

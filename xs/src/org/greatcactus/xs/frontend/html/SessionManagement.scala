@@ -1,5 +1,5 @@
 /**
- * Copyright 2012-2013 Andrew Conway. All rights reserved.
+ * Copyright 2012-2014 Andrew Conway. All rights reserved.
  */
 package org.greatcactus.xs.frontend.html
 
@@ -107,7 +107,7 @@ class HTTPSession(val worker:HTTPSessionWorker) {
       }
       // if (pendingResponse.isDefined) throw new IllegalArgumentException("Can't call cometCallFuture until previous call resolved")
       val immediate = cometCallShouldReturnImmediately()
-      val promise = scala.concurrent.promise[Option[ClientMessage]]
+      val promise = scala.concurrent.Promise[Option[ClientMessage]]
       if (immediate.isDefined) promise.success(immediate)
       else {
         pendingResponse=Some(promise)
@@ -229,7 +229,7 @@ class HTTPSession(val worker:HTTPSessionWorker) {
   private var localClipboard : Option[XSClipBoard] = None 
     
   def getClipboard(param:XSClipboardRequest,executionContext:ExecutionContext) : Future[XSClipBoard] = {
-   future ( 
+   Future ( 
   
     localClipboard match {
       case None => throw new IllegalArgumentException("Nothing on the clipboard")

@@ -1,5 +1,5 @@
 /**
- * Copyright Andrew Conway 2012-2013. All rights reserved.
+ * Copyright Andrew Conway 2012-2014. All rights reserved.
  */
 package org.greatcactus.xs.impl
 
@@ -41,7 +41,7 @@ class SerializableTypeInfo[T <: AnyRef] private (val clazz : java.lang.Class[T])
   val classMirror = rootMirror.reflectClass(classSymbol)
   val ty = classSymbol.toType
   def error(cause:String) = throw new XSSpecificationError(clazz,cause)
-  def isAbstract = classSymbol.isAbstractClass
+  def isAbstract = classSymbol.isAbstract
   
   val iconSource = IconManifests.getIconManifests(clazz)
   
@@ -52,7 +52,7 @@ class SerializableTypeInfo[T <: AnyRef] private (val clazz : java.lang.Class[T])
   private val overridingName = getOptionalValue(classSymbol,typeXSName)
   
   /** The name used for serializing this class */
-  val name = overridingName.getOrElse(classSymbol.name.decoded)
+  val name = overridingName.getOrElse(classSymbol.name.decodedName.toString)
   
   /** Subclasses mentioned in SerializableSubclasses structure */
   val subclasses : Array[SerializableTypeInfo[_]] = {
@@ -76,7 +76,7 @@ class SerializableTypeInfo[T <: AnyRef] private (val clazz : java.lang.Class[T])
    * However, until it is instantiated we can't tell whether this class is valid. So we have method checkIsValid below.
    */
   private lazy val constructor : Option[ConstructorInfo] = {
-    val constructors = ty.member(universe.nme.CONSTRUCTOR)
+    val constructors = ty.member(universe.termNames.CONSTRUCTOR)
     if (constructors.isTerm) Some(new ConstructorInfo(constructors.asTerm))
     else None
   }
@@ -109,7 +109,7 @@ class SerializableTypeInfo[T <: AnyRef] private (val clazz : java.lang.Class[T])
     }
     private val reflectedConstructor = classMirror reflectConstructor constructor
   
-    val fields : Seq[XSFieldInfo] = for (pp<-constructor.paramss;(p,i)<-pp.zipWithIndex) yield {
+    val fields : Seq[XSFieldInfo] = for (pp<-constructor.paramLists;(p,i)<-pp.zipWithIndex) yield {
       new XSFieldInfo(p,i,ty,SerializableTypeInfo.this,iconSource)
     }
     
@@ -218,11 +218,11 @@ class SerializableTypeInfo[T <: AnyRef] private (val clazz : java.lang.Class[T])
         if (numSpecial>1) error("Conflicting annotations on method "+method.name)
         if (dp||ptc||numSpecial>0) {
           if (visC.isDefined || enC.isDefined) { // check returns boolean
-            if (!(method.returnType=:=typeBoolean)) error("method "+method.name.decoded+" should return a boolean")
+            if (!(method.returnType=:=typeBoolean)) error("method "+method.name.decodedName.toString+" should return a boolean")
           }
-          def getFieldNamed(name:String) : XSFieldInfo = fields.find{_.name==name}.getOrElse(error("No field named "+name+" referenced in annotations on method "+method.name.decoded))
+          def getFieldNamed(name:String) : XSFieldInfo = fields.find{_.name==name}.getOrElse(error("No field named "+name+" referenced in annotations on method "+method.name.decodedName.toString))
           val of : Option[Seq[XSFieldInfo]] = getOptionalArrayStrings(method,typeOnlyAffectedByFields).map{_.map{getFieldNamed(_)}}
-          val fnparams = for (p<-method.paramss.flatten) yield rootMirror.runtimeClass(p.typeSignature.typeSymbol.asClass)
+          val fnparams = for (p<-method.paramLists.flatten) yield rootMirror.runtimeClass(p.typeSignature.typeSymbol.asClass)
           val function = new DependencyInjectionFunction(fnparams,method,dp,ptc,of)
           def fff(name:Option[String]) : FunctionForField = new FunctionForField(function,if (name.get==null || name.get.isEmpty) None else name)
           if (ip.isDefined) iconProviders+=fff(ip)
@@ -232,10 +232,10 @@ class SerializableTypeInfo[T <: AnyRef] private (val clazz : java.lang.Class[T])
           else if (visC.isDefined) visibilityControllers+=fff(visC)  
           else if (enC.isDefined) enabledControllers+=fff(enC) 
           else if (fu.isDefined) fieldUpdaters+=fff(fu) 
-          else if (cdf.isDefined) customFields+=new CustomFieldInfo(function,method.name.decoded,new FieldDisplayOptions(method,iconSource),cdf.get) 
-          else if (edf) extraText+=new ExtraDisplayFieldInfo(function,method.name.decoded,new FieldDisplayOptions(method,iconSource))
-          else if (edc) editCommands+=new EditCommandMethods(function,method.name.decoded,new FieldDisplayOptions(method,iconSource))
-          else if (cmd) commands+=new CommandMethod(function,method.name.decoded,new FieldDisplayOptions(method,iconSource))
+          else if (cdf.isDefined) customFields+=new CustomFieldInfo(function,method.name.decodedName.toString,new FieldDisplayOptions(method,iconSource),cdf.get) 
+          else if (edf) extraText+=new ExtraDisplayFieldInfo(function,method.name.decodedName.toString,new FieldDisplayOptions(method,iconSource))
+          else if (edc) editCommands+=new EditCommandMethods(function,method.name.decodedName.toString,new FieldDisplayOptions(method,iconSource))
+          else if (cmd) commands+=new CommandMethod(function,method.name.decodedName.toString,new FieldDisplayOptions(method,iconSource))
           else providers+=function
         }
     }
@@ -432,7 +432,7 @@ class SerializableTypeInfo[T <: AnyRef] private (val clazz : java.lang.Class[T])
   //
   lazy val htmlTemplate : Option[xml.Node] = {
     try {
-      val is = clazz.getResourceAsStream(classSymbol.name.decoded+".template.xml")
+      val is = clazz.getResourceAsStream(classSymbol.name.decodedName.toString+".template.xml")
       val seq = XML.load(is)
       Some(seq)
     } catch { case _ : Exception => None }
@@ -545,11 +545,27 @@ object SerializableTypeInfo {
     }
   }
 
+  /** Get the value corresponding the the given field name in Annotation, assuming it exists */
+  private def extractAnnotationField(ann:Annotation,fieldName:String) : Option[Any] = {
+    // could maybe use universe.AssignOrNamedArg
+    val foundFields = for (t<-ann.tree.children.tail;List(universe.Ident(ident),universe.Literal(universe.Constant(vvb)))=t.children if ident.decodedName.toString==fieldName) yield vvb
+    if (foundFields.length>1) throw new IllegalArgumentException("Too many fields called "+fieldName)
+    foundFields.headOption
+  }
+  
     /** If there is an annotation of the specified type, get the value of the field called "value" which is a string. Return Some(null) if the annotation exists, but does not have the stated field. */
   def annotationField(symbol:reflect.runtime.universe.Symbol,annotation:reflect.runtime.universe.Type,fieldName:String) : Option[Any] = {
-    for (ann<-symbol.annotations.find{_.tpe =:= annotation}) yield {
-      val nonnull = for (v<-ann.javaArgs.find{_._1.decoded==fieldName};universe.Constant(s)=v._2.asInstanceOf[universe.LiteralArgument].value) yield s
-      nonnull.getOrElse(null)
+    for (ann<-symbol.annotations.find{_.tree.tpe =:= annotation}) yield {
+      extractAnnotationField(ann,fieldName).getOrElse(null)
+      /*
+      println("ann.javaArgs = "+ann.javaArgs) // e.g. Map(value -> "P2")
+      println("ann.teee.children.tail="+ann.tree.children.tail) // e.g. =List(value = "P2")
+      for (t<-ann.tree.children.tail;List(universe.Ident(ident),universe.Literal(universe.Constant(vvb)))=t.children if ) {
+        println("t= "+t)
+        println("ident="+ident+"  value="+vvb)
+      }
+      val nonnull = for (v<-ann.javaArgs.find{_._1.decodedName.toString==fieldName};universe.Constant(s)=v._2.asInstanceOf[universe.LiteralArgument].value) yield s
+      nonnull.getOrElse(null) */
     }
   }
 
@@ -560,33 +576,44 @@ object SerializableTypeInfo {
 
     /** If there is an annotation, get the value of the field called "value" which is an int. */
   def getOptionalIntValue(symbol:reflect.runtime.universe.Symbol,annotation:reflect.runtime.universe.Type) : Option[Int] = {
-    for (
-        ann<-symbol.annotations.find{_.tpe =:= annotation};
-        v<-ann.javaArgs.find{_._1.decoded=="value"};
-        universe.Constant(s:Int)=v._2.asInstanceOf[universe.LiteralArgument].value) yield s
+    annotationField(symbol,annotation,"value").collect{case i:Int=>i}
+    /*for (
+        ann<-symbol.annotations.find{_.tree.tpe =:= annotation};
+        v<-ann.javaArgs.find{_._1.decodedName.toString=="value"};
+        universe.Constant(s:Int)=v._2.asInstanceOf[universe.LiteralArgument].value) yield s */
   }
 
 
-  /** If there is an annotation with a field called "value" which is a string, get that value as a string */
-  def getOptionalArrayStrings(symbol:reflect.runtime.universe.Symbol,annotation:reflect.runtime.universe.Type) : Option[Seq[String]] = 
-    for (ann<-symbol.annotations.find{_.tpe =:= annotation};v<-ann.javaArgs.find{_._1.decoded=="value"}) yield
+  /** If there is an annotation with a field called "value" which is an array of strings, get that as a seq */
+  def getOptionalArrayStrings(symbol:reflect.runtime.universe.Symbol,annotation:reflect.runtime.universe.Type) : Option[Seq[String]] = {
+    val result = for (ann<-symbol.annotations.find{_.tree.tpe =:= annotation};v<-ann.javaArgs.find{_._1.decodedName.toString=="value"}) yield
       for (vv<-v._2.asInstanceOf[universe.ArrayArgument].args.toSeq;
            universe.Constant(s:String)=vv.asInstanceOf[universe.LiteralArgument].value
            ) yield s
-    
+    // This fails : println("hard way "+annotationField(symbol,annotation,"value")+" new way "+result)
+    result
+  }
         
       /** If there is an annotation on a symbol */
   def hasAnnotation(symbol:reflect.runtime.universe.Symbol,annotation:reflect.runtime.universe.Type) : Boolean = 
-    symbol.annotations.exists{_.tpe =:= annotation}
+    symbol.annotations.exists{_.tree.tpe =:= annotation}
 
 
-  def annotation(symbol:reflect.runtime.universe.Symbol,annotation:reflect.runtime.universe.Type) : Option[AnnotationInfo] = symbol.annotations.find{_.tpe =:= annotation}.map{new AnnotationInfo(_)}
+  def annotation(symbol:reflect.runtime.universe.Symbol,annotation:reflect.runtime.universe.Type) : Option[AnnotationInfo] = symbol.annotations.find{_.tree.tpe =:= annotation}.map{new AnnotationInfo(_)}
 }
 
 class AnnotationInfo(ann:reflect.runtime.universe.Annotation) {
   //println("Found annotation for "+ann.tpe.typeSymbol.name.decoded)
-  def getField(fieldName:String) = ann.javaArgs.find{_._1.decoded==fieldName}
-  def getConstantField(fieldName:String) : Option[Any] = for (v<-getField(fieldName);universe.Constant(s)=v._2.asInstanceOf[universe.LiteralArgument].value) yield s
+  private def getField(fieldName:String) = ann.javaArgs.find{_._1.decodedName.toString==fieldName}
+  def getConstantField(fieldName:String) : Option[Any] = {
+    // could maybe use universe.AssignOrNamedArg
+    val foundFields = for (t<-ann.tree.children.tail;List(universe.Ident(ident),universe.Literal(universe.Constant(vvb)))=t.children if ident.decodedName.toString==fieldName) yield vvb
+    if (foundFields.length>1) throw new IllegalArgumentException("Too many fields called "+fieldName)
+    foundFields.headOption
+  }
+
+  
+  //def getConstantField(fieldName:String) : Option[Any] = for (v<-getField(fieldName);universe.Constant(s)=v._2.asInstanceOf[universe.LiteralArgument].value) yield s
   def getArrayField(fieldName:String) : Option[Seq[Any]] = for (v<-getField(fieldName)) yield {
     for (vv<-v._2.asInstanceOf[universe.ArrayArgument].args.toSeq;universe.Constant(s)=vv.asInstanceOf[universe.LiteralArgument].value) yield s
   }

@@ -1,5 +1,5 @@
 /**
- * Copyright Andrew Conway 2013. All rights reserved.
+ * Copyright Andrew Conway 2013-2014. All rights reserved.
  */
 package org.greatcactus.xs.impl
 
@@ -506,7 +506,7 @@ class DependencyInjectionCurrentStatus(val info:DependencyInjectionInformation,v
         //println("Got args")
         //import concurrent.ExecutionContext.Implicits.global
         val mirror = parentMirror
-        concurrent.future{
+        concurrent.Future{
           def err(e:Throwable) = e match {
             case _:CancelledThrowable => monitor.failed(Some(RichLabel("Cancelled")))
             case _ =>
@@ -618,7 +618,7 @@ class DependencyInjectionFunction(
       }
     })
   }
-  val name:String = method.name.decoded
+  val name:String = method.name.decodedName.toString
   def usesParentObject = argTypes.contains(classOf[Parent[_]])
   def usesIndexInParentField = argTypes.contains(classOf[IndexInParentField])
   override def couldHaveImplicitTooltip = false
