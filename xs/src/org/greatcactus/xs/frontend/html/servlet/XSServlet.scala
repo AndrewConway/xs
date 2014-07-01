@@ -1,5 +1,5 @@
 /**
- * Copyright 2012-2013 Andrew Conway. All rights reserved.
+ * Copyright 2012-2014 Andrew Conway. All rights reserved.
  */
 package org.greatcactus.xs.frontend.html.servlet
 
@@ -45,26 +45,13 @@ abstract class XSServlet extends HttpServlet {
   override def doGet(request:HttpServletRequest,response:HttpServletResponse) {
     request.getParameter("sub") match {
       case null => mainPage(request,response)
-      case "icon" => icon(response,request.getParameter("name"),request.getDateHeader("If-Modified-Since"))
+      case "icon" => XSServletUtil.icon(response,request.getParameter("name"),request.getDateHeader("If-Modified-Since"))
     }
   }
 
 
   IconManifests.urlOfIcon = new URLOfIcon {
     def apply(icon:ResolvedIcon) : String = "?sub=icon&name="+URLEncoder.encode(icon.fileName,"UTF-8")
-  }
-  def icon(response:HttpServletResponse,name:String,lastMod:Long) {
-    if (name==null || name.isEmpty) response.sendError(HttpServletResponse.SC_BAD_REQUEST,"Query string doesn't make sense")
-    else IconManifests.iconFromFilename(name) match {
-      case None => response.sendError(HttpServletResponse.SC_NOT_FOUND)
-      case Some(icon) if icon.contents.lastModified>0 &&  icon.contents.lastModified <= lastMod => response.sendError(HttpServletResponse.SC_NOT_MODIFIED) 
-      case Some(icon) => 
-        response.setContentType(icon.mimeType)
-        if (icon.contents.lastModified>0) response.setDateHeader("Last-Modified",icon.contents.lastModified)
-        val os = response.getOutputStream();
-        os.write(icon.data)
-        os.close()
-    }
   }
   
   private val openCometThreadsSync = new Object

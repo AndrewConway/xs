@@ -399,7 +399,7 @@ var xs = {
 	  this.sentMessageCount = 0;
 	  this.currentlyEditing = "";
 	  this.usesWebsockets = window.WebSocket && xs.wsURL;
-	  this.websocket = this.usesWebsockets? new WebSocket(xs.wsURL+"?xsSessionID="+sessionid) : null;
+	  this.websocket = this.usesWebsockets? new WebSocket((typeof xs.wsURL=='function')?(xs.wsURL(sessionid)):(xs.wsURL+"?xsSessionID="+sessionid)) : null;
 	  
 	  var ackExpectedFromWS = 0;
 	  this.errorInServerConnection = function(cause) {

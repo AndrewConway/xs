@@ -93,9 +93,20 @@ class HTTPSession(val worker:HTTPSessionWorker) {
   }
   def clientDispose() { worker.dispose() }
   
+  /** Messages to be sent to client. */
   private[this] var pendingSendToClient = new LinkedBlockingQueue[ClientMessage]
+  /** A promise that can be completed by the next message that should be sent to the client */
   private[this] var pendingResponse : Option[Promise[Option[ClientMessage]]] = None
+  /** A function that can consume messages that should be sent to the client */
+  private[this] var directSendToClient : Option[ClientMessage => Unit] = None
 
+  
+  def setDirectSendToClient(callback:ClientMessage => Unit) {
+    outgoingSyncObject.synchronized {
+      for (message<-cometCallShouldReturnImmediately()) callback(message)
+      directSendToClient=Some(callback)
+    }
+  }
   /** A better way to do comet calls - via futures. */
   def cometCallFuture : Future[Option[ClientMessage]] = {
     // println("Pre synchronized block in cometCallFuture")
@@ -158,12 +169,15 @@ class HTTPSession(val worker:HTTPSessionWorker) {
   
   def addMessage(message:ClientMessage) {
     outgoingSyncObject.synchronized {
-      pendingResponse match {
-        case None => pendingSendToClient.add(message)
-        case Some(promise) =>
-          pendingResponse=None
-          assert (pendingSendToClient.isEmpty)
-          promise.success(Some(message))
+      directSendToClient match {
+        case Some(callback) => callback(message)
+        case None => pendingResponse match {
+          case None => pendingSendToClient.add(message)
+          case Some(promise) =>
+            pendingResponse=None
+            assert (pendingSendToClient.isEmpty)
+            promise.success(Some(message))
+        }
       }
     }  
   }

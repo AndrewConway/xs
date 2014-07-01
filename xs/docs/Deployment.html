@@ -109,16 +109,21 @@
              xs.userURL = '/xsUser'; 
              xs.wsURL = 'ws://localhost:9000/websocket';
   </pre>
-  <p>The first two are for the Comet approach; the last is for websockets.
-  All calls will contain a query string containing a session identifier which is used to work out which
+  <p>The first two are for the Comet approach; the last is for websockets. The xs.wsURL can also be a function taking a session id as argument and producing a string URL. This can be useful
+  since a ws url must be an absolute URL and it lets page relative URLs be generated, which is helpful for avoiding hard coding deployment paths. If the ws.wsURL is a function
+  then the query string containing the session id is not appended - the function should put it in the appropriate place.
+  All other calls will contain a query string containing a session identifier which is used to work out which
   client is being spoken to. This string can be decoded via <code>SessionManagement.get(sessionID)</code>.</p>
   
   
   <p>The comet call should be processed via <code>session.cometCallFuture</code> which returns a future (with a ten second timeout) of
-  the message to return (which can be serialized via its <code>serialize</code> method). The Play example uses futures nicely; the
+  the message to return (which can be serialized via its <code>serialize</code> method). The Play example uses futures nicely; the non-websocket
   servlet example ties up a thread waiting on it (this is not good practice and you should not do it in production but it is more portable
   for the demo). If you are using a servlet holder that cannot create threads then instead of  <code>session.cometCallFuture</code> 
   you can call <code>session.cometCallBlocking()</code> which will block - this is undesirable unless absolutely necessary.</p>
+  
+  <p>Alternatively to <code>session.cometCallFuture</code>, one can give a callback via <code>session.setDirectSendToClient</code>. This 
+  will be valled back with each message that should be sent to the client.</p>
   
   <p>The client call should have its contents deserialized by <code>ClientMessage.deserialize(request.getInputStream())</code>, and
   then pass it to <code>session.receivedPossiblyUnorderedMessage(message, messageCount)</code> where <code>message</code> is
