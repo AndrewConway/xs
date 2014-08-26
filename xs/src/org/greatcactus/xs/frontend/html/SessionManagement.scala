@@ -62,7 +62,8 @@ object SessionManagement {
     res
   } 
   
-  val scheduler:ScheduledExecutorService = Executors.newScheduledThreadPool(1) 
+  /** Used for timeout in Session.cometCallFuture. If that method is not used, then this will never be created, which means there is no need to shut it down. */
+  lazy val scheduler:ScheduledExecutorService = Executors.newScheduledThreadPool(1) 
 }
 
 /** Used for dependency injection. Not added by default as there could be multiple session prefixes in a given dependency injection tree. */
