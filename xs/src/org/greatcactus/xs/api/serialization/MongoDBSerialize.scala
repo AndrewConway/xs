@@ -51,7 +51,7 @@ object MongoDBSerialize {
       case obj : AnyRef => SerializableTypeInfo.get(obj.getClass) match {
         case Some(helper) =>
           val builder = BasicDBObjectBuilder.start()
-          builder.add(typeTag,helper.name)
+          if (helper.needsTypeTagOnSerialization) builder.add(typeTag,helper.name)
           for (f<-helper.fields) {
             f.getField(obj) match {
               case null =>

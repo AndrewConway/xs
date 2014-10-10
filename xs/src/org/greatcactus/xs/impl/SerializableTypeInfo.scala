@@ -64,6 +64,16 @@ class SerializableTypeInfo[T <: AnyRef] private (val clazz : java.lang.Class[T])
       }
     } 
   }
+  def hasSubclasses = subclasses.length>0 // if true, then on deserialization need to consider possible subclasses.
+  val needsTypeTagOnSerialization = hasSubclasses || { // if true, then on serialization need to mark tag
+    def test(c:java.lang.Class[_]) : Boolean = (c!=null) &&  {
+      ((c ne clazz) && hasAnnotation(rootMirror.classSymbol(c),typeXSSerializable)) ||
+      test(c.getSuperclass()) ||
+      c.getInterfaces().exists(test _)
+    }
+    test(clazz)
+  }
+  
   /** transitive completion of subclasses mentioned in SerializableSubclasses structure including self but not including abstract classes. */
   private[xs] lazy val transitiveSubclasses : Seq[SerializableTypeInfo[_ <: AnyRef]] = (subclasses.flatMap{_.transitiveSubclasses}++List(this)).filter{!_.isAbstract}
     

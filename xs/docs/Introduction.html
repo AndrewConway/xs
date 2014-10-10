@@ -76,8 +76,8 @@ val deserialized : Complex = XMLDeserialize.deserialize[Complex](serializedData)
   <h5>JSON serialization</h5>
   <p>Usage and general idea is similar to XML serialization, except just the <code>JSONSerialize</code> and <code>JSONDeserialize</code> classes.</p>
   
-  <p>Polymorphism causes different problems; working out what class a field is. For this reason each object, when serialized contains an explicit
-  field called <code>"xsType"</code> set to a string specifying the name of the actual type. This field must be listed first for deserialization
+  <p>Polymorphism causes different problems; working out what class a field is. For this reason each object that inherits from an XS object, 
+  when serialized contains an explicit field called <code>"xsType"</code> set to a string specifying the name of the actual type. This field must be listed first for deserialization
   to work. <code>@XSWrapper</code> is not needed and will be ignored.</p>
   
   <p>More specifically, an xs object is serialized with JSON fields for all its non-empty fields, plus "xsType" with the name of the class being serialized.

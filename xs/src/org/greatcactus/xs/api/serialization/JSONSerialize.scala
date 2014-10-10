@@ -22,6 +22,7 @@ import java.io.Writer
  * Serialize to JSON. This is slightly simpler than XML.
  * 
  * A class is serialized with fields for all its non-empty fields, plus one "xsType" with the name of the class being serialized.
+ * The "xsType" field is omitted if there are no XS superclasses of the class being serialized (in which case it is not needed) unless alwaysWriteTypeTag=true.
  * Fields are serialized as follows:
  *   - non-XS fields are serialized as JSON primitives (as in XML serialization)
  *   - non-empty collections (other than option) are serialized as a JSON array
@@ -34,45 +35,45 @@ object JSONSerialize {
     
   def serializeToByteArray(obj:Any) : Array[Byte] = {
     val w = new ByteArrayOutputStream
-    serialize(obj,w)
+    serialize(obj,w,false)
     w.toByteArray()
   }
   
   def serializeToString(obj:Any) : String = {
     val w = new StringWriter
-    serialize(obj,w)
+    serialize(obj,w,false)
     w.toString
   }
   
-  def serialize(obj:Any,out:OutputStream) {
+  def serialize(obj:Any,out:OutputStream,alwaysWriteTypeTag:Boolean) {
     val g = ClientMessage.jsonFactory.createJsonGenerator(out)
-    serialize(obj,g)
+    serialize(obj,g,alwaysWriteTypeTag)
     g.close()
   }
 
-  def serialize(obj:Any,out:Writer) {
+  def serialize(obj:Any,out:Writer,alwaysWriteTypeTag:Boolean) {
     val g = ClientMessage.jsonFactory.createJsonGenerator(out)
-    serialize(obj,g)
+    serialize(obj,g,alwaysWriteTypeTag)
     g.close()
   }
 
-  def serialize(toSerialize:Any,g:JsonGenerator)  {
+  def serialize(toSerialize:Any,g:JsonGenerator,alwaysWriteTypeTag:Boolean)  {
     toSerialize match {
       case null => g.writeNull()
       case a:Array[_] => 
         g.writeStartArray()
-        for (s<-a) serialize(s,g)
+        for (s<-a) serialize(s,g,alwaysWriteTypeTag)
         g.writeEndArray()
       case m:Map[_,_] =>
         g.writeStartObject()
         for ((key,value)<-m) {
           g.writeFieldName(key.toString)
-          serialize(value,g)
+          serialize(value,g,alwaysWriteTypeTag)
         }
         g.writeEndObject()
       case a:GenTraversable[_] => 
         g.writeStartArray()
-        for (s<-a) serialize(s,g)
+        for (s<-a) serialize(s,g,alwaysWriteTypeTag)
         g.writeEndArray()
       case n:Int => g.writeNumber(n)
       case n:Short => g.writeNumber(n)
@@ -85,7 +86,7 @@ object JSONSerialize {
         SerializableTypeInfo.get(obj.getClass) match {
         case Some(helper) =>
           g.writeStartObject()
-          g.writeStringField(typeTag,helper.name)
+          if (helper.needsTypeTagOnSerialization || alwaysWriteTypeTag) g.writeStringField(typeTag,helper.name)
           for (f<-helper.fields) {
             f.getField(obj) match {
               case null =>
@@ -94,10 +95,10 @@ object JSONSerialize {
               case a:GenTraversable[_] if a.isEmpty =>
               case Some(a) =>
                 g.writeFieldName(f.name)
-                serialize(a,g)
+                serialize(a,g,alwaysWriteTypeTag)
               case other =>
                 g.writeFieldName(f.name)
-                serialize(other,g)
+                serialize(other,g,alwaysWriteTypeTag)
             }
           }
           g.writeEndObject()

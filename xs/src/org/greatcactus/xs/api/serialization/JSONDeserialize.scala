@@ -43,16 +43,21 @@ object JSONDeserialize {
   }
   /** Call when have already got the START_OBJECT token */
   private def deserializeObj[T <: AnyRef](p:JsonParser,helper:SerializableTypeInfo[T]) : T = {
-    val f1t = p.nextToken() // should produce FIELD_NAME
-    if (f1t!=JsonToken.FIELD_NAME || p.getCurrentName()!=JSONSerialize.typeTag) throw new IllegalArgumentException("Expecting class name")
-    p.nextToken()
-    val className = p.getText()
-    val info : SerializableTypeInfo[_ <: T] = helper.subClassFromName.getOrElse(className,throw new IllegalArgumentException("Not expecting class "+className+" in class "+helper.name))
+    val info : SerializableTypeInfo[_ <: T] = if (helper.hasSubclasses) {
+      val f1t = p.nextToken() // should produce FIELD_NAME
+      if (f1t!=JsonToken.FIELD_NAME || p.getCurrentName()!=JSONSerialize.typeTag) throw new IllegalArgumentException("Expecting class name")
+      p.nextToken()
+      val className = p.getText()
+      helper.subClassFromName.getOrElse(className,throw new IllegalArgumentException("Not expecting class "+className+" in class "+helper.name))
+    } else helper
     val fields  = new Array[AnyRef](info.numFields) // the contents of the fields, placed in as they are found.
     for (f<-info.fields) fields(f.index)=if (f.isCollectionOrArray) f.emptyCollection else f.defaultElementValue
     while (p.nextToken()!=JsonToken.END_OBJECT) {
-      val field = info.getField(p.getCurrentName())
-      fields(field.index)=deserializeField(p,field)
+      val name = p.getCurrentName()
+      if (name!=JSONSerialize.typeTag) {
+        val field = info.getField(name)
+        fields(field.index)=deserializeField(p,field)    
+      }
     }
     // if (fields.length>0) println(fields(0))
     info.create(fields)

@@ -33,17 +33,17 @@ object MongoDBDeserialize {
   }
   /** Call when have already got the START_OBJECT token */
   private def deserializeObj[T <: AnyRef](p:BSONObject,helper:SerializableTypeInfo[T]) : T = {
-    p.get(JSONSerialize.typeTag) match {
+    val info : SerializableTypeInfo[_ <: T] = if (helper.hasSubclasses) p.get(JSONSerialize.typeTag) match {
       case className:String =>
-        val info : SerializableTypeInfo[_ <: T] = helper.subClassFromName.getOrElse(className,throw new IllegalArgumentException("Not expecting class "+className+" in class "+helper.name))
-        val fields  = new Array[AnyRef](info.numFields) // the contents of the fields, placed in as they are found.
-        for (f<-info.fields) fields(f.index)= p.get(f.name) match {
-          case null => if (f.isCollectionOrArray) f.emptyCollection else f.defaultElementValue
-          case fvalue => deserializeField(fvalue,f)
-        }
-        info.create(fields)
+        helper.subClassFromName.getOrElse(className,throw new IllegalArgumentException("Not expecting class "+className+" in class "+helper.name))
       case _ => throw new IllegalArgumentException("Expecting class name")
+    } else helper
+    val fields  = new Array[AnyRef](info.numFields) // the contents of the fields, placed in as they are found.
+    for (f<-info.fields) fields(f.index)= p.get(f.name) match {
+      case null => if (f.isCollectionOrArray) f.emptyCollection else f.defaultElementValue
+      case fvalue => deserializeField(fvalue,f)
     }
+    info.create(fields)
   }
   private def deserializeField(value:AnyRef,field:XSFieldInfo) : AnyRef = {
     def parseBase(bo:Any) : AnyRef = bo match {
