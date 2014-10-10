@@ -40,6 +40,7 @@ class XSFieldInfo(val fieldSymbol:reflect.runtime.universe.Symbol,val index:Int,
     
     val isScalaOption = ptypeIs(symbolOption)
     val isScalaCollection = ptypeIs(symbolGenTraversable)
+    val isScalaMap = ptypeIs(symbolMap)
     def isParticularScalaCollection(collectionType:universe.Symbol) = isScalaCollection && ptypeIs(collectionType) // this is not a good solution as it has false positives.
     val isScalaList = isParticularScalaCollection(symbolList)
     val isScalaSeq = isParticularScalaCollection(symbolSeq)
@@ -50,36 +51,71 @@ class XSFieldInfo(val fieldSymbol:reflect.runtime.universe.Symbol,val index:Int,
 
     val isArray = ftype.baseType(symbolArray) != universe.NoType
 
-    val isCollectionOrArray = isArray || isScalaCollection || isScalaOption
+    val isCollectionOrArray = isArray || isScalaCollection || isScalaOption || isScalaMap
     val isCollectionOrArrayButNotOption = isArray || isScalaCollection 
   
-    val baseType = if (isCollectionOrArray) {
-      val superclass = if (isScalaCollection) symbolGenTraversable else if (isScalaOption) symbolOption else if (isArray) symbolArray else throw new IllegalArgumentException(fieldSymbol.toString)
-      val refinedType = ftype.baseType(superclass)
-       //println("Refined type "+refinedType)
-       //val universe.ClassDef() = argumentType
-       val universe.TypeRef(_, _, argumentType :: Nil) = refinedType
-       //println("Arg type "+argumentType)
-       argumentType
-    } else ftype
+    class SimpleTypeInfo(val baseType:Type) {
+       val className = baseType.typeSymbol.fullName
+       val baseClass : Class[_] = className match {
+         case "scala.Byte" => java.lang.Integer.TYPE
+         case "scala.Short" => java.lang.Short.TYPE
+         case "scala.Char" => java.lang.Character.TYPE
+         case "scala.Int" => java.lang.Integer.TYPE
+         case "scala.Long" => java.lang.Long.TYPE
+         case "scala.Float" => java.lang.Float.TYPE
+         case "scala.Double" => java.lang.Double.TYPE
+         case "scala.Boolean" => java.lang.Boolean.TYPE
+         case _ => parentClass.getClassLoader.loadClass(className)
+       }
+       val isPrimitive = baseClass.isPrimitive()
+       def isSimpleString = className=="java.lang.String"
+       def simpleDefault = className match {
+          case "scala.Byte" => new java.lang.Byte(0.toByte) 
+          case "scala.Short" => new java.lang.Short(0.toShort)
+          case "scala.Char" => new java.lang.Character(0)
+          case "scala.Int" => new java.lang.Integer(0)
+          case "scala.Long" => new java.lang.Long(0L)
+          case "scala.Float" => new java.lang.Float(0.0f)
+          case "scala.Double" => new java.lang.Double(0.0)
+          case "scala.Boolean" => java.lang.Boolean.FALSE
+          case _ => null
+        }
+       lazy val parser = try { ValueOfString.deserializer(baseClass) } catch {case _:IllegalArgumentException => error("Could not find deserializer for "+className) }
+    }
+    
+    /**
+     * baseTypeInfo is the interesting type of the field. If the field is a collection/option/array, baseTypeInfo is what it is a collection of. 
+     * If baseTypeInfo is a map (or a map to a map to a map), then mapArgTypeInfo is a list of the types of the keys to the map, and baseTypeInfo is the final value
+     * Otherwise baseTypeInfo is the plain type of the object.
+     */
+    val (mapArgTypeInfo:List[SimpleTypeInfo],baseTypeInfo:SimpleTypeInfo) = {
+      def extractArgs(from:Type) = {
+        val superclass = if (isScalaMap) symbolMap else if (isScalaCollection) symbolGenTraversable else if (isScalaOption) symbolOption else if (isArray) symbolArray else throw new IllegalArgumentException(fieldSymbol.toString)
+        val refinedType = from.baseType(superclass)
+        val universe.TypeRef(_, _, argumentTypes) = refinedType
+        argumentTypes
+      }
+      val (mapArgTypes:List[Type],baseType:Type) = {
+        if (isScalaMap) { // may be a map of a map of a map ....
+          val argtypes = new collection.mutable.ListBuffer[Type]
+          var restype = ftype
+          while (restype.baseType(symbolMap) != universe.NoType) { // while it is still a map
+            val key::value::Nil = extractArgs(restype)
+            argtypes+=key
+            restype=value
+          }
+          (argtypes.toList,restype)
+        } else (Nil,if (isCollectionOrArray) extractArgs(ftype).head else ftype)
+      }
+      (mapArgTypes.map{new SimpleTypeInfo (_)},new SimpleTypeInfo(baseType))
+    } 
     
 
     /** The maximum number of children this field can have. -1 means infinite. */
     val maxChildren = if (isScalaOption) 1 else if (isCollectionOrArray) annotationValueInt(typeMaxChildren,-1).getOrElse(-1) else 1
     
-    val baseClassName = baseType.typeSymbol.fullName
-    val baseClass : Class[_] = baseClassName match {
-      case "scala.Byte" => java.lang.Integer.TYPE
-      case "scala.Short" => java.lang.Short.TYPE
-      case "scala.Char" => java.lang.Character.TYPE
-      case "scala.Int" => java.lang.Integer.TYPE
-      case "scala.Long" => java.lang.Long.TYPE
-      case "scala.Float" => java.lang.Float.TYPE
-      case "scala.Double" => java.lang.Double.TYPE
-      case "scala.Boolean" => java.lang.Boolean.TYPE
-      case _ => parentClass.getClassLoader.loadClass(baseClassName)
-    }
-    val baseClassIsPrimitive = baseClass.isPrimitive()
+    val baseClass : Class[_] = baseTypeInfo.baseClass 
+    val baseClassIsPrimitive = baseTypeInfo.isPrimitive
     
     val fixedOptions : Option[EnumeratedOptions] = {
       val sco = baseClass.getAnnotation(classOf[SuggestedOptions])
@@ -127,7 +163,8 @@ class XSFieldInfo(val fieldSymbol:reflect.runtime.universe.Symbol,val index:Int,
     val isAssertedAsBlock = hasAnnotation(typeXSSerializeAsBlock)
     val isAssertedAsAttribute = hasAnnotation(typeXSSerializeAsAttribute)
     def couldBeAttribute = !xsinfo.isDefined
-    val isBlock = xsinfo.isDefined || isAssertedAsBlock || wrapperName.isDefined || (baseClassName=="java.lang.String" && !isAssertedAsAttribute)
+    val basetypeIsBlock = xsinfo.isDefined || isAssertedAsBlock || wrapperName.isDefined || (baseTypeInfo.isSimpleString && !isAssertedAsAttribute)
+    val isBlock = basetypeIsBlock || isScalaMap
     
     val getMethod = {
       val m = parentType.member(universe.TermName(originalName))
@@ -191,12 +228,12 @@ class XSFieldInfo(val fieldSymbol:reflect.runtime.universe.Symbol,val index:Int,
 
     val parser = { 
       if (xsinfo.isDefined) null // not needed
-      else try {
-       ValueOfString.deserializer(baseClass) 
-      } catch {case _:IllegalArgumentException => error("Could not find deserializer for "+name) }
+      else baseTypeInfo.parser
     }
     // val defaultStringRep = getOptionalValue(fieldSymbol,typeDefaultValue) // the default value for a new instance.
     val defaultActivelySetValue : Option[AnyRef] = for (s<-getOptionalValue(fieldSymbol,typeDefaultValue)) yield parser(s)
+    
+    val mapArgParser : List[ValueOfString] = mapArgTypeInfo.map{_.parser}
     
 
     def newSingleElement() : AnyRef = xsinfo match {
@@ -204,18 +241,8 @@ class XSFieldInfo(val fieldSymbol:reflect.runtime.universe.Symbol,val index:Int,
       case None => defaultElementValue
     }
     
-    val defaultElementValue : AnyRef = defaultActivelySetValue.getOrElse{baseClassName match {
-          case "scala.Byte" => new java.lang.Byte(0.toByte) 
-          case "scala.Short" => new java.lang.Short(0.toShort)
-          case "scala.Char" => new java.lang.Character(0)
-          case "scala.Int" => new java.lang.Integer(0)
-          case "scala.Long" => new java.lang.Long(0L)
-          case "scala.Float" => new java.lang.Float(0.0f)
-          case "scala.Double" => new java.lang.Double(0.0)
-          case "scala.Boolean" => java.lang.Boolean.FALSE
-          case _ => null
-        }
-    }
+    val defaultElementValue : AnyRef = defaultActivelySetValue.getOrElse{baseTypeInfo.simpleDefault}
+    
     /** What value should be used if nothing is given during deserialization. This is null, except for primitives which NEED something. */
     val leftOutValue : Option[AnyRef] = if (isCollectionOrArray || !baseClassIsPrimitive) None else Some{defaultElementValue}
       
@@ -288,7 +315,7 @@ class XSFieldInfo(val fieldSymbol:reflect.runtime.universe.Symbol,val index:Int,
         else error("Unimplemented collection type")
       }
     }
-    lazy val emptyCollection = collectionOfBuffer(IndexedSeq())
+    lazy val emptyCollection = if (isScalaMap) Map.empty else collectionOfBuffer(IndexedSeq())
     
     def error(cause:String) = throw new XSSpecificationError(parentClass,cause+", field "+originalName)
     

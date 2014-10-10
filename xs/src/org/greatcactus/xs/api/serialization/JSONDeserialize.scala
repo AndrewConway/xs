@@ -1,5 +1,5 @@
 /**
- * Copyright Andrew Conway 2013. All rights reserved.
+ * Copyright Andrew Conway 2013-2014. All rights reserved.
  */
 package org.greatcactus.xs.api.serialization
 
@@ -18,6 +18,8 @@ import org.greatcactus.xs.frontend.html.ClientMessage
 import java.io.Reader
 import com.fasterxml.jackson.core.JsonParser
 import com.fasterxml.jackson.core.JsonToken
+import org.greatcactus.xs.impl.XSFieldInfo
+import org.greatcactus.xs.impl.ValueOfString
 
 /**
  * Deserialize an XS object from JSON
@@ -52,26 +54,38 @@ object JSONDeserialize {
       val field = info.getField(p.getCurrentName())
       fields(field.index)=deserializeField(p,field)
     }
+    // if (fields.length>0) println(fields(0))
     info.create(fields)
   }
+
   private def deserializeField(p:JsonParser,field:XSFieldInfo) : AnyRef = {
-    def proc(token:JsonToken) : AnyRef = token match {
+    def proc(token:JsonToken,mapsToDealWith:List[ValueOfString]) : AnyRef = token match {
       case JsonToken.VALUE_NULL => null
       case JsonToken.START_OBJECT =>
-        val info : SerializableTypeInfo[AnyRef] = field.xsinfo.getOrElse{throw new IllegalArgumentException("Not expecting object")}.asInstanceOf[SerializableTypeInfo[AnyRef]]
-        val res : AnyRef = deserializeObj[AnyRef](p,info)
-        res
+        if (field.isScalaMap && !mapsToDealWith.isEmpty) {
+          var res : Map[Any,Any] = Map.empty
+          while (p.nextToken()!=JsonToken.END_OBJECT) {
+            val key = mapsToDealWith.head(p.getCurrentName())
+            val value = proc(p.nextToken(),mapsToDealWith.tail)
+            res+=key->value
+          }
+          res
+        } else {
+          val info : SerializableTypeInfo[AnyRef] = field.xsinfo.getOrElse{throw new IllegalArgumentException("Not expecting object")}.asInstanceOf[SerializableTypeInfo[AnyRef]]
+          val res : AnyRef = deserializeObj[AnyRef](p,info)
+          res    
+        }
       case JsonToken.START_ARRAY =>
         val res = new ArrayBuffer[AnyRef]
         var subt = p.nextToken()
         while (subt!=JsonToken.END_ARRAY) {
-          res+=proc(subt)
+          res+=proc(subt,mapsToDealWith)
           subt = p.nextToken()
         }
         field.collectionOfBuffer(res)
       case JsonToken.VALUE_FALSE => java.lang.Boolean.FALSE
       case JsonToken.VALUE_TRUE => java.lang.Boolean.TRUE
-      case JsonToken.VALUE_NUMBER_FLOAT => field.baseClassName match {
+      case JsonToken.VALUE_NUMBER_FLOAT => field.baseTypeInfo.className match {
         case "scala.Float" => new java.lang.Float(p.getFloatValue)
         case "scala.Double" => new java.lang.Double(p.getDoubleValue)
         case "java.lang.Float" => new java.lang.Float(p.getFloatValue)
@@ -79,7 +93,7 @@ object JSONDeserialize {
         case _ => throw new IllegalArgumentException("Not expecting floating point value for field "+field.name)
 
       }
-      case JsonToken.VALUE_NUMBER_INT => field.baseClassName match {
+      case JsonToken.VALUE_NUMBER_INT => field.baseTypeInfo.className match {
         case "scala.Byte" => new java.lang.Byte(p.getByteValue)
         case "scala.Short" => new java.lang.Short(p.getShortValue)
         case "scala.Int" => new java.lang.Integer(p.getIntValue)
@@ -92,11 +106,11 @@ object JSONDeserialize {
         case "java.lang.Long" => new java.lang.Long(p.getLongValue)
         case "java.lang.Float" => new java.lang.Float(p.getFloatValue)
         case "java.lang.Double" => new java.lang.Double(p.getDoubleValue)
-        case _ => throw new IllegalArgumentException("Not expecting integer for field "+field.name+" type "+field.baseClassName)
+        case _ => throw new IllegalArgumentException("Not expecting integer for field "+field.name+" type "+field.baseTypeInfo.className)
       }
       case JsonToken.VALUE_STRING => field.parseStringSingle(p.getText())
     }
-    val raw = proc(p.nextToken())
+    val raw = proc(p.nextToken(),field.mapArgParser)
     if (field.isScalaOption) Some(raw) else raw
   }
         

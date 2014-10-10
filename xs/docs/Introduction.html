@@ -16,21 +16,26 @@
   There is one field created for each argument to the constructor; its name is the name of the argument (overridable by the <code>@XSName</code> annotation)
   A field is suitable if it is:</p>
   <ul>
-    <li>A class that can be handled by XS</li>
-    <li>A class that can be indirectly handled by XS. This is a superclass of some other class(es) that are themselves handled directly or indirectly by XS. 
-    Such a class must be annotated with <code>@XS</code> and <code>@XSSubclasses</code>, with the 
-    latter annotation listing all the subclasses.</li>
-    <li>A primitive (Int,Double,Char,Byte,Long,Float,Boolean)</li>
-    <li>A string</li>
-    <li>A Java enumeration</li>
-    <li>Some class that can be converted to a string by toString (ie everything) and from a string by a method taking a string as an argument. Places looked (in order of precendence):
-      <ul>
-        <li>an <code>apply</code> method in the companion object (a common Scala idiom)</li>
-        <li>a static <code>valueOf</code> member (a common Java idiom, including some useful Java standard library functions)</li>
-        <li>a constructor for the class</li>
-      </ul>
+    <li>A simple type, consisting of:
+     <ul>
+       <li>A class that can be handled by XS</li>
+       <li>A class that can be indirectly handled by XS. This is a superclass of some other class(es) that are themselves handled directly or indirectly by XS. 
+       Such a class must be annotated with <code>@XS</code> and <code>@XSSubclasses</code>, with the 
+       latter annotation listing all the subclasses.</li>
+       <li>A primitive (Int,Double,Char,Byte,Long,Float,Boolean)</li>
+       <li>A string</li>
+       <li>A Java enumeration</li>
+       <li>Some class that can be converted to a string by toString (ie everything) and from a string by a method taking a string as an argument. Places looked (in order of precendence):
+         <ul>
+           <li>an <code>apply</code> method in the companion object (a common Scala idiom)</li>
+           <li>a static <code>valueOf</code> member (a common Java idiom, including some useful Java standard library functions)</li>
+           <li>a constructor for the class</li>
+         </ul>
+       </li>
+     </ul>
     </li>
-    <li>An array, List, Seq, IndexedSeq, Set, or Option of one of the above types.</li>
+    <li>An array, List, Seq, IndexedSeq, Set, or Option of a simple type.</li>
+    <li>A scala.collection.Map, whose key is string serializable, and whose value is a simple type, or a A scala.collection.Map whose key is ... etc recursively ending in a simple type.</li>
   </ul>
   
   <p>This covers a large number of practical data structures. It does not allow collections of collections or Tuples directly, 
@@ -49,6 +54,10 @@
   Some(null), None, and null all serialize to the same thing - XS is not the library for you if you routinely want to distinguish these. What a missing field deserializes to depends
   upon the type: if the type is a collection, it deserializes to an empty collection. Otherwise it deserializes to null. Note that the serializer can distinguish None from
   Some("") which the editor cannot distinguish.  </p>
+  <p>Maps are serialized as one tag for each entry called the name of the field. These tags will each have the key as an attribute with name "key". If the 
+  value would be serialized as an attribute, it is serialized as an attribute with name "value". If the value would be serialized as a string but not an attribute,
+  it is serialized as a string in the body of the tag containing the key. Otherwise the value is serialized as normal, inside the body of the tag containing the key.</p>
+  
   <p>Polymorphic fields are distinguished by having the sub field have tag name be the name of the class. This causes problems if there are two fields that could
   contain the same class. This ambiguity is resolved by wrapping the fields with the field name via <code>@XSWrapper</code></p>
   
@@ -76,6 +85,7 @@ val deserialized : Complex = XMLDeserialize.deserialize[Complex](serializedData)
   <ul>
    <li>Numbers/booleans are serialized as the appropriate JSON primitive.</li>
    <li>Other non-XS fields are serialized as strings (as in XML serialization).  </li>
+   <li>Maps are serialized as javascript maps.</li> 
    <li>non-empty collections (other than option) are serialized as a JSON array</li>
    <li>non-null object fields, or non-empty options, are serialized as a JSON object</li>
   </ul>
@@ -101,6 +111,8 @@ val deserialized : Complex = XMLDeserialize.deserialize[Complex](serializedData)
    not displayed, or annotated with <code>@TableEditable</code> which means they will be displayed as a grid (think Excel). They
    can also be annotated with <code>@InlineEditable</code> which means they will be displayed as multiple blocks inside the current
    view.</p>
+   
+   <p>Maps cannot currently be edited.</p>
    
    <p>Fields that are serialized to strings are generally edited as fields on the right hand side. They can be edited
    as checkboxes via <code>@BooleanEditable</code>, as strings via <code>@StringEditable</code> (this includes numbers, 

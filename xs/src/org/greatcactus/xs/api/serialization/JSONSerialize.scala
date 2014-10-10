@@ -1,5 +1,5 @@
 /**
- * Copyright Andrew Conway 2012-2013. All rights reserved.
+ * Copyright Andrew Conway 2012-2014. All rights reserved.
  */
 package org.greatcactus.xs.api.serialization
 
@@ -63,6 +63,13 @@ object JSONSerialize {
         g.writeStartArray()
         for (s<-a) serialize(s,g)
         g.writeEndArray()
+      case m:Map[_,_] =>
+        g.writeStartObject()
+        for ((key,value)<-m) {
+          g.writeFieldName(key.toString)
+          serialize(value,g)
+        }
+        g.writeEndObject()
       case a:GenTraversable[_] => 
         g.writeStartArray()
         for (s<-a) serialize(s,g)

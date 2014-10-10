@@ -1,5 +1,5 @@
 /**
- * Copyright Andrew Conway 2013. All rights reserved.
+ * Copyright Andrew Conway 2013-2014. All rights reserved.
  */
 package org.greatcactus.xs.api.serialization
 
@@ -19,6 +19,7 @@ import java.io.Reader
 import com.fasterxml.jackson.core.JsonParser
 import com.fasterxml.jackson.core.JsonToken
 import java.net.URLDecoder
+import org.greatcactus.xs.impl.ValueOfString
 
 /**
  * Deserialize an XS object from a string map. Complement of StringMapSerialize.
@@ -55,7 +56,22 @@ object StringMapDeserialize {
           data.get(elemPrefix).map{field.parseStringSingle(_)}.getOrElse(null)
       }
     }
-    if (field.isCollectionOrArrayButNotOption) {
+    if (field.isScalaMap) {
+      def proc(togo:List[ValueOfString],mapprefix:String) : AnyRef = {
+        togo match {
+          case Nil => elem(mapprefix)
+          case h::t =>
+            var res : Map[Any,Any] = Map.empty
+            val length = data.get(mapprefix+"_len").getOrElse("0").toInt
+            for (i<-0 until length) {
+              val np = mapprefix+"_"+i
+              res+=h(data(np+"_key"))->proc(t,np)
+            }
+            res
+        }
+      }
+      proc(field.mapArgParser,prefix)
+    } else if (field.isCollectionOrArrayButNotOption) {
       val res = new ArrayBuffer[AnyRef]
       val length = data.get(prefix+"_len").getOrElse("0").toInt
       for (i<-0 until length) res+=elem(prefix+"_"+i)

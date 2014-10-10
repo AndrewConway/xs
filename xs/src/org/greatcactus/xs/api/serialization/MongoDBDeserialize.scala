@@ -1,5 +1,5 @@
 /**
- * Copyright Andrew Conway 2013. All rights reserved.
+ * Copyright Andrew Conway 2013-2014. All rights reserved.
  */
 package org.greatcactus.xs.api.serialization
 
@@ -19,6 +19,7 @@ import java.io.Reader
 import com.fasterxml.jackson.core.JsonParser
 import com.fasterxml.jackson.core.JsonToken
 import org.bson.BSONObject
+import org.greatcactus.xs.impl.ValueOfString
 
 /**
  * Deserialize an XS object from JSON
@@ -36,7 +37,6 @@ object MongoDBDeserialize {
       case className:String =>
         val info : SerializableTypeInfo[_ <: T] = helper.subClassFromName.getOrElse(className,throw new IllegalArgumentException("Not expecting class "+className+" in class "+helper.name))
         val fields  = new Array[AnyRef](info.numFields) // the contents of the fields, placed in as they are found.
-        for (f<-info.fields) 
         for (f<-info.fields) fields(f.index)= p.get(f.name) match {
           case null => if (f.isCollectionOrArray) f.emptyCollection else f.defaultElementValue
           case fvalue => deserializeField(fvalue,f)
@@ -55,7 +55,23 @@ object MongoDBDeserialize {
       case s => field.parseStringSingle(s.toString)
     }
     if (value==null) null
-    else if (field.isCollectionOrArrayButNotOption) {
+    else if (field.isScalaMap) {
+      def parse(togo:List[ValueOfString],bo:Any) : AnyRef = {
+        togo match {
+          case Nil => parseBase(bo)
+          case h::t => bo match {
+            case null => null
+            case bson:BSONObject =>
+              var map : Map[Any,Any] = Map.empty
+              import scala.collection.JavaConverters._
+              for (key<-bson.keySet().asScala) map+=h(key)->parse(t,bson.get(key))
+              map
+            case _ => throw new IllegalArgumentException("Expecting map")
+          } 
+        }
+      }
+      parse(field.mapArgParser,value)
+    } else if (field.isCollectionOrArrayButNotOption) {
       value match {
         case a:Array[_] => field.collectionOfBuffer(a.map{parseBase _})
         case _ => throw new IllegalArgumentException("Expecting array")

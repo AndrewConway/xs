@@ -131,6 +131,7 @@ class SerializableTypeInfo[T <: AnyRef] private (val clazz : java.lang.Class[T])
         }
         if (field.isCollectionOrArray) add(field.nullElementName,null,false)
         if (field.wrapperName.isDefined) add(field.wrapperName.get,None,true)
+        else if (field.isScalaMap) add(field.name,None,false)
         else field.xsinfo match {
           case Some(info) =>
             if (!field.obsoleteNames.isEmpty) {
@@ -295,6 +296,8 @@ class SerializableTypeInfo[T <: AnyRef] private (val clazz : java.lang.Class[T])
   lazy val fieldsAsBlocks = constructor.map{_.fieldsAsBlocks}.getOrElse(List.empty)
   lazy val fieldsAsAttributes = constructor.map{_.fieldsAsAttributes}.getOrElse(List.empty)
   lazy val fields = constructor.map{_.fields}.getOrElse(List.empty)
+  lazy val mapFields = fields.filter{_.isScalaMap}
+  
   lazy val numFields = fields.length
   def create(args:Seq[AnyRef]) : T = constructor match {
     case Some(c) => c.create(args)
@@ -451,6 +454,7 @@ object SerializableTypeInfo {
   private[impl] val symbolGenTraversable = universe.typeOf[GenTraversable[_]].typeSymbol
   private[impl] val symbolOption = universe.typeOf[Option[_]].typeSymbol
   private[impl] val symbolList = universe.typeOf[List[_]].typeSymbol
+  private[impl] val symbolMap = universe.typeOf[Map[_,_]].typeSymbol
   private[impl] val symbolSeq = universe.typeOf[Seq[_]].typeSymbol
   private[impl] val symbolIndexedSeq = universe.typeOf[IndexedSeq[_]].typeSymbol
   private[impl] val symbolVector = universe.typeOf[Vector[_]].typeSymbol

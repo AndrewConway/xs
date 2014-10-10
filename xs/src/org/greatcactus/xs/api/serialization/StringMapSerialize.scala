@@ -1,5 +1,5 @@
 /**
- * Copyright Andrew Conway 2012-2013. All rights reserved.
+ * Copyright Andrew Conway 2012-2014. All rights reserved.
  */
 package org.greatcactus.xs.api.serialization
 
@@ -15,6 +15,7 @@ import java.net.URLEncoder
  * 
  * Fields are serialized as follows:
  *   - non-XS fields are serialized via toString
+ *   - non-empty maps called "x" are serialized as x_len=number, x_0_key=??? x_0=???, etc.
  *   - non-empty collections called "x" are serialized as x_len=number, x_0, x_1, x_2, etc
  *   - non-null object fields called "x" , or non-empty options, are serialized objects prefixed by "x_" 
  *  Polymorphism is dealt with by the xsType field.
@@ -37,6 +38,14 @@ object StringMapSerialize {
       case a:Array[_] => 
         var res = Map(prefix+"_len"->a.length.toString)
         for (i<-0 until a.length) res++=serialize(a(i),prefix+"_"+i)
+        res
+      case m:Map[_,_] => 
+        var res = Map(prefix+"_len"->m.size.toString)
+        for (((key,value),index)<-m.zipWithIndex) {
+          val np = prefix+"_"+index
+          res+=(np+"_key")->key.toString
+          res++=serialize(value,np)
+        }
         res
       case a:GenTraversable[_] => 
         var res = Map(prefix+"_len"->a.size.toString)

@@ -1,5 +1,5 @@
 /**
- * Copyright Andrew Conway 2012-2013. All rights reserved.
+ * Copyright Andrew Conway 2012-2014. All rights reserved.
  */
 package org.greatcactus.xs.api.serialization
 
@@ -79,6 +79,25 @@ object XMLSerialize {
           }
         }
         field match {
+          case m:Map[_,_] => 
+            def proc(map:Map[_,_]) {
+              for ((key,value)<-map) {
+                writer.writeStartElement(f.name)
+                writer.writeAttribute("key",key.toString)
+                value match {
+                  case null =>
+                  case mm:Map[_,_] =>
+                    proc(mm)
+                  case _ if f.basetypeIsBlock =>
+                    if (f.xsinfo.isDefined) print(value)
+                    else writer.writeCharacters(value.toString)
+                  case _ =>
+                    writer.writeAttribute("value",value.toString)
+                }
+                writer.writeEndElement();
+              }
+            }
+            proc(m)
           case a:Array[_] => a.foreach{print _}
           case a:GenTraversable[_] => a.foreach{print _}
           case a:Option[_] => a.foreach{print _}

@@ -249,6 +249,19 @@ class ZZZ_Serialization {
      test("""<Test13 t1="fr;ed"><t2>bar;ney</t2></Test13>""","""{"xsType":"Test13","t1":"fr;ed","t2":"bar;ney"}""",new Test13(Some("fr;ed"),Some("bar;ney")))
      test("""<Test13/>""","""{"xsType":"Test13"}""",new Test13(None,None))
   }
+  
+  @Test
+  def testM1 { // test maps
+    test("""<TestM1><f1 key="3">C</f1><f1 key="4">D</f1></TestM1>""","""{"xsType":"TestM1","f1":{"3":"C","4":"D"}}""",new TestM1(Map(3->"C",4->"D")))
+    test("""<TestM1/>""","""{"xsType":"TestM1"}""",new TestM1(Map.empty))
+  }
+
+  @Test
+  def testM2 { // test maps
+    test("""<TestM2><f1 key="2"></f1><f1 key="3"><f1 key="a"><Test1 fred="f"/></f1></f1></TestM2>""",
+         """{"xsType":"TestM2","f1":{"2":{},"3":{"a":{"xsType":"Test1","fred":"f"}}}}""",
+         new TestM2(Map(2->Map.empty,3->Map("a"->new Test1("f",Nil)))))
+  }
 }
 
 
@@ -349,5 +362,11 @@ class TestF2(val f:TestF1)
 
 @XS
 class TestF3(val f1:Int,@XSName("f1") val f2:Int)
+
+@XS
+class TestM1(val f1:Map[Int,String])
+
+@XS
+class TestM2(val f1:Map[Int,Map[String,Test1]])
 
 

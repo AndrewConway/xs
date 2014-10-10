@@ -1,5 +1,5 @@
 /**
- * Copyright Andrew Conway 2013. All rights reserved.
+ * Copyright Andrew Conway 2013-2014. All rights reserved.
  */
 package org.greatcactus.xs.api.serialization
 
@@ -34,6 +34,12 @@ object MongoDBSerialize {
     toSerialize match {
       case null => null
       case a:Array[_] => a.map{serialize(_)}
+      case m:Map[_,_] =>
+          val builder = BasicDBObjectBuilder.start()
+          for ((key,value)<-m) {
+            builder.add(key.toString,serialize(value))
+          }
+          builder.get()
       case a:GenTraversable[_] => a.map{serialize(_)}.toArray 
       case n:Int => new java.lang.Integer(n)
       case n:Short => new java.lang.Short(n)
