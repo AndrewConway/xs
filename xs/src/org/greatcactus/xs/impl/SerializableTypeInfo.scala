@@ -81,6 +81,9 @@ class SerializableTypeInfo[T <: AnyRef] private (val clazz : java.lang.Class[T])
 
   val debugDependencies = hasAnnotation(classSymbol,typeDebugDependencies)
   
+  val includeEmptyCollections : Boolean = hasAnnotation(classSymbol,typeIncludeEmptyCollections)
+
+  
   /**
    * This (and related) has to be lazy as it may include a reference to itself, which would require the class itself to be constructed. 
    * However, until it is instantiated we can't tell whether this class is valid. So we have method checkIsValid below.
@@ -479,6 +482,7 @@ object SerializableTypeInfo {
   private[impl] val typeXSObsoleteName = universe.typeOf[XSObsoleteName]
   private[impl] val typeXSIgnorableNames = universe.typeOf[XSIgnorableNames]
   private[impl] val typeXSSerializable = universe.typeOf[XS]
+  private[impl] val typeIncludeEmptyCollections = universe.typeOf[IncludeEmptyCollections]
   private[impl] val typeXSSerializeAsBlock = universe.typeOf[XSSerializeAsBlock]
   private[impl] val typeXSSerializeAsAttribute = universe.typeOf[XSSerializeAsAttribute]
   private[impl] val typeDefaultValue = universe.typeOf[DefaultValue]

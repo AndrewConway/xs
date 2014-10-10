@@ -91,8 +91,8 @@ object JSONSerialize {
             f.getField(obj) match {
               case null =>
               case None =>
-              case a:Array[_] if a.isEmpty =>
-              case a:GenTraversable[_] if a.isEmpty =>
+              case a:Array[_] if a.isEmpty && !f.includeEmptyCollections =>
+              case a:GenTraversable[_] if a.isEmpty && !f.includeEmptyCollections =>
               case Some(a) =>
                 g.writeFieldName(f.name)
                 serialize(a,g,alwaysWriteTypeTag)

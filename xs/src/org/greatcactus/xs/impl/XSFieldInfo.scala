@@ -322,6 +322,8 @@ class XSFieldInfo(val fieldSymbol:reflect.runtime.universe.Symbol,val index:Int,
     lazy val blockFieldLookup : Map[String,SerializableTypeInfo[_ <: AnyRef]] = Map.empty ++ (for (c<-xsinfo.get.transitiveSubclasses) yield c.name->c)
         
     def getBlockField(name:String) : Option[SerializableTypeInfo[_ <: AnyRef]] = if (xsinfo.isDefined) Some(blockFieldLookup.getOrElse(name,error("Can't interpret "+name+" for field "+this.name))) else None
+    
+    val includeEmptyCollections : Boolean = parentInfo.includeEmptyCollections || hasAnnotation(typeIncludeEmptyCollections)
       
     def annotation(annotationClass:reflect.runtime.universe.Type) : Option[AnnotationInfo] = SerializableTypeInfo.annotation(fieldSymbol,annotationClass)
     def annotation(annotationClass:reflect.runtime.universe.Type,fieldName:String) : Option[Any] = SerializableTypeInfo.annotationField(fieldSymbol, annotationClass, fieldName)
