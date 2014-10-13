@@ -74,7 +74,10 @@ object MongoDBDeserialize {
     } else if (field.isCollectionOrArrayButNotOption) {
       value match {
         case a:Array[_] => field.collectionOfBuffer(a.map{parseBase _})
-        case _ => throw new IllegalArgumentException("Expecting array")
+        case a:java.util.ArrayList[_] =>
+          import scala.collection.JavaConverters._
+          field.collectionOfBuffer(a.asScala.toIndexedSeq.map{parseBase _})
+        case _ => throw new IllegalArgumentException("Expecting array for "+field.name+" got "+value.getClass())
       }
     } else if (field.isScalaOption) Some(parseBase(value))
     else parseBase(value)
