@@ -15,5 +15,6 @@
 			<attribute name="owner.project.facets" value="java"/>
 		</attributes>
 	</classpathentry>
+	<classpathentry kind="lib" path="/xs/lib/scala-swing_2.11-1.0.1.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
