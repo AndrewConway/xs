@@ -1,5 +1,5 @@
 /**
- * Copyright 2013 Andrew Conway. All rights reserved.
+ * Copyright 2013-2014 Andrew Conway. All rights reserved.
  */
 package org.greatcactus.xs.util;
 
@@ -18,8 +18,8 @@ class ZZZ_InterruptableFuture {
 
   import concurrent.ExecutionContext.Implicits.global
   
-  def now[T](what:InterruptableFuture[T]) : T = Await.result(what.future,0 nanos)
-  def soon[T](what:InterruptableFuture[T]) : T = Await.result(what.future,1 second)
+  def now[T](what:InterruptableFuture[T]) : T = Await.result(what.future,Duration.Zero)
+  def soon[T](what:InterruptableFuture[T]) : T = Await.result(what.future,Duration(1,TimeUnit.SECONDS))
   
 	@Test
 	def testEager() {
