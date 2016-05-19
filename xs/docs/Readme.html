@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>XS automatic editor and serialization for hierarchical Scala structures</title>
+</head>
+<body>
+  <h1>XS automatic editor and serialization for hierarchical Scala structures</h1>
+  <p>
+    XS is a library that generates an professional HTML5 editor and XML/JSON/BSON serialization
+    for many Scala classes using reflection and a small amount of annotations. 
+  </p>
+  
+  <h2>Why you would want to use it</h2>
+  <ul>
+    <li>Professional editor with few annotations</li>
+    <li>Hierarchical structures deal with trees and/or tables</li>
+    <li>Powerful error reporting - squiggly underlines under the offending characters of fields with tooltips<li>
+    <li>Simple cases are easy, and many complex cases are possible</li>
+    <li>Can be used with a variety of front ends, including Java Servlets and Play</li>
+    <li>Drag and drop, cut and paste</li>
+    <li>Fields can be text, multiple choice, boolean, numbers, images, or anything that can be converted to/from strings and edited as strings</li>
+    <li>Internationalization using .properties files</li>
+    <li>Deals reasonably well with high latency connections</li>
+  </ul>
+
+  <h2>What does it require?</h2>
+  <ul>
+    <li>Scala 2.10 (uses reflection API)</li>
+    <li>jQuery (tested with 1.9, probably works with significantly earlier versions)</li>
+    <li>Slick.Grid if using grids</li>
+    <li>A few other jquery plugins</li>
+    <li>IE9 or later, recent Firefox or Chrome, others under testing</li>
+    <li>Data structures that can be created with a constructor (rather than individually setting var fields)</li>
+  </ul>  
+  
+  <h2>Why would you not want to use it?</h2>
+  <ul>
+    <li>You need to support old browsers. Sorry.</li>
+    <li>You want to edit circular data structures.</li>
+    <li>Given a field of type Option[String], you want the user to be able to enter (and distinguish) None, null, Some(null), and Some(""). (many people would consider you mad in this case anyway)</li>
+    <li>You are very bandwidth constrained. XS sends a network packet each time the user does something (eg types a key). This enables dynamic error highlighting, but could add up to large mobile connection costs.</li>
+    <li>You want a stateless system that can scale to many servers easily. XS keeps track of what is being shown on a user's display in order to optimize updating. But this requires session tracking with significant state.</li> 
+  </ul>
+  
+  <h2>What license is it distributed under?</h2>
+  <p>MIT. It uses some <a href="Deployment.html">other libraries</a> which are generally also redistributable under similar licenses.</p>
+  
+  <h2>Documentation</h2>
+  
+  <p>There are  conceptual parts of XS that the user deals with: the data model that describes the structures being edited,
+  and the deployment environment which is how you fit XS into a web app.</p>
+  
+  <h3>How to use the UI and what it looks like.</h3>
+  
+  There is a <a href="http://www.youtube.com/watch?v=2YaAUBErako">5:57 video</a> demonstrating some of the features. 
+  For a hands on experience, download and run the demo (see the deployment section)
+  
+  <h3>Data model - annotations on your data structures</h3>
+  <p>There is a ten slide <a href="XS.pptx">PowerPoint presentation</a> that gives a feeling for the data model. There is
+  a more complete text <a href="Introduction.html">introduction to most of the features</a>. Javadocs/Scaladocs in the
+  source code cover the minutiae of various annotations. More detailed information about
+  <a href="Icons.html">Icons</a> and <a href="Localization.html">text (localization)</a> are available. Lastly
+  there is a <a href="http://www.youtube.com/watch?v=gUqh6EbMx3s">13:11 video</a> describing the data model behind the earlier video. 
+  
+  <p>A fairly sophisticated examples are given in the org.greatcactus.xs.test package - start at SpaceClasses.scala</p>
+  
+  <h3>Deployment</h3>
+  <p>Deployment in your XS model is described in <a href="Deployment.html">this document</a>. Some details of the network
+  protocol are <a href="architecture/NetworkConnection.html">included</a> but are probably unnecessary to read. Example Servlet
+  and Play deployments are available.
+  
+  <h3>Roadmap</h3>
+  
+  <p>XS 1.0 was released March 2013.
+  There is a <a href="Roadmap.html">Roadmap</a> available.</p>
+
+  <h2>Contact</h2>
+  <p>For bug reports, questions, etc. (please tell me if you use it), please use the user name <code>AndrewConwayXS</code> at the domain <code>greatcactus.org</code>.</p>
+</body>
+</html>
