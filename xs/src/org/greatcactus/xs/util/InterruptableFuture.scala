@@ -23,7 +23,7 @@ import java.util.concurrent.ExecutionException
  *      * If the code finishes without checking, then the interruptible future will check it itself and if interrupted it will get completed with an InterruptedException
  *   * If cancel is called after it has complete, then nothing happens
  *   
- * Note that unlike normal futures, an Interrupted exception is completes the future (as a failure).
+ * Note that unlike normal futures, an Interrupted exception completes the future (as a failure).
  * 
  * For the monadic combinators, cancel has the semantics that cancelling the newly created one will cancel the older ones, but not vice versa.
  */
